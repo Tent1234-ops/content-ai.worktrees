@@ -1,0 +1,747 @@
+{
+  "info": {
+    "name": "Content Trend Analysis API",
+    "description": "Postman collection สำหรับ backend ระบบวิเคราะห์คอนเทนต์: auth, upload, recommendation, dashboard, trends, follows, notifications, admin.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "<user_access_token>",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "<admin_access_token>",
+      "type": "string"
+    },
+    {
+      "key": "content_id",
+      "value": "<saved_content_id>",
+      "type": "string"
+    },
+    {
+      "key": "follow_topic_id",
+      "value": "<follow_topic_id>",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "<notification_id>",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth / Register",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"creator_demo\",\n  \"email\": \"creator_demo@example.com\",\n  \"password\": \"password123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/register",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Auth / Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"creator_demo@example.com\",\n  \"password\": \"password123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Auth / Me",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/me",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Analyze / Save Upload",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "<path-to-video-file>"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/analyze/save",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "analyze",
+            "save"
+          ]
+        }
+      }
+    },
+    {
+      "name": "My Ideas / Content History",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/contents/my?limit=20&offset=0",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "contents",
+            "my"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "offset",
+              "value": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Content Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/contents/{{content_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "contents",
+            "{{content_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Recommendation / From Text",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"รีวิวมือถือใหม่\",\n  \"text\": \"รีวิวมือถือใหม่ ฟีเจอร์กล้องชัด แบตอึด\",\n  \"source\": \"youtube\",\n  \"profile_limit\": 120\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/recommendations/from-text",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "recommendations",
+            "from-text"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Recommendation / From Saved Content",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/recommendations/from-content/{{content_id}}?source=youtube&profile_limit=150",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "recommendations",
+            "from-content",
+            "{{content_id}}"
+          ],
+          "query": [
+            {
+              "key": "source",
+              "value": "youtube"
+            },
+            {
+              "key": "profile_limit",
+              "value": "150"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Dashboard Overview",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/dashboard/overview?region=TH&trend_mode=live&trend_limit=5",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dashboard",
+            "overview"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "TH"
+            },
+            {
+              "key": "trend_mode",
+              "value": "live"
+            },
+            {
+              "key": "trend_limit",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Dashboard Emerging Topics",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/dashboard/emerging-topics?region=TH&trend_mode=live&trend_limit=5",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "dashboard",
+            "emerging-topics"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "TH"
+            },
+            {
+              "key": "trend_mode",
+              "value": "live"
+            },
+            {
+              "key": "trend_limit",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Trends / YouTube",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/trends/youtube?region=TH&mode=live&limit=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "trends",
+            "youtube"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "TH"
+            },
+            {
+              "key": "mode",
+              "value": "live"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Trends / Google",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/trends/google?region=TH&mode=live&limit=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "trends",
+            "google"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "TH"
+            },
+            {
+              "key": "mode",
+              "value": "live"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Trends / TikTok",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/trends/tiktok?region=TH&mode=live&limit=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "trends",
+            "tiktok"
+          ],
+          "query": [
+            {
+              "key": "region",
+              "value": "TH"
+            },
+            {
+              "key": "mode",
+              "value": "live"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Follows / Add Topic",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"match_type\": \"keyword\",\n  \"value\": \"รีวิวมือถือ\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/follows/topic",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "follows",
+            "topic"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Follows / List Topics",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/follows/topics",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "follows",
+            "topics"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Notifications / List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/notifications?unread_only=true&limit=20&offset=0",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "notifications"
+          ],
+          "query": [
+            {
+              "key": "unread_only",
+              "value": "true"
+            },
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "offset",
+              "value": "0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Notifications / Mark Read",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ids\": [1, 2, 3]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/notifications/mark_read",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "notifications",
+            "mark_read"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin / Get Settings",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/settings",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "settings"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin / Update Settings",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"max_keywords_display\": 15,\n  \"hook_analysis_duration\": 90,\n  \"analysis_time_range_days\": 120,\n  \"youtube_region\": \"TH\",\n  \"google_region\": \"TH\",\n  \"tiktok_region\": \"TH\",\n  \"enable_youtube_trending\": true,\n  \"enable_google_trends\": true,\n  \"enable_tiktok_trending\": true,\n  \"auto_scan_interval_hours\": 6\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/admin/settings",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "settings"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin / Reports Overview",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/reports/overview",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "reports",
+            "overview"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin / Scan YouTube",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/scan/youtube?limit=20&region=TH&mode=live",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "scan",
+            "youtube"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "region",
+              "value": "TH"
+            },
+            {
+              "key": "mode",
+              "value": "live"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin / Scan Google",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/scan/google?limit=20&region=TH&mode=live",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "scan",
+            "google"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "region",
+              "value": "TH"
+            },
+            {
+              "key": "mode",
+              "value": "live"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Admin / Scan TikTok",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/scan/tiktok?limit=20&region=TH&mode=live",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "admin",
+            "scan",
+            "tiktok"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "region",
+              "value": "TH"
+            },
+            {
+              "key": "mode",
+              "value": "live"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

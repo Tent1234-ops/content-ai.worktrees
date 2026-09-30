@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="th">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>แบบประเมินคำแนะนำ</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;background:#f6f7f8;color:#192024;line-height:1.6}
+main{max-width:980px;margin:auto;padding:24px}header{border-bottom:1px solid #c9d2d0;padding-bottom:16px}
+h1{font-size:24px}h2{font-size:20px}h3{font-size:17px}h4{font-size:15px}button{background:#087c68;color:white;border:0;border-radius:4px;padding:10px 16px;cursor:pointer}
+section{padding:20px 0}video{width:100%;max-height:420px;background:#111}label{display:block;margin:14px 0}
+select,textarea{width:100%;padding:10px;border:1px solid #9caeab;border-radius:4px;font:inherit}textarea{min-height:72px}
+p,blockquote,summary,a{overflow-wrap:anywhere}blockquote{margin:12px 0;padding-left:16px;border-left:3px solid #78948e}
+.item{border-top:1px solid #c9d2d0;padding-top:12px;margin-top:12px}.muted,small{color:#53625e}small{display:block}
+details{margin:12px 0;padding:8px 0}summary{cursor:pointer;color:#006b5a}fieldset{border:1px solid #b6c6c0;border-radius:4px;margin:16px 0}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:14px}td,th{padding:8px;text-align:left;border-bottom:1px solid #dbe2df;overflow-wrap:anywhere}
+.warning{background:#fff3d5;padding:12px;color:#5e4300}#error{color:#a21525;min-height:28px}button:focus-visible,a:focus-visible{outline:3px solid #bb7700}
+@media(max-width:650px){main{padding:16px}td,th{padding:4px;font-size:13px}}
+</style></head>
+<body><main><header><h1>แบบประเมินคำแนะนำสำหรับคลิป</h1>
+<p>ดูคลิปก่อนตอบ แล้วประเมินคำแนะนำทีละชุด รหัสชุดไม่บอกว่าเป็นระบบใด แต่ลักษณะหลักฐานอาจทำให้คาดเดารูปแบบได้ และเนื้อหาชุดก่อนอาจมีผลต่อคะแนนชุดถัดไป</p>
+<button id="export" type="button">ดาวน์โหลดคะแนนที่กรอกแล้ว</button></header>
+<p id="error" role="alert"></p><section id="root"></section></main>
+<script>
+'use strict';
+const config=__REVIEW_CONFIG__,packet=config.packet,root=document.getElementById('root');
+const labels={relevance:'ความเกี่ยวข้อง',novelty:'ไม่ซ้ำสิ่งที่พูดแล้ว',clarity:'เข้าใจง่าย',actionability:'นำไปทำต่อได้',evidence_correctness:'ความถูกต้องของหลักฐาน',abstention_appropriateness:'ความเหมาะสมของการงดแนะนำ'};
+const flagLabels={wrong_category:'แนะนำผิดหมวด',duplicated_topic:'แนะนำสิ่งที่พูดแล้ว',fabricated_quote_or_time:'ข้อความอ้างอิงหรือเวลาผิด',incorrect_count:'จำนวนตัวอย่างผิด',unsupported_spec:'สมมุติสเปกสินค้า',causal_engagement_claim:'อ้างว่าเพิ่มยอดได้แน่นอน',test_data_leakage:'ข้อมูลทดสอบปะปนกับข้อมูลพัฒนา'};
+const states={reference_only:'พบในคลิปอ้างอิง หลักฐานยังไม่พอเปรียบเทียบ',not_comparable:'ยังเปรียบเทียบไม่ได้',comparison_descriptive:'เปรียบเทียบเชิงพรรณนา',comparison_uncertain:'ผลต่างยังไม่แน่นอน',comparison_supported:'พบความแตกต่างในข้อมูลที่มี'};
+const metricLabels={views:'ยอดวิวสะสม',likes_per_1000_views:'ไลก์ต่อ 1,000 วิว',comments_per_1000_views:'ความคิดเห็นต่อ 1,000 วิว',views_per_hour:'วิวเพิ่มเฉลี่ยต่อชั่วโมงในช่วงที่เก็บจริง'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const number=v=>v===null||v===undefined?'ไม่มีข้อมูล':esc(v);
+function safeURL(url){try{const u=new URL(url);return ['https:','http:'].includes(u.protocol)?u.href:null}catch{return null}}
+let response={schema_version:config.review_schema,study_id:packet.study_id,protocol_sha256:packet.protocol_sha256,packet_sha256:packet.packet_sha256,reviewer_id:packet.reviewer_id,consent:false,pre_reviews:[],ratings:[]};
+let caseIndex=0,stage='consent',presentationIndex=0;
+const storageKey=`utility-review:${packet.packet_sha256}`;
+function warn(message){document.getElementById('error').textContent=message;return false}
+function persist(){try{localStorage.setItem(storageKey,JSON.stringify({response,caseIndex,stage,presentationIndex}))}catch{warn('เก็บฉบับร่างในเบราว์เซอร์ไม่ได้ กรุณาดาวน์โหลดคะแนนที่กรอกแล้ว')}}
+try{const saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved&&saved.response.packet_sha256===packet.packet_sha256){response=saved.response;caseIndex=saved.caseIndex;stage=saved.stage;presentationIndex=saved.presentationIndex}}catch{}
+function score(name){const anchors=config.rubric[name]||[];return `<label>${esc(labels[name])}<select id="${name}"><option value="">เลือกคะแนน</option>${[1,2,3,4,5].map(n=>`<option value="${n}">${n}</option>`).join('')}</select><small>${anchors.map((text,i)=>`${i*2+1}: ${esc(text)}`).join(' | ')}<br>2 และ 4 คือระดับระหว่างตัวอย่างข้างเคียง</small></label>`}
+function renderComparison(comparison){if(!comparison)return '<p>ไม่มีข้อมูลเปรียบเทียบ</p>';return Object.entries(comparison.metrics||{}).map(([key,m])=>`<h4>${esc(metricLabels[key]||key)}</h4><p>${esc(states[m.status]||m.status)}</p><table><thead><tr><th>กลุ่ม</th><th>คลิป</th><th>ค่ามัธยฐาน</th><th>ช่วง P25–P75</th></tr></thead><tbody>${[['detected','พูดถึง'],['not_detected','ยังไม่พบว่าพูดถึง']].map(([arm,label])=>`<tr><td>${label}</td><td>${number(m[arm]?.count)}</td><td>${number(m[arm]?.median)}</td><td>${number(m[arm]?.p25)} ถึง ${number(m[arm]?.p75)}</td></tr>`).join('')}</tbody></table><p>ช่องที่มีข้อมูลทั้งสองกลุ่ม: ${number(m.paired_channel_count)} | ผลต่างค่ากลางภายในช่อง: ${number(m.within_channel_median_difference)}</p><p>ช่วงความไม่แน่นอน: ${m.uncertainty?.status==='available'?`${number(m.uncertainty.low)} ถึง ${number(m.uncertainty.high)}`:'หลักฐานยังไม่พอประเมิน'}</p><p class="muted">${esc(m.limitation||comparison.limitation)}</p>`).join('')}
+function renderReference(r){const url=safeURL(r.url);return `<article class="item"><strong>${esc(r.title||`คลิปอ้างอิง ${r.dataset_id}`)}</strong><p>แถวข้อมูล ${esc(r.dataset_id)} | Video ID ${esc(r.video_id)} | ช่อง ${esc(r.channel_id)}</p>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">เปิดคลิปอ้างอิง</a>`:''}<p>เผยแพร่: ${esc(r.published_at||'ไม่มีข้อมูล')}<br>เก็บสถิติ: ${esc(r.statistics_captured_at||'ไม่มีข้อมูล')}</p><p>วิว ${number(r.statistics?.views)} | ไลก์ ${number(r.statistics?.likes)} | ความคิดเห็น ${number(r.statistics?.comments)}</p>${(r.occurrences||[]).map(o=>`<blockquote>${esc(o.quote)}</blockquote><small>${o.timestamp?`เวลา ${number(o.timestamp.start_seconds)}–${number(o.timestamp.end_seconds)} วินาที`:'ต้นทางไม่มีเวลาที่อ้างอิงได้'}</small>`).join('')}</article>`}
+function renderItems(p){if(!p.items.length)return '<p><strong>ระบบงดคำแนะนำในชุดนี้</strong></p>';return p.items.map(x=>`<article class="item"><h3>${esc(x.title)}</h3>${x.action?`<p>${esc(x.action.finding)}</p><p><strong>เสนอ:</strong> ${esc(x.action.proposal)}</p>${x.action.condition?`<p class="warning"><strong>เงื่อนไข:</strong> ${esc(x.action.condition)}</p>`:''}<ol>${(x.action.steps||[]).map(step=>`<li>${esc(step)}</li>`).join('')}</ol><p><strong>ตัวอย่าง:</strong> ${esc(x.action.example)}</p>`:''}${x.evidence?`<p><strong>เหตุผล:</strong> ${esc(x.evidence.reason)}</p><p>${esc(x.evidence.relevance_reason)}</p><p>สนับสนุน ${number(x.evidence.support_count)} คลิป จาก ${number(x.evidence.channel_count)} ช่อง | ฐานอ้างอิง ${number(x.evidence.sample_size)} คลิป</p><p class="muted">${esc(x.evidence.limitation)}</p><details class="references"><summary>ข้อความและคลิปอ้างอิง (${x.evidence.references.length} ตัวอย่าง)</summary>${x.evidence.references.map(renderReference).join('')}</details><details class="comparisons"><summary>กลุ่มเปรียบเทียบและข้อจำกัด</summary>${renderComparison(x.evidence.topic_comparison)}</details>`:''}</article>`).join('')}
+function render(){const c=packet.cases[caseIndex];document.getElementById('error').textContent='';
+ if(stage==='consent'){root.innerHTML=`<h2>ยินยอมเข้าร่วม</h2><p>รหัสผู้ประเมิน: ${esc(packet.reviewer_id)}</p><label><input id="consent" type="checkbox"> ยินยอมให้ใช้คะแนนแบบไม่เปิดเผยตัวตน</label><button id="next">เริ่ม</button>`;document.getElementById('next').onclick=()=>{if(!document.getElementById('consent').checked)return warn('กรุณายืนยันความยินยอม');response.consent=true;stage='pre';persist();render()};return}
+ if(!c){root.innerHTML='<h2>ประเมินครบแล้ว</h2><p>ดาวน์โหลดไฟล์คะแนนและส่งคืนผู้ดูแลการทดลอง</p>';return}
+ if(stage==='pre'){root.innerHTML=`<h2>คลิป ${caseIndex+1} / ${packet.cases.length}</h2><video controls src="${esc(c.video_uri)}"></video><label><input id="watched" type="checkbox"> ดูและฟังคลิปนี้แล้ว</label><p>ก่อนเห็นคำแนะนำ คลิปนี้ยังมีโอกาสปรับเนื้อหาหรือไม่?</p><select id="opp"><option value="">เลือกคำตอบ</option><option value="yes">มี</option><option value="no">ไม่มี</option><option value="unclear">ไม่แน่ใจ</option></select><label>เหตุผลหรือประเด็นที่พบ<textarea id="preNote"></textarea></label><button id="next">ยืนยันแล้วดูคำแนะนำ</button>`;root.querySelector('video').onerror=()=>warn('เปิดไฟล์วิดีโอไม่ได้ กรุณาติดต่อผู้ดูแลก่อนให้คะแนน');document.getElementById('next').onclick=savePre;return}
+ const p=c.presentations[presentationIndex],empty=p.item_count===0;
+ root.innerHTML=`<h2>ชุดคำแนะนำ ${presentationIndex+1} / ${c.presentations.length}</h2><p class="muted">รหัส ${esc(p.presentation_id)}</p>${renderItems(p)}${empty?'<label><input id="missed" type="checkbox"> ระบบงด แต่ยังมีประเด็นสำคัญที่ควรเสนอ</label>':''}<div id="scores">${empty?score('abstention_appropriateness'):config.utility_fields.map(score).join('')+(p.evidence_score_applicable?score('evidence_correctness'):'')}</div><label>เหตุผลเมื่อให้คะแนน 1–2<textarea id="lowReason"></textarea></label><fieldset><legend>ข้อผิดพลาดร้ายแรง (ถ้ามี)</legend>${config.critical_flags.map(f=>`<label><input type="checkbox" name="flag" value="${f}"> ${esc(flagLabels[f]||f)}</label>`).join('')}</fieldset><button id="next">บันทึกชุดนี้</button>`;
+ if(empty)document.getElementById('missed').onchange=e=>{document.getElementById('scores').innerHTML=e.target.checked?score('actionability'):score('abstention_appropriateness')};document.getElementById('next').onclick=saveRating;
+}
+function savePre(){const watched=document.getElementById('watched').checked,value=document.getElementById('opp').value,notes=document.getElementById('preNote').value.trim();if(!watched||!value||!notes)return warn('กรุณาดูคลิป ตอบคำถาม และระบุเหตุผลก่อน');response.pre_reviews.push({case_id:packet.cases[caseIndex].case_id,watched_video:true,improvement_opportunity:value,notes,submitted_at:new Date().toISOString()});stage='rating';persist();render()}
+function saveRating(){const c=packet.cases[caseIndex],p=c.presentations[presentationIndex],empty=p.item_count===0,missed=!!document.getElementById('missed')?.checked,scores={};const names=empty?(missed?['actionability']:['abstention_appropriateness']):config.utility_fields.concat(p.evidence_score_applicable?['evidence_correctness']:[]);
+ for(const name of names){const value=document.getElementById(name)?.value;if(!value)return warn('กรุณาให้คะแนนทุกช่องที่เกี่ยวข้อง');scores[name]=Number(value)}
+ if(empty&&missed&&scores.actionability!==1)return warn('หากยืนยันว่าระบบพลาดโอกาสและไม่มีคำแนะนำ ให้คะแนนนำไปทำต่อได้ 1');
+ if(!p.evidence_score_applicable)scores.evidence_correctness='N/A';if(!empty||missed)scores.abstention_appropriateness='N/A';
+ const reason=document.getElementById('lowReason').value.trim();if(Object.values(scores).some(v=>Number.isInteger(v)&&v<=2)&&!reason)return warn('กรุณาระบุเหตุผลของคะแนน 1–2');
+ response.ratings.push({case_id:c.case_id,presentation_id:p.presentation_id,unit_id:p.unit_id,output_sha256:p.output_sha256,scores,missed_opportunity:missed,low_score_reason:reason,critical_flags:[...document.querySelectorAll('input[name=flag]:checked')].map(x=>x.value),submitted_at:new Date().toISOString()});
+ presentationIndex++;if(presentationIndex>=c.presentations.length){caseIndex++;presentationIndex=0;stage='pre'}persist();render();window.scrollTo(0,0);
+}
+document.getElementById('export').onclick=()=>{const blob=new Blob([JSON.stringify(response,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${packet.study_id}-${packet.reviewer_id}-responses.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+render();
+</script></body></html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Job Polling Example</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px }
+    .card { border: 1px solid #ddd; padding: 16px; border-radius: 8px; max-width: 800px }
+    .spinner { display:inline-block; width:18px; height:18px; border-radius:50%; border:3px solid #ccc; border-top-color:#007bff; animation:spin 1s linear infinite }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h3>Analyze Job Demo (client-side polling)</h3>
+    <p>After POST /analyze or POST /analyze/save you receive: {"job_id": "..."}</p>
+    <p>Use the snippet below to poll job status and show results.</p>
+    <pre id="snippet">
+// Example JS (fetch API)
+async function pollJob(jobId){
+  const url = `/jobs/${jobId}`;
+  while(true){
+    const r = await fetch(url);
+    const json = await r.json();
+    console.log('status', json.status);
+    if(json.status === 'completed'){
+      // render json.result
+      document.getElementById('out').textContent = JSON.stringify(json.result, null, 2);
+      break;
+    }
+    if(json.status === 'failed'){
+      alert('Job failed: '+json.error);
+      break;
+    }
+    // show spinner/progress
+    document.getElementById('status').innerHTML = '<span class="spinner"></span> Waiting...';
+    await new Promise(res=>setTimeout(res, 1500));
+  }
+}
+    </pre>
+    <div id="status">Idle</div>
+    <pre id="out" style="background:#f7f7f7;padding:12px;border-radius:6px;margin-top:12px;">No result yet</pre>
+  </div>
+</body>
+</html>

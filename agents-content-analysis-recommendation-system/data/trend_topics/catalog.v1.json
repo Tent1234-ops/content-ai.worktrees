@@ -1,0 +1,27 @@
+{
+  "version": "topic-catalog-v1",
+  "source": "Explicit project examples, not labels inferred from the evaluation set",
+  "topics": [
+    {
+      "id": "squishy",
+      "label": "สกุชชี้",
+      "kind": "object",
+      "aliases": [
+        {"text": "สกุชชี้"},
+        {"text": "สกุชชี่"},
+        {"text": "squishy", "context_any": ["toy", "toys", "unbox", "unboxing", "foam", "collectible", "ของเล่น", "แกะกล่อง", "บีบ", "สกุชชี้", "สกุชชี่"], "exclude_any": ["squishy cake recipe", "squishy bread recipe"]}
+      ]
+    },
+    {
+      "id": "blind_box",
+      "label": "กล่องสุ่ม",
+      "kind": "object",
+      "aliases": [
+        {"text": "กล่องสุ่ม"},
+        {"text": "blind box"},
+        {"text": "blind boxes"}
+      ]
+    }
+  ],
+  "never_merge": [["squishy", "blind_box"]]
+}

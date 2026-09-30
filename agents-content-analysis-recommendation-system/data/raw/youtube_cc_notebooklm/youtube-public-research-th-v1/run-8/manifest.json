@@ -1,0 +1,148 @@
+{
+  "schema_version": 4,
+  "collection_run_id": 8,
+  "run_key": "0e50fb866d57f2646030d43b71de5d74f35870a7d485859a55d55ca6802caef9",
+  "dataset_source": "youtube_public_research",
+  "dataset_version": "youtube-public-research-th-v1",
+  "taxonomy_version": "content-taxonomy-v1",
+  "status": "review_pending",
+  "started_at": "2026-08-26T14:51:10Z",
+  "updated_at": "2026-08-26T14:51:19Z",
+  "completed_at": "2026-08-26T14:51:19Z",
+  "resume_count": 0,
+  "config": {
+    "collection_method": "notebooklm_manual_source",
+    "languages": [
+      "th"
+    ],
+    "leaf_keys": [
+      "phone"
+    ],
+    "license_policy": "public_youtube_license_recorded_v1",
+    "max_videos_per_channel_per_leaf": 3,
+    "min_thai_per_leaf": 30,
+    "queries_by_leaf": {
+      "phone": [
+        "notebooklm_manual_source"
+      ]
+    },
+    "sampling_plan": [],
+    "schema_version": 4,
+    "target_per_leaf": 50,
+    "transcript_scope": "full_video",
+    "transcript_timestamps_available": false,
+    "usage_policy": "academic_research_no_dataset_redistribution_v1"
+  },
+  "candidate_artifact": {
+    "path": "Z:\\content-ai.worktrees\\agents-content-analysis-recommendation-system\\data\\raw\\youtube_cc_notebooklm\\youtube-public-research-th-v1\\run-8\\candidates.jsonl",
+    "sha256": "3261f4648a2bcbb309a8ce9548dcd078386ec5044a7156fcd357a559058d5935",
+    "rows": 21
+  },
+  "human_review_template": {
+    "path": "Z:\\content-ai.worktrees\\agents-content-analysis-recommendation-system\\data\\raw\\youtube_cc_notebooklm\\youtube-public-research-th-v1\\run-8\\review.csv",
+    "sha256": "38103f8b0fe33b57b32785ced38eaae1f346d278e6059087382b05e3e40f464c",
+    "auto_approved_rows": 0
+  },
+  "accepted_by_leaf": {
+    "phone": 21
+  },
+  "view_metric_versions": {
+    "youtube_play_start_view_v2": 21
+  },
+  "accepted_by_strategy": {
+    "classification_diverse": {
+      "phone": 21
+    },
+    "recommendation_high_performance": {}
+  },
+  "progress": {
+    "target_total": 50,
+    "accepted_total": 21,
+    "remaining_total": 29,
+    "percent": 42.0,
+    "language_counts": {
+      "th": 21
+    },
+    "unique_channels": 14,
+    "complete_leaves": 0,
+    "leaf_count": 1,
+    "by_leaf": [
+      {
+        "leaf_key": "phone",
+        "target": 50,
+        "accepted": 21,
+        "remaining": 29,
+        "percent": 42.0,
+        "language_counts": {
+          "th": 21
+        },
+        "existing_training_language_counts": {
+          "en": 28,
+          "th": 9
+        },
+        "cumulative_training_language_counts": {
+          "en": 28,
+          "th": 30
+        },
+        "thai_minimum": 30,
+        "thai_remaining": 0,
+        "unique_channels": 14,
+        "minimum_unique_channels_expected": 17,
+        "max_videos_per_channel": 3,
+        "strategy_counts": {
+          "classification_diverse": 21,
+          "recommendation_high_performance": 0
+        },
+        "complete": false
+      }
+    ]
+  },
+  "rejected_reasons": {},
+  "quality_filters": {
+    "skipped_total": 0,
+    "skipped_by_reason": {}
+  },
+  "deduplication": {
+    "database_video_ids": 96,
+    "database_transcript_hashes": 96,
+    "prior_artifact_runs": 7,
+    "prior_artifact_rows": 120,
+    "prior_excluded_artifacts": 1,
+    "prior_excluded_artifact_rows": 9,
+    "catalog_video_ids": 129,
+    "catalog_transcript_hashes": 129,
+    "catalog_unique_channels_by_leaf": {
+      "phone": 16,
+      "laptop": 3,
+      "camera": 3,
+      "hardware": 2,
+      "audio": 1
+    },
+    "existing_training_language_counts_by_leaf": {
+      "phone": {
+        "en": 28,
+        "th": 9
+      },
+      "hardware": {
+        "en": 4,
+        "th": 2
+      },
+      "camera": {
+        "en": 21,
+        "th": 3
+      },
+      "laptop": {
+        "en": 13,
+        "th": 3
+      },
+      "audio": {
+        "en": 4,
+        "th": 1
+      }
+    },
+    "warnings": [],
+    "skipped_total": 0,
+    "skipped_by_reason": {}
+  },
+  "search_state": {}
+}

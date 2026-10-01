@@ -105,13 +105,13 @@ class AnalysisSettingsTests(unittest.TestCase):
     def test_model_details_use_artifact_threshold_and_no_active_is_explicit(self):
         self.assertIsNone(get_analysis_settings(self.db, admin=True)["classification_model"]["model_id"])
         model = self.add_model()
-        with patch("app.services.analysis_settings.load_classification_artifact", return_value={
+        with patch("app.services.classification_readiness.load_classification_artifact", return_value={
             "model_key": model.model_key, "model_version": model.model_version, "unknown_threshold": 0.72,
-        }), patch("app.services.analysis_settings.classification_artifact_sha256", return_value="abc"):
+        }), patch("app.services.classification_readiness.classification_artifact_sha256", return_value="abc"):
             snapshot = capture_analysis_settings(self.db)
         self.assertEqual(snapshot["classification_model"]["unknown_threshold"], 0.72)
         self.assertEqual(snapshot["classification_model"]["artifact_sha256"], "abc")
-        with patch("app.services.analysis_settings.load_classification_artifact", side_effect=EOFError("bad artifact")):
+        with patch("app.services.classification_readiness.load_classification_artifact", side_effect=EOFError("bad artifact")):
             self.assertEqual(get_analysis_settings(self.db, admin=True)["classification_model"]["status"], "artifact_unavailable")
             with self.assertRaisesRegex(ValueError, "artifact is unavailable"):
                 capture_analysis_settings(self.db)

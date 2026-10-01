@@ -4,16 +4,11 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from app.core.config import settings as runtime_settings
-from app.services.classification_acceptance import POLICY_VERSION, acceptance_summary
 from app.database.models import ModelEvaluationMetric
 from app.schemas.analysis_settings import AnalysisParameters, WHISPER_SIZES
 from app.services.admin_settings import get_or_create_admin_config
 from app.services.classification import get_active_classification_model
-from app.services.classification_training import (
-    classification_artifact_sha256,
-    load_classification_artifact,
-)
+from app.services.classification_readiness import classification_model_snapshot
 from app.services.persistence import log_system_event
 from models.speech_to_text import ModelManager, check_model_readiness
 
@@ -27,34 +22,7 @@ def _parameters(config) -> AnalysisParameters:
 
 
 def _classification_snapshot(db: Session) -> dict:
-    model = get_active_classification_model(db)
-    if model is None:
-        return {"model_id": None, "status": "unavailable"}
-    result = {
-        "model_id": model.model_id,
-        "model_key": model.model_key,
-        "model_version": model.model_version,
-        "model_type": model.model_type,
-        "training_sample_count": model.training_sample_count,
-        "taxonomy_version": model.taxonomy_version,
-        "status": model.status,
-    }
-    try:
-        artifact = load_classification_artifact(model.artifact_path)
-        if artifact["model_key"] != model.model_key or artifact["model_version"] != model.model_version:
-            raise ValueError("Classification artifact does not match the model registry")
-        if artifact.get("smoke_test_only"):
-            raise ValueError("Smoke-test model cannot be used for analysis")
-        result.update(
-            unknown_threshold=float(artifact["unknown_threshold"]),
-            artifact_sha256=classification_artifact_sha256(model.artifact_path),
-            scope_validation_required=runtime_settings.classification_require_scope_validation,
-            acceptance_policy_version=POLICY_VERSION,
-            scope_validation=acceptance_summary(artifact.get("scope_policy")),
-        )
-    except Exception:
-        result["status"] = "artifact_unavailable"
-    return result
+    return classification_model_snapshot(get_active_classification_model(db))
 
 
 def get_analysis_settings(db: Session, *, admin: bool = False) -> dict:

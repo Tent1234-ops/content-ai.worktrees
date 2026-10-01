@@ -31,6 +31,7 @@ class TrainedModel {
         unknownThreshold = (json['unknown_threshold'] as num?)?.toDouble(),
         metrics = trainingRows(json['metrics']),
         qualification = trainingMap(json['qualification']),
+        readiness = trainingMap(json['readiness']),
         perCategory = trainingRows(json['per_category']),
         confusionMatrices = trainingRows(json['confusion_matrices']);
   final int id, sampleCount;
@@ -38,7 +39,7 @@ class TrainedModel {
   final bool isActive, canActivate, artifactAvailable;
   final double? unknownThreshold;
   final List<Map<String, dynamic>> metrics, perCategory, confusionMatrices;
-  final Map<String, dynamic> qualification;
+  final Map<String, dynamic> qualification, readiness;
   Map<String, dynamic>? metric(String split, String name) {
     for (final row in metrics) {
       if (row['split'] == split && row['metric'] == name) return row;
@@ -89,7 +90,7 @@ String trainingStatus(String value) => switch (value) {
       'not_ready' => 'ข้อมูลยังไม่พร้อมเทรน',
       'failed' => 'เทรนไม่สำเร็จ',
       'interrupted' => 'งานเทรนหยุดกลางทาง',
-      'qualified' => 'ผ่านเกณฑ์',
+      'qualified' => 'ผ่านเกณฑ์ที่บันทึกไว้',
       'evaluated_below_threshold' => 'ยังไม่ผ่านเกณฑ์',
       'smoke_test_only' => 'ทดลองเท่านั้น',
       _ => value,

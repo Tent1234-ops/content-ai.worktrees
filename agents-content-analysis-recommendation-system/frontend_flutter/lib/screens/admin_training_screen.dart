@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../widgets/classification_readiness_panel.dart';
 
 import '../models/model_training.dart';
 import '../repositories/admin_repository.dart';
@@ -219,6 +220,9 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
                           if (active != null)
                             Text(
                                 'รุ่น ${active.version} · เกณฑ์ Unknown ${trainingPercent(active.unknownThreshold)}'),
+                          if (active != null)
+                            ClassificationReadinessPanel(
+                                readiness: active.readiness),
                           const SizedBox(height: 16),
                           if (_error != null)
                             Padding(
@@ -506,6 +510,8 @@ class _ModelDetailsState extends State<_ModelDetails> {
                         Text(trainingModelName(model.key),
                             style: Theme.of(context).textTheme.titleLarge),
                         SelectableText(model.version),
+                        ClassificationReadinessPanel(
+                            readiness: model.readiness),
                         Text(
                             '${trainingStatus(model.status)} · Unknown threshold ${trainingPercent(model.unknownThreshold)}'),
                         if (!model.artifactAvailable)

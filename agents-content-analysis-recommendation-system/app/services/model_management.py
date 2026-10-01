@@ -18,6 +18,7 @@ from app.services.admin_settings import get_or_create_admin_config
 from app.services.classification import get_active_classification_model
 from app.services.classification_acceptance import POLICY_VERSION
 from app.services.classification_collection_plan import build_collection_plan
+from app.services.classification_readiness import classification_model_snapshot
 from app.services.classification_training import (
     DEFAULT_GROUPED_CV_FOLDS, MODEL_PROMOTION_THRESHOLD, UNKNOWN_CONFIDENCE_THRESHOLD,
     activate_classification_model, classification_artifact_sha256,
@@ -236,13 +237,18 @@ def model_summary(model: ClassificationModel, metrics: list[ModelEvaluationMetri
     evaluated = bool(gate and gate.metric_value == 1 and reload_check and reload_check.metric_value == 1)
     scope_evaluated = (qualification.get("scope_validation_status") == "validated"
                        and qualification.get("scope_policy_version") == POLICY_VERSION)
+    snapshot = classification_model_snapshot(model)
+    readiness = snapshot["readiness"]
     return {
         "model_id": model.model_id, "model_key": model.model_key, "model_version": model.model_version,
         "model_type": model.model_type, "status": model.status, "is_active": bool(model.is_active),
         "trained_at": model.trained_at, "training_sample_count": model.training_sample_count,
-        "unknown_threshold": qualification.get("unknown_threshold"), "qualification": qualification,
+        "unknown_threshold": snapshot.get("unknown_threshold", qualification.get("unknown_threshold")), "qualification": qualification,
         "artifact_available": artifact_exists,
-        "can_activate": model.status == "qualified" and evaluated and scope_evaluated and artifact_exists and not model.is_active,
+        "readiness": readiness,
+        "can_activate": (model.status == "qualified" and evaluated and scope_evaluated
+                         and readiness["artifact_usable"] and readiness["scope_policy_valid"]
+                         and readiness["scope_test_passed"] and not model.is_active),
         "metrics": [
             {"split": r.dataset_split, "metric": r.metric_name, "value": r.metric_value, "sample_size": r.sample_size}
             for r in metrics if r.taxonomy_leaf_key in ("__overall__", "unknown")

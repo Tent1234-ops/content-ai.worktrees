@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/classification_readiness_panel.dart';
 import 'package:flutter/services.dart';
 
 import '../models/analysis_settings.dart';
@@ -311,8 +312,9 @@ class _ClassifierSummary extends StatelessWidget {
         Text(threshold == null
             ? 'อ่านเกณฑ์ Unknown จากไฟล์โมเดลไม่ได้'
             : 'เกณฑ์ Unknown จากโมเดล: ${(threshold * 100).toStringAsFixed(1)}%'),
-        if (model['status'] != 'qualified')
-          const Text('ไฟล์โมเดลยังไม่พร้อมใช้งาน'),
+        ClassificationReadinessPanel(
+            readiness:
+                Map<String, dynamic>.from(model['readiness'] as Map? ?? {})),
         const Divider(height: 32),
         Text('ผลประเมินที่บันทึกไว้',
             style: Theme.of(context).textTheme.titleMedium),

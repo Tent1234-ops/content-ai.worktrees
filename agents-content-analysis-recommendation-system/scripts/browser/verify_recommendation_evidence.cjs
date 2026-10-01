@@ -113,7 +113,7 @@ finally:
       }
       await open('/admin-dataset-review');
       await (await seek('อนุมัติทั้งหมด')).click();
-      await page.waitForTimeout(500);
+      await page.getByRole('checkbox', { name: /ฉันตรวจ Transcript/ }).waitFor({ state: 'visible' });
       assert.ok((await page.locator('body').ariaSnapshot()).includes('ฉันตรวจ Transcript'));
       await shot('approve-confirmation');
       await page.getByRole('button', { name: 'ยกเลิก', exact: true }).click();
@@ -122,7 +122,14 @@ finally:
       await page.waitForTimeout(500);
       await shot('result');
       await seek('3. เพราะอะไรจึงแนะนำ');
-      await (await seek('battery life', true)).click();
+      await page.getByRole('button', { name: 'เปิดดูหลักฐานและเวอร์ชัน', exact: true }).click();
+      await page.waitForTimeout(300);
+      const evidenceTopics = fixture.recommendation.evidence_bundle.action_topics ||
+        fixture.recommendation.evidence_bundle.topics || [];
+      const referenceTopic = evidenceTopics.find(topic => (topic.references || []).length > 0);
+      assert.ok(referenceTopic, 'Fixture must expose at least one topic with source references');
+      const referenceTopicTitle = referenceTopic.title_th || referenceTopic.canonical_topic;
+      await page.getByRole('button', { name: referenceTopicTitle, exact: false }).click();
       await page.waitForTimeout(300);
       await (await seek('TEST FIXTURE: reference', true)).click();
       await page.waitForTimeout(300);

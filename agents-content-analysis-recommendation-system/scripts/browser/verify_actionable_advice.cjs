@@ -118,6 +118,8 @@ print(json.dumps(results, ensure_ascii=False))
         await shot(`${fixture.recommendation.domain}-evidence`);
         await page.getByRole('button', { name: 'ปิด', exact: true }).click();
         await seek('3. เพราะอะไรจึงแนะนำ');
+        await (await seek('เปิดดูหลักฐานและเวอร์ชัน', true)).click();
+        await page.waitForTimeout(300);
         await (await seek(advice.items[0].title, true)).click();
         await page.waitForTimeout(300);
         assert.ok((await page.locator('body').ariaSnapshot()).includes('คำที่ใช้ตรวจ:'));

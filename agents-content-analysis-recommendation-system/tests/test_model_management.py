@@ -212,6 +212,25 @@ class ModelManagementTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             service.activate_evaluated_model(self.db, model.model_id, expected_active_model_id=None, user_id=self.user.user_id)
 
+    def test_admin_pages_share_readiness_and_do_not_change_active_model(self):
+        from app.services.analysis_settings import get_analysis_settings
+        model = self.add_evaluated_model(active=True)
+        with patch('app.services.analysis_settings.check_model_readiness', return_value={'ready': True}):
+            settings = get_analysis_settings(self.db, admin=True)
+        detail = service.model_detail(self.db, model.model_id)
+        self.assertEqual(settings['classification_model']['readiness'], detail['readiness'])
+        self.assertTrue(detail['readiness']['scope_policy_valid'])
+        self.assertTrue(self.db.get(ClassificationModel, model.model_id).is_active)
+
+    def test_registry_gate_cannot_hide_missing_scope_policy_in_artifact(self):
+        model = self.add_evaluated_model()
+        payload = joblib.load(model.artifact_path)
+        payload.pop('scope_policy')
+        joblib.dump(payload, model.artifact_path)
+        detail = service.model_detail(self.db, model.model_id)
+        self.assertFalse(detail['can_activate'])
+        self.assertIn('scope_policy_missing', detail['readiness']['reason_codes'])
+
     def test_all_training_endpoints_require_admin(self):
         app = FastAPI()
         app.include_router(router)

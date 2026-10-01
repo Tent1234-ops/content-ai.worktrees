@@ -253,7 +253,7 @@ def analyze_and_save_video_job(file_path: str, filename: str, user_id: int, *, s
         )
         return {
             "content_id": saved["content_id"],
-            "title": result.get("analysis", {}).get("title") or os.path.splitext(filename)[0],
+            "title": saved["title"],
             "transcript": transcript,
             "raw_transcript": raw_transcript,
             "cleaned_transcript": cleaned_transcript,

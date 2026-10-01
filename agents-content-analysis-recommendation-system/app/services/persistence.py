@@ -1,7 +1,9 @@
 import json
-import os
+import re
+import unicodedata
 from collections import Counter
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -23,6 +25,20 @@ from app.database.models import (
 )
 from app.services.nlp import filter_tokens, tokenize_text
 from app.services.view_metrics import resolve_view_metric_version
+
+
+def analysis_display_title(filename: str) -> str:
+    """Build a safe display title without using ASR output as the content name."""
+    basename = Path(str(filename or "").replace("\\", "/")).name
+    stem = Path(basename).stem
+    normalized = unicodedata.normalize("NFKC", stem)
+    normalized = "".join(
+        " " if unicodedata.category(character).startswith("C") else character
+        for character in normalized
+    )
+    normalized = re.sub(r"[_-]+", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip(" .")
+    return (normalized or "คลิปวิดีโอ")[:255]
 
 
 def log_system_event(db: Session, user_id: Optional[int], action: str, status: str, detail: Optional[str] = None) -> None:
@@ -340,10 +356,7 @@ def save_video_analysis_result(
     cleaned_transcript: str | None = None,
     commit: bool = True,
 ) -> Dict[str, object]:
-    title = str(
-        analysis_payload.get("analysis", {}).get("title")
-        or os.path.splitext(filename)[0]
-    )
+    title = analysis_display_title(filename)
     content = UserContent(
         user_id=user.user_id,
         title=title[:255],
@@ -442,6 +455,7 @@ def save_video_analysis_result(
     return {
         "content_id": content_id,
         "analysis_id": analysis_result.result_id,
+        "title": content.title,
         "saved_keywords": saved_keywords,
         "recommended_keywords": recommendation_keywords,
         "recommended_duration": recommended_duration,

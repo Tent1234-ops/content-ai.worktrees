@@ -33,7 +33,6 @@ class _UploadScreenState extends State<UploadScreen> {
   Stream<List<int>>? _selectedFileStream;
   int? _selectedFileSize;
   Duration? _selectedDuration;
-  int _uploadProgress = 0;
   String _statusMessage = '';
   String? _suggestedTopic;
   bool _hasReadRouteArgs = false;
@@ -106,8 +105,7 @@ class _UploadScreenState extends State<UploadScreen> {
           selectedBytes == null &&
           selectedStream == null) {
         setState(() {
-          _error =
-              'Cannot read selected file on this platform. Please try a different browser or device.';
+          _error = 'ไม่สามารถอ่านไฟล์ที่เลือกได้ กรุณาลองใช้ไฟล์อื่น';
         });
         return;
       }
@@ -143,21 +141,20 @@ class _UploadScreenState extends State<UploadScreen> {
         _selectedFileSize = selectedFile.size;
         _selectedDuration = selectedDuration;
         _error = null;
-        _uploadProgress = 0;
         _statusMessage =
-            'File ready ($fileSizeMB MB, ${_formatDuration(selectedDuration!)})';
+            'ไฟล์พร้อมวิเคราะห์ ($fileSizeMB MB · ${_formatDuration(selectedDuration!)})';
       });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Selected: ${selectedFile.name}'),
+          content: Text('เลือกไฟล์ ${selectedFile.name} แล้ว'),
           duration: const Duration(seconds: 2),
         ),
       );
     } catch (e) {
       if (mounted) {
-        setState(() => _error = 'Error picking file: ${e.toString()}');
+        setState(() => _error = 'เลือกไฟล์ไม่สำเร็จ: ${e.toString()}');
       }
     }
   }
@@ -167,15 +164,14 @@ class _UploadScreenState extends State<UploadScreen> {
         (_selectedFilePath == null &&
             _selectedFileBytes == null &&
             _selectedFileStream == null)) {
-      setState(() => _error = 'Please select a file first');
+      setState(() => _error = 'กรุณาเลือกไฟล์ก่อนเริ่มวิเคราะห์');
       return;
     }
 
     setState(() {
       _loading = true;
       _error = null;
-      _uploadProgress = 5;
-      _statusMessage = 'Uploading video...';
+      _statusMessage = 'กำลังอัปโหลดวิดีโอ...';
     });
 
     try {
@@ -207,8 +203,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
       if (!mounted) return;
       setState(() {
-        _uploadProgress = 10;
-        _statusMessage = 'Queued job $jobId';
+        _statusMessage = 'รับงานวิเคราะห์แล้ว กำลังรอประมวลผล';
       });
 
       final response =
@@ -217,8 +212,7 @@ class _UploadScreenState extends State<UploadScreen> {
       if (!mounted) return;
 
       setState(() {
-        _uploadProgress = 100;
-        _statusMessage = 'Analysis complete!';
+        _statusMessage = 'วิเคราะห์เสร็จแล้ว';
       });
 
       await Future.delayed(const Duration(milliseconds: 500));
@@ -241,7 +235,7 @@ class _UploadScreenState extends State<UploadScreen> {
       }
       setState(() {
         _error = error.toString();
-        _statusMessage = 'Error: ${error.toString()}';
+        _statusMessage = 'วิเคราะห์ไม่สำเร็จ';
       });
     } finally {
       if (mounted) {
@@ -261,26 +255,21 @@ class _UploadScreenState extends State<UploadScreen> {
       }
 
       setState(() {
-        if (job.status == 'queued') {
-          _uploadProgress = job.progress > 10 ? job.progress : 10;
-        } else if (job.progress > 0) {
-          _uploadProgress = job.progress.clamp(0, 100).toInt();
-        }
         if (job.message.isNotEmpty) {
-          _statusMessage = job.message;
+          _statusMessage = _localizedJobMessage(job.message, job.stage);
         } else if (job.status == 'queued') {
-          _statusMessage = 'Queued for analysis...';
+          _statusMessage = 'กำลังรอคิววิเคราะห์...';
         } else if (job.status == 'running') {
           _statusMessage = _messageForStage(job.stage);
         } else {
-          _statusMessage = 'Job status: ${job.status}';
+          _statusMessage = 'สถานะงาน: ${job.status}';
         }
       });
 
       if (job.isComplete) {
         final result = job.result;
         if (result == null) {
-          throw Exception('Analysis completed but no result was returned.');
+          throw Exception('งานวิเคราะห์เสร็จแต่ไม่พบผลลัพธ์');
         }
         return result;
       }
@@ -289,10 +278,10 @@ class _UploadScreenState extends State<UploadScreen> {
         if (revision) _revisionCanRetry = true;
         if (job.status == 'not_found') {
           throw Exception(
-            'Analysis job was lost because the backend restarted. Please submit the clip again.',
+            'งานวิเคราะห์หายหลังระบบเริ่มใหม่ กรุณาส่งคลิปอีกครั้ง',
           );
         }
-        throw Exception(job.error ?? 'Analysis failed.');
+        throw Exception(job.error ?? 'วิเคราะห์คลิปไม่สำเร็จ');
       }
       if (job.isInterrupted) {
         _revisionCanRetry = revision;
@@ -335,20 +324,34 @@ class _UploadScreenState extends State<UploadScreen> {
   String _messageForStage(String stage) {
     switch (stage) {
       case 'extracting_audio':
-        return 'Extracting audio from full video...';
+        return 'กำลังแยกเสียงจากวิดีโอ...';
       case 'transcribing':
-        return 'Generating full video transcript...';
+        return 'กำลังถอดเสียงทั้งคลิปเป็นข้อความ...';
       case 'normalizing_transcript':
-        return 'Cleaning transcript...';
+        return 'กำลังปรับศัพท์ในข้อความถอดเสียง...';
       case 'classifying':
-        return 'Classifying content type...';
+        return 'กำลังจำแนกหมวดหมู่คลิป...';
       case 'recommending':
-        return 'Building recommendations...';
+        return 'กำลังสร้างคำแนะนำ...';
       case 'saving':
-        return 'Saving to My Ideas...';
+        return 'กำลังบันทึกผลวิเคราะห์...';
       default:
-        return 'Analyzing video...';
+        return 'กำลังวิเคราะห์วิดีโอ...';
     }
+  }
+
+  String _localizedJobMessage(String message, String stage) {
+    const knownMessages = {
+      'queued': 'กำลังรอคิววิเคราะห์...',
+      'running': 'กำลังวิเคราะห์วิดีโอ...',
+      'complete': 'วิเคราะห์เสร็จแล้ว',
+    };
+    final normalized = message.trim().toLowerCase();
+    if (knownMessages.containsKey(normalized)) {
+      return knownMessages[normalized]!;
+    }
+    if (stage.isNotEmpty) return _messageForStage(stage);
+    return message;
   }
 
   void _clearSelection() {
@@ -359,7 +362,6 @@ class _UploadScreenState extends State<UploadScreen> {
       _selectedFileStream = null;
       _selectedFileSize = null;
       _selectedDuration = null;
-      _uploadProgress = 0;
       _statusMessage = '';
       _error = null;
       _revisionCanRetry = false;
@@ -390,7 +392,7 @@ class _UploadScreenState extends State<UploadScreen> {
     final hasFile = _selectedFileName != null;
 
     return AppShell(
-      title: 'Analyze My Clip',
+      title: 'วิเคราะห์คลิปของฉัน',
       currentRoute: '/upload',
       isAdmin: auth.isAdmin,
       child: RefreshIndicator(
@@ -433,7 +435,7 @@ class _UploadScreenState extends State<UploadScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Analyze Your Clip',
+                                  'วิเคราะห์คลิปของคุณ',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 18,
@@ -441,7 +443,7 @@ class _UploadScreenState extends State<UploadScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Upload a video to get content analysis',
+                                  'อัปโหลดวิดีโอเพื่อรับคำแนะนำจากเนื้อหาจริง',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
@@ -453,40 +455,38 @@ class _UploadScreenState extends State<UploadScreen> {
                       const Divider(height: 1),
                       const SizedBox(height: 12),
                       const Text(
-                        'What we analyze:',
+                        'ผลที่ระบบวิเคราะห์',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
                       const _AnalysisFeature(
                         icon: Icons.subtitles_outlined,
-                        title: 'Transcript',
-                        description: 'Auto-generated from your video',
+                        title: 'ข้อความถอดเสียง',
+                        description: 'ถอดจากเสียงตลอดทั้งคลิป',
                       ),
                       const SizedBox(height: 8),
                       const _AnalysisFeature(
                         icon: Icons.category_outlined,
-                        title: 'Content Classification',
-                        description: 'AI-predicted domain/category',
+                        title: 'หมวดหมู่เนื้อหา',
+                        description: 'จำแนกด้วยโมเดลที่กำลังใช้งาน',
                       ),
                       const SizedBox(height: 8),
                       const _AnalysisFeature(
                         icon: Icons.key_outlined,
-                        title: 'Keywords & Gaps',
-                        description:
-                            'Missing keywords compared to top performers',
+                        title: 'หัวข้อที่พบและหัวข้อที่ควรเพิ่ม',
+                        description: 'เปรียบเทียบกับคลิปอ้างอิงในหมวดเดียวกัน',
                       ),
                       const SizedBox(height: 8),
                       const _AnalysisFeature(
                         icon: Icons.lightbulb_outline,
-                        title: 'Hook Suggestions',
-                        description:
-                            'Opening-segment keywords based on the configured hook duration',
+                        title: 'คำแนะนำช่วงเปิดคลิป',
+                        description: 'อ้างอิงช่วงเปิดคลิปตามค่าที่ผู้ดูแลกำหนด',
                       ),
                       const SizedBox(height: 8),
                       const _AnalysisFeature(
                         icon: Icons.schedule_outlined,
-                        title: 'Duration Recommendation',
-                        description: 'Optimal video length for your domain',
+                        title: 'ความยาวคลิปที่แนะนำ',
+                        description: 'คำนวณจากข้อมูลอ้างอิงที่มีเพียงพอ',
                       ),
                     ],
                   ),
@@ -502,7 +502,7 @@ class _UploadScreenState extends State<UploadScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Suggested trend to analyze',
+                          'หัวข้อเทรนด์ที่เลือกมา',
                           style: Theme.of(context)
                               .textTheme
                               .titleMedium
@@ -510,7 +510,7 @@ class _UploadScreenState extends State<UploadScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Upload a clip related to "$_suggestedTopic" to get recommendations that match this trend.',
+                          'หัวข้อ: "$_suggestedTopic" ระบบจะตรวจความเกี่ยวข้องจากเนื้อหาในคลิปอีกครั้ง',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -532,20 +532,10 @@ class _UploadScreenState extends State<UploadScreen> {
                       ? null
                       : _pickFile,
                   icon: const Icon(Icons.upload_file),
-                  label: const Text('Pick a Video File'),
+                  label: const Text('เลือกไฟล์วิดีโอ'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _loading ||
-                          _settingsLoading ||
-                          _settings?.asrReady != true
-                      ? null
-                      : _pickFile,
-                  icon: const Icon(Icons.cloud_upload_outlined),
-                  label: const Text('Or tap to browse'),
                 ),
               ] else ...[
                 // Selected File Card
@@ -584,7 +574,7 @@ class _UploadScreenState extends State<UploadScreen> {
                               IconButton(
                                 icon: const Icon(Icons.close),
                                 onPressed: _clearSelection,
-                                tooltip: 'Clear selection',
+                                tooltip: 'ยกเลิกไฟล์ที่เลือก',
                               ),
                           ],
                         ),
@@ -604,18 +594,7 @@ class _UploadScreenState extends State<UploadScreen> {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: _uploadProgress / 100,
-                          minHeight: 8,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '$_uploadProgress% complete',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                      const LinearProgressIndicator(),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -623,7 +602,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   FilledButton.icon(
                     onPressed: _uploadAndAnalyze,
                     icon: const Icon(Icons.analytics_outlined),
-                    label: const Text('Analyze Now'),
+                    label: const Text('เริ่มวิเคราะห์'),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -631,7 +610,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   const SizedBox(height: 12),
                   OutlinedButton(
                     onPressed: _clearSelection,
-                    child: const Text('Choose Different File'),
+                    child: const Text('เลือกไฟล์อื่น'),
                   ),
                 ],
               ],
@@ -650,43 +629,6 @@ class _UploadScreenState extends State<UploadScreen> {
                 ),
 
               const SizedBox(height: 16),
-
-              // Tips Card
-              if (!_loading)
-                Card(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 20,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Tips for better results',
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        const _TipRow(
-                            text: 'Use clear audio for better transcription'),
-                        const SizedBox(height: 8),
-                        const _TipRow(
-                          text: 'MP4, WebM, or MOV formats work best',
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
             ],
           ),
         ),
@@ -815,36 +757,6 @@ class _AnalysisFeature extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TipRow extends StatelessWidget {
-  const _TipRow({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 3),
-          child: Icon(
-            Icons.check,
-            size: 18,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
       ],

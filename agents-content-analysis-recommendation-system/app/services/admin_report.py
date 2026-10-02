@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import re
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -18,6 +19,62 @@ from app.services.training_transcript import (
     training_transcript_sha256,
 )
 from app.services.view_metrics import resolve_view_metric_version
+
+
+_SENSITIVE_LOG_KEY = re.compile(
+    r"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|"
+    r"password|secret|cookie|session(?:[_-]?(?:id|key|token))?)",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_log_value(value):
+    if isinstance(value, dict):
+        return {
+            key: "[redacted]" if _SENSITIVE_LOG_KEY.fullmatch(str(key))
+            else _sanitize_log_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_log_value(item) for item in value]
+    if isinstance(value, str):
+        return sanitize_system_log_detail(value)
+    return value
+
+
+def sanitize_system_log_detail(detail: str | None) -> str | None:
+    """Return concise admin-safe log text without changing the audit row."""
+    if detail is None:
+        return None
+    raw = str(detail).strip()
+    if not raw:
+        return raw
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        parsed = None
+    if isinstance(parsed, (dict, list)):
+        return json.dumps(_sanitize_log_value(parsed), ensure_ascii=False)
+
+    for marker in ("Traceback (most recent call last):", "[SQL:", "\nSQL:"):
+        if marker in raw:
+            raw = raw.split(marker, 1)[0]
+    raw = re.sub(
+        r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+",
+        "Bearer [redacted]",
+        raw,
+    )
+    raw = re.sub(
+        r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|authorization|"
+        r"password|secret|cookie|session(?:[_-]?(?:id|key|token))?)"
+        r"\s*[:=]\s*([^,;\s]+)",
+        lambda match: f"{match.group(1)}=[redacted]",
+        raw,
+    )
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if len(raw) > 500:
+        raw = raw[:497].rstrip() + "..."
+    return raw
 
 
 def list_admin_datasets(
@@ -59,6 +116,76 @@ def create_admin_dataset(
     user_id: int | None = None,
 ) -> DatasetContent:
     values = payload.model_dump()
+    explicit_fields = payload.model_fields_set
+
+    values["title"] = str(values.get("title") or "").strip()
+
+    requested_leaf = values.pop("taxonomy_leaf_key", None)
+    if requested_leaf is None and values.get("category"):
+        category_leaf = normalize_taxonomy_leaf(str(values["category"]))
+        if category_leaf in ACTIVE_LEAF_KEYS:
+            requested_leaf = category_leaf
+
+    derived_taxonomy_fields = {
+        "taxonomy_version",
+        "category_level_1",
+        "category_level_2",
+        "category_level_3",
+    }
+    if requested_leaf is None and derived_taxonomy_fields.intersection(explicit_fields):
+        raise ValueError(
+            "Set taxonomy_leaf_key instead of supplying derived taxonomy fields"
+        )
+    for field in derived_taxonomy_fields:
+        values.pop(field, None)
+
+    if requested_leaf is not None:
+        normalized_leaf = normalize_taxonomy_leaf(str(requested_leaf))
+        if normalized_leaf not in ACTIVE_LEAF_KEYS:
+            raise ValueError(
+                "taxonomy_leaf_key must be one of: " + ", ".join(ACTIVE_LEAF_KEYS)
+            )
+        path = taxonomy_path(normalized_leaf)
+        values.update(
+            {
+                "category": normalized_leaf,
+                "taxonomy_version": path["taxonomy_version"],
+                "taxonomy_leaf_key": normalized_leaf,
+                "category_level_1": path["category_level_1"],
+                "category_level_2": path["category_level_2"],
+                "category_level_3": path["category_level_3"],
+            }
+        )
+    else:
+        values["taxonomy_version"] = payload.taxonomy_version
+
+    supplied_transcript_hash = values.pop("transcript_sha256", None)
+    if values.get("transcript") is None:
+        if supplied_transcript_hash is not None:
+            raise ValueError(
+                "transcript_sha256 is derived automatically; submit transcript instead"
+            )
+    else:
+        minimum_length = 80 if values.get("is_training_eligible") else 1
+        normalized_transcript = normalize_training_transcript(
+            values["transcript"], minimum_length=minimum_length
+        )
+        transcript_hash = training_transcript_sha256(normalized_transcript)
+        if supplied_transcript_hash is not None and supplied_transcript_hash != transcript_hash:
+            raise ValueError("transcript_sha256 does not match the normalized transcript")
+        duplicate = (
+            db.query(DatasetContent)
+            .filter(DatasetContent.transcript_sha256 == transcript_hash)
+            .first()
+        )
+        if duplicate is not None:
+            raise ValueError(
+                "Transcript duplicates existing dataset "
+                f"#{duplicate.dataset_id} ({duplicate.title})"
+            )
+        values["transcript"] = normalized_transcript
+        values["transcript_sha256"] = transcript_hash
+
     values["view_metric_version"] = resolve_view_metric_version(
         values.get("source_platform"),
         values.get("statistics_captured_at"),
@@ -73,7 +200,11 @@ def create_admin_dataset(
         user_id=user_id,
         action="admin_dataset_create",
         status="success",
-        detail=f"dataset_id={item.dataset_id}, source={item.source_platform}",
+        detail=(
+            f"dataset_id={item.dataset_id}, source={item.source_platform}, "
+            f"taxonomy={item.taxonomy_leaf_key or '-'}, "
+            f"split={item.data_split}, training_eligible={item.is_training_eligible}"
+        ),
     )
     db.commit()
     db.refresh(item)

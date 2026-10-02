@@ -51,7 +51,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Phone review'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('ยกเลิก'));
     await tester.pumpAndSettle();
     expect(repository.updatedPayload, isNull);
     expect(find.text('บันทึกข้อมูลแล้ว'), findsNothing);
@@ -146,9 +146,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Admin Console'), findsNothing);
-    expect(find.text('Transcript Import'), findsOneWidget);
-    expect(find.text('Dataset Review'), findsOneWidget);
-    expect(find.text('System Logs'), findsOneWidget);
+    expect(find.text('นำเข้า Transcript'), findsOneWidget);
+    expect(find.text('ตรวจสอบ Dataset'), findsOneWidget);
+    expect(find.text('บันทึกการทำงาน'), findsOneWidget);
   });
 
   testWidgets(
@@ -194,6 +194,49 @@ void main() {
     expect(
         repository.updatedPayload?.containsKey('transcript_sha256'), isFalse);
   });
+
+  testWidgets(
+      'manual dataset create stays unassigned and only reports persisted success',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repository = _DatasetsRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(home: AdminDatasetsScreen(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('เพิ่ม Dataset สำหรับตรวจสอบ'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('ยังไม่ใช้ฝึกโมเดลหรือสร้างคำแนะนำ'),
+        findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('dataset-create-title')),
+      'Camera manual review',
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('dataset-create-taxonomy-leaf')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Technology > Electronics > Camera').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('dataset-create-transcript')),
+      'กล้อง เซนเซอร์ เลนส์ และคุณภาพของภาพจากคลิปทดสอบ',
+    );
+    await tester.tap(find.byKey(const ValueKey('dataset-create-save')));
+    await tester.pumpAndSettle();
+
+    expect(repository.createdPayload?['taxonomy_leaf_key'], 'camera');
+    expect(repository.createdPayload?['data_split'], 'unassigned');
+    expect(repository.createdPayload?['is_training_eligible'], false);
+    expect(repository.createdPayload?['source_platform'], 'admin_manual');
+    expect(find.text('Camera manual review'), findsOneWidget);
+    expect(find.textContaining('เพิ่ม Dataset #77 เป็นรายการรอตรวจแล้ว'),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _LogsRepository extends AdminRepository {
@@ -231,6 +274,8 @@ class _DatasetsRepository extends AdminRepository {
   }
 
   bool deleted = false;
+  bool created = false;
+  Map<String, dynamic>? createdPayload;
   @override
   Future<void> deleteDataset(int id) async {
     expect(id, 42);
@@ -265,6 +310,35 @@ class _DatasetsRepository extends AdminRepository {
     'duration_seconds': 180,
   });
 
+  final DatasetItem createdItem = DatasetItem.fromJson({
+    'dataset_id': 77,
+    'title': 'Camera manual review',
+    'video_url': null,
+    'transcript': 'กล้อง เซนเซอร์ เลนส์ และคุณภาพของภาพจากคลิปทดสอบ',
+    'source_platform': 'admin_manual',
+    'category': 'camera',
+    'taxonomy_version': 'content-taxonomy-v1',
+    'taxonomy_leaf_key': 'camera',
+    'category_level_1': 'Technology',
+    'category_level_2': 'Electronics',
+    'category_level_3': 'Camera',
+    'transcript_sha256':
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    'data_split': 'unassigned',
+    'is_training_eligible': false,
+    'views': 0,
+    'likes': 0,
+    'comments': 0,
+    'trend_score': 0,
+  });
+
+  @override
+  Future<DatasetItem> createDataset(Map<String, dynamic> payload) async {
+    createdPayload = Map<String, dynamic>.from(payload);
+    created = true;
+    return createdItem;
+  }
+
   @override
   Future<List<DatasetReviewTaxonomyLeaf>> listTaxonomyLeaves() async {
     return [
@@ -292,9 +366,13 @@ class _DatasetsRepository extends AdminRepository {
     String search = '',
     bool trashed = false,
   }) async {
-    final visible = trashed == deleted;
+    final items = trashed
+        ? <DatasetItem>[if (deleted) item]
+        : <DatasetItem>[if (created) createdItem, if (!deleted) item];
     return PaginatedResult(
-        total: visible ? 1 : 0, items: visible ? [item] : []);
+      total: items.length,
+      items: items,
+    );
   }
 
   @override

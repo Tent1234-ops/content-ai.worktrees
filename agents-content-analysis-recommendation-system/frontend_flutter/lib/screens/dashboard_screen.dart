@@ -577,7 +577,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 platformTabController: _platformTabController,
                                 category: _categoryFilter,
                                 categories: _categories(data),
-                                showCategories: _selectedPlatform != 'google',
+                                showCategories: _selectedPlatform == 'youtube',
                                 onPlatformChanged: _changePlatform,
                                 onCategoryChanged: (value) {
                                   _changeCategory(value);
@@ -593,22 +593,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                                       ? 'การอัปเดตรอบล่าสุดไม่สำเร็จ กำลังแสดงข้อมูลที่เก็บไว้ล่าสุด'
                                       : 'ยังโหลดข้อมูลจาก ${_formatPlatformName(_selectedPlatform)} ไม่สำเร็จ กรุณาลองรีเฟรชภายหลัง'),
                                 ),
-                              if (_selectedPlatform != 'tiktok') ...[
-                                TrendHistoryPanel(
-                                  repository: _repository,
-                                  platform: _selectedPlatform,
-                                  categoryId: _selectedPlatform == 'youtube' &&
-                                          _categoryFilter != 'All'
-                                      ? _categoryFilter
-                                      : null,
-                                  categoryLabel: _selectedYoutubeCategoryLabel,
-                                  categoryName: (c) =>
-                                      _formatTrendCategory('youtube', c),
-                                  revision:
-                                      '${_snapshot?.generatedAt}:${_youtubeCategorySnapshot?.generatedAt}',
-                                ),
-                                const SizedBox(height: 16),
-                              ],
                               _TrendDashboardSections(
                                 platform: _selectedPlatform,
                                 categoryLabel: _selectedYoutubeCategoryLabel,
@@ -625,6 +609,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 onOpenSource: _openTrendSource,
                               ),
                               const SizedBox(height: 16),
+                              if (_selectedPlatform != 'tiktok') ...[
+                                TrendHistoryPanel(
+                                  repository: _repository,
+                                  platform: _selectedPlatform,
+                                  categoryId: _selectedPlatform == 'youtube' &&
+                                          _categoryFilter != 'All'
+                                      ? _categoryFilter
+                                      : null,
+                                  categoryLabel: _selectedYoutubeCategoryLabel,
+                                  categoryName: (c) =>
+                                      _formatTrendCategory('youtube', c),
+                                  revision:
+                                      '${_snapshot?.generatedAt}:${_youtubeCategorySnapshot?.generatedAt}',
+                                ),
+                                const SizedBox(height: 16),
+                              ],
                               if (auth.isAuthenticated) ...[
                                 InterestPreferencesPanel(
                                   repository: _repository,
@@ -926,6 +926,13 @@ class _TrendDashboardSections extends StatelessWidget {
             ],
           ),
         ),
+      );
+    }
+    if (_platformFamily(platform) == 'tiktok' && trends.isEmpty) {
+      return const EmptyStateView(
+        title: 'TikTok ยังไม่พร้อมใช้งาน',
+        message: 'ระบบยังไม่มีแหล่งข้อมูล TikTok ที่ได้รับอนุญาตและตรวจสอบได้',
+        icon: Icons.music_video_outlined,
       );
     }
     final trendingNow = trends.take(50).toList();

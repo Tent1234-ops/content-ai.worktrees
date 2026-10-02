@@ -112,7 +112,7 @@ class _AdminDatasetReviewScreenState extends State<AdminDatasetReviewScreen> {
         !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open the YouTube video')),
+        const SnackBar(content: Text('เปิดวิดีโอ YouTube ไม่สำเร็จ')),
       );
     }
   }
@@ -179,14 +179,14 @@ class _AdminDatasetReviewScreenState extends State<AdminDatasetReviewScreen> {
   Widget build(BuildContext context) {
     final queue = _queue;
     return AppShell(
-      title: 'Dataset Review',
+      title: 'ตรวจสอบ Dataset',
       currentRoute: '/admin-dataset-review',
       isAdmin: true,
       actions: [
         IconButton(
           onPressed: _loading || _bulkBusy ? null : _load,
           icon: const Icon(Icons.refresh),
-          tooltip: 'Refresh review queue',
+          tooltip: 'โหลดรายการตรวจสอบใหม่',
         ),
       ],
       child: _error != null && queue == null
@@ -205,7 +205,7 @@ class _AdminDatasetReviewScreenState extends State<AdminDatasetReviewScreen> {
                         actions: [
                           TextButton(
                             onPressed: () => setState(() => _error = null),
-                            child: const Text('Dismiss'),
+                            child: const Text('ปิด'),
                           ),
                         ],
                       ),
@@ -245,9 +245,9 @@ class _AdminDatasetReviewScreenState extends State<AdminDatasetReviewScreen> {
                     const SizedBox(height: 16),
                     if (queue.items.isEmpty)
                       const EmptyStateView(
-                        title: 'No candidates waiting for review',
+                        title: 'ไม่มีข้อมูลรอตรวจสอบ',
                         message:
-                            'Import more transcripts or adjust the category filter.',
+                            'ลองเปลี่ยนหมวดหมู่หรือนำเข้า Transcript เพิ่ม',
                         icon: Icons.fact_check_outlined,
                       )
                     else
@@ -305,10 +305,10 @@ class _ReviewSummaryBand extends StatelessWidget {
         spacing: 28,
         runSpacing: 12,
         children: [
-          _SummaryMetric(label: 'All candidates', value: summary.total),
-          _SummaryMetric(label: 'Pending', value: summary.pending),
-          _SummaryMetric(label: 'Approved', value: summary.approved),
-          _SummaryMetric(label: 'Rejected', value: summary.rejected),
+          _SummaryMetric(label: 'ทั้งหมด', value: summary.total),
+          _SummaryMetric(label: 'รอตรวจ', value: summary.pending),
+          _SummaryMetric(label: 'อนุมัติแล้ว', value: summary.approved),
+          _SummaryMetric(label: 'ปฏิเสธแล้ว', value: summary.rejected),
         ],
       ),
     );
@@ -367,7 +367,7 @@ class _ReviewFilters extends StatelessWidget {
               child: TextField(
                 controller: searchController,
                 decoration: const InputDecoration(
-                  labelText: 'Search title, channel, or transcript',
+                  labelText: 'ค้นหาชื่อ ช่อง หรือ Transcript',
                   prefixIcon: Icon(Icons.search),
                 ),
                 onSubmitted: (_) => onSearch(),
@@ -378,10 +378,10 @@ class _ReviewFilters extends StatelessWidget {
               child: DropdownButtonFormField<String>(
                 initialValue: leafKey,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Category'),
+                decoration: const InputDecoration(labelText: 'หมวดหมู่'),
                 items: [
                   const DropdownMenuItem(
-                      value: 'all', child: Text('All categories')),
+                      value: 'all', child: Text('ทุกหมวดหมู่')),
                   ...taxonomy.map(
                     (leaf) => DropdownMenuItem(
                       value: leaf.leafKey,
@@ -411,7 +411,7 @@ class _TaxonomyProgress extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Verified coverage',
+        Text('ความครอบคลุมที่ตรวจสอบแล้ว',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Wrap(
@@ -486,7 +486,7 @@ class _CandidateReviewCard extends StatelessWidget {
                 IconButton(
                   onPressed: onOpenVideo,
                   icon: const Icon(Icons.open_in_new),
-                  tooltip: 'Open video on YouTube',
+                  tooltip: 'เปิดวิดีโอบน YouTube',
                 ),
               ],
             ),
@@ -500,7 +500,7 @@ class _CandidateReviewCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                Chip(label: Text('Suggested: ${candidate.proposedLeafKey}')),
+                Chip(label: Text('หมวดที่เสนอ: ${candidate.proposedLeafKey}')),
                 Chip(label: Text(candidate.licenseName)),
                 Chip(
                   avatar: Icon(
@@ -515,18 +515,18 @@ class _CandidateReviewCard extends StatelessWidget {
                 ),
                 const Chip(
                   avatar: Icon(Icons.model_training_outlined, size: 18),
-                  label: Text('Classification + keywords'),
+                  label: Text('ใช้จำแนกหมวดและคำสำคัญ'),
                 ),
                 if (candidate.transcriptAcquisitionMethod ==
                     'notebooklm_manual_source')
                   const Chip(
                     avatar: Icon(Icons.text_snippet_outlined, size: 18),
-                    label: Text('NotebookLM source'),
+                    label: Text('แหล่งข้อมูล NotebookLM'),
                   ),
                 if (candidate.transcriptScope == 'full_video')
                   const Chip(
                     avatar: Icon(Icons.subject_outlined, size: 18),
-                    label: Text('Full video transcript'),
+                    label: Text('Transcript ทั้งคลิป'),
                   ),
                 Chip(
                   avatar: Icon(
@@ -591,7 +591,7 @@ class _CandidateReviewCard extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: actionsEnabled ? onApprove : null,
                     icon: const Icon(Icons.check),
-                    label: const Text('Approve'),
+                    label: const Text('อนุมัติ'),
                   ),
                   OutlinedButton.icon(
                     onPressed: actionsEnabled ? onReject : null,
@@ -601,7 +601,7 @@ class _CandidateReviewCard extends StatelessWidget {
                       side: BorderSide(
                           color: Theme.of(context).colorScheme.error),
                     ),
-                    label: const Text('Reject'),
+                    label: const Text('ปฏิเสธ'),
                   ),
                 ],
               ),
@@ -746,12 +746,12 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                   ButtonSegment(
                     value: 'approve',
                     icon: Icon(Icons.check),
-                    label: Text('Approve'),
+                    label: Text('อนุมัติ'),
                   ),
                   ButtonSegment(
                     value: 'reject',
                     icon: Icon(Icons.close),
-                    label: Text('Reject'),
+                    label: Text('ปฏิเสธ'),
                   ),
                 ],
                 selected: {_decision},
@@ -765,7 +765,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                   initialValue: _leafKey,
                   isExpanded: true,
                   decoration:
-                      const InputDecoration(labelText: 'Verified category'),
+                      const InputDecoration(labelText: 'หมวดหมู่ที่ตรวจแล้ว'),
                   items: widget.taxonomy
                       .map(
                         (leaf) => DropdownMenuItem(
@@ -785,10 +785,10 @@ class _ReviewDialogState extends State<_ReviewDialog> {
                 SegmentedButton<String>(
                   segments: const [
                     ButtonSegment(
-                        value: 'good', label: Text('Good transcript')),
+                        value: 'good', label: Text('Transcript คุณภาพดี')),
                     ButtonSegment(
                       value: 'acceptable',
-                      label: Text('Acceptable'),
+                      label: Text('ใช้งานได้'),
                     ),
                   ],
                   selected: {_quality},
@@ -814,7 +814,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const Text('ยกเลิก'),
         ),
         FilledButton.icon(
           onPressed: _submit,

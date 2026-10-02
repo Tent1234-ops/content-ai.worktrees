@@ -34,22 +34,35 @@ class AppShell extends StatelessWidget {
       drawer: Drawer(
         child: SafeArea(
           child: ListView(
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome,
+                        color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 10),
+                    Text('Content AI',
+                        style: Theme.of(context).textTheme.titleLarge),
+                  ],
+                ),
+              ),
               ListTile(
                 leading: const Icon(Icons.dashboard_outlined),
-                title: const Text('Dashboard'),
+                title: const Text('แดชบอร์ด'),
                 selected: currentRoute == '/dashboard',
                 onTap: () => _navigate(context, '/dashboard'),
               ),
               ListTile(
                 leading: const Icon(Icons.upload_file_outlined),
-                title: const Text('Analyze My Clip'),
+                title: const Text('วิเคราะห์คลิปของฉัน'),
                 selected: currentRoute == '/upload',
                 onTap: () => _navigate(context, '/upload'),
               ),
               ListTile(
                 leading: const Icon(Icons.history_outlined),
-                title: const Text('History / My Ideas'),
+                title: const Text('ไอเดียและประวัติ'),
                 selected: currentRoute == '/history',
                 onTap: () => _navigate(context, '/history'),
               ),
@@ -78,28 +91,28 @@ class AppShell extends StatelessWidget {
               if (isAdmin)
                 ListTile(
                   leading: const Icon(Icons.text_snippet_outlined),
-                  title: const Text('Transcript Import'),
+                  title: const Text('นำเข้า Transcript'),
                   selected: currentRoute == '/admin-transcript-import',
                   onTap: () => _navigate(context, '/admin-transcript-import'),
                 ),
               if (isAdmin)
                 ListTile(
                   leading: const Icon(Icons.fact_check_outlined),
-                  title: const Text('Dataset Review'),
+                  title: const Text('ตรวจสอบ Dataset'),
                   selected: currentRoute == '/admin-dataset-review',
                   onTap: () => _navigate(context, '/admin-dataset-review'),
                 ),
               if (isAdmin)
                 ListTile(
                   leading: const Icon(Icons.storage_outlined),
-                  title: const Text('Admin Datasets'),
+                  title: const Text('จัดการ Dataset'),
                   selected: currentRoute == '/admin-datasets',
                   onTap: () => _navigate(context, '/admin-datasets'),
                 ),
               if (isAdmin)
                 ListTile(
                   leading: const Icon(Icons.receipt_long_outlined),
-                  title: const Text('System Logs'),
+                  title: const Text('บันทึกการทำงาน'),
                   selected: currentRoute == '/admin-logs',
                   onTap: () => _navigate(context, '/admin-logs'),
                 ),
@@ -107,7 +120,7 @@ class AppShell extends StatelessWidget {
               if (onLogout != null)
                 ListTile(
                   leading: const Icon(Icons.logout),
-                  title: const Text('Logout'),
+                  title: const Text('ออกจากระบบ'),
                   onTap: () async {
                     Navigator.pop(context);
                     await onLogout!.call();

@@ -52,7 +52,7 @@ void main() {
     expect(find.text('ตรวจคุณภาพข้อมูลไม่สำเร็จ'), findsOneWidget);
     expect(find.text('ผ่านเกณฑ์อ้างอิง'), findsNothing);
     repo.fail = false;
-    await tester.tap(find.text('Try again'));
+    await tester.tap(find.text('ลองอีกครั้ง'));
     await tester.pumpAndSettle();
     expect(find.text('ผ่านเกณฑ์อ้างอิง'), findsOneWidget);
   });

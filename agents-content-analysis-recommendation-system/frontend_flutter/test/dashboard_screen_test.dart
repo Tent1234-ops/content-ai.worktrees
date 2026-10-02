@@ -63,7 +63,7 @@ void main() {
     await tester.enterText(
         find.byType(TextFormField).at(0), 'guest@example.com');
     await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
-    await tester.tap(find.widgetWithText(FilledButton, 'Login'));
+    await tester.tap(find.widgetWithText(FilledButton, 'เข้าสู่ระบบ'));
     await tester.pumpAndSettle();
     expect(find.byType(UploadScreen), findsOneWidget);
     expect(find.byType(LoginScreen), findsNothing);
@@ -453,6 +453,8 @@ void main() {
 
     await tester.tap(find.text('TikTok'));
     await tester.pumpAndSettle();
+    expect(find.text('TikTok ยังไม่พร้อมใช้งาน'), findsOneWidget);
+    expect(find.text('หมวดหมู่'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

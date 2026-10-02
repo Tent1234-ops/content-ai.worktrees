@@ -373,7 +373,7 @@ class AnalysisReport extends StatelessWidget {
         Text(withheld
             ? 'งดแนะนำความยาวจนกว่าจะยืนยันหมวดหมู่ได้'
             : duration.hasSufficientEvidence
-                ? 'ค่ากลาง ${duration.medianSeconds ?? duration.recommendedSeconds} วินาที · ${duration.recommendedRange}'
+                ? 'ค่ากลาง ${duration.medianSeconds ?? duration.recommendedSeconds} วินาที · ช่วง ${duration.percentileLow}–${duration.percentileHigh} วินาที'
                 : 'ข้อมูลอ้างอิงยังไม่เพียงพอ'),
         Text(
             'มีข้อมูลความยาว ${duration.sampleSize} คลิป · ขั้นต่ำ ${duration.minimumSampleSize} คลิป',

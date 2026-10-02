@@ -203,7 +203,14 @@ class _ClipRevisionPlannerState extends State<ClipRevisionPlanner> {
                     selected ? _selected.add(id) : _selected.remove(id);
                     _changed();
                   }
-                : null),
+                : null)
+      else
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Text(
+            'ผลวิเคราะห์นี้ยังไม่มีคำแนะนำแบบลงมือทำ จึงไม่มีหัวข้อให้เลือกเพิ่มในแผน',
+          ),
+        ),
       const Divider(height: 32),
       Text('แผนปรับคลิปของฉัน', style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: 8),

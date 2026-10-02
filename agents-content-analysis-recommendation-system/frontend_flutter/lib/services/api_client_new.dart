@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -51,13 +51,17 @@ class ApiClient {
     final headers = await _headers(json: false);
     request.headers.addAll(headers);
     if (fileBytes != null) {
-      request.files.add(http.MultipartFile.fromBytes('file', fileBytes, filename: fileName));
+      request.files.add(
+          http.MultipartFile.fromBytes('file', fileBytes, filename: fileName));
     } else if (filePath != null) {
-      request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+      request.files.add(await http.MultipartFile.fromPath('file', filePath,
+          filename: fileName));
     } else if (fileStream != null && fileSize != null) {
-      request.files.add(http.MultipartFile('file', fileStream, fileSize, filename: fileName));
+      request.files.add(
+          http.MultipartFile('file', fileStream, fileSize, filename: fileName));
     } else {
-      throw ArgumentError('Either filePath, fileBytes, or fileStream must be provided for multipart upload.');
+      throw ArgumentError(
+          'Either filePath, fileBytes, or fileStream must be provided for multipart upload.');
     }
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);
@@ -74,4 +78,3 @@ class ApiClient {
     return body;
   }
 }
-

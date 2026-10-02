@@ -154,7 +154,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('โมเดลถอดเสียงยังไม่พร้อม'), findsOneWidget);
     final pickButton = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Pick a Video File'));
+        find.widgetWithText(FilledButton, 'เลือกไฟล์วิดีโอ'));
     expect(pickButton.onPressed, isNull);
   });
 

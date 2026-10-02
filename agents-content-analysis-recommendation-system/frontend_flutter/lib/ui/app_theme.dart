@@ -93,6 +93,21 @@ ThemeData buildAppTheme(Brightness brightness) {
         fillColor: scheme.surface,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 14)),
+    iconButtonTheme: IconButtonThemeData(
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
+        iconSize: const WidgetStatePropertyAll(22),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return scheme.onSurface.withValues(alpha: 0.38);
+          }
+          return scheme.onSurfaceVariant;
+        }),
+        overlayColor: WidgetStatePropertyAll(
+          scheme.primary.withValues(alpha: 0.10),
+        ),
+      ),
+    ),
     filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
             shape: shape,
@@ -103,6 +118,13 @@ ThemeData buildAppTheme(Brightness brightness) {
             shape: shape,
             minimumSize: const Size(44, 44),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14))),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        shape: shape,
+        minimumSize: const Size(44, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      ),
+    ),
     segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(shape: WidgetStatePropertyAll(shape))),
     chipTheme: ChipThemeData(
@@ -125,6 +147,22 @@ ThemeData buildAppTheme(Brightness brightness) {
         surfaceTintColor: Colors.transparent),
     snackBarTheme:
         SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: shape),
+    tooltipTheme: TooltipThemeData(
+      waitDuration: const Duration(milliseconds: 450),
+      showDuration: const Duration(seconds: 3),
+      textStyle: TextStyle(
+        color: scheme.onInverseSurface,
+        fontSize: 12,
+        letterSpacing: 0,
+      ),
+    ),
+    listTileTheme: ListTileThemeData(
+      minLeadingWidth: 24,
+      iconColor: scheme.onSurfaceVariant,
+      selectedColor: scheme.primary,
+      selectedTileColor: scheme.primaryContainer.withValues(alpha: 0.55),
+      shape: shape,
+    ),
     tabBarTheme: TabBarThemeData(
         labelColor: scheme.primary,
         unselectedLabelColor: scheme.onSurfaceVariant,

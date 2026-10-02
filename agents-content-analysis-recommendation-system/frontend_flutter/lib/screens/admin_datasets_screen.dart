@@ -26,6 +26,7 @@ class _AdminDatasetsScreenState extends State<AdminDatasetsScreen> {
   String? _error;
   bool _loading = false;
   bool _deleting = false;
+  bool _creating = false;
   int _offset = 0;
   final int _limit = 12;
   int _total = 0;
@@ -124,6 +125,37 @@ class _AdminDatasetsScreenState extends State<AdminDatasetsScreen> {
     }
   }
 
+  Future<void> _openCreator() async {
+    final created = await showDialog<DatasetItem>(
+      context: context,
+      builder: (context) => _DatasetCreateDialog(
+        repository: _repository,
+        taxonomyLeaves: _taxonomyLeaves,
+      ),
+    );
+    if (created == null || !mounted) return;
+    setState(() {
+      _creating = true;
+      _tab = 0;
+      _offset = 0;
+      _category = 'all';
+    });
+    try {
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'เพิ่ม Dataset #${created.datasetId} เป็นรายการรอตรวจแล้ว '
+            '(ยังไม่ใช้ฝึกโมเดลหรือสร้างคำแนะนำ)',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
+  }
+
   Future<void> _delete(DatasetItem item) async {
     final confirmed = await showDialog<bool>(
         context: context,
@@ -213,7 +245,15 @@ class _AdminDatasetsScreenState extends State<AdminDatasetsScreen> {
       isAdmin: true,
       actions: [
         IconButton(
-          onPressed: _loading || _deleting ? null : _load,
+          key: const ValueKey('dataset-create'),
+          onPressed: _loading || _deleting || _creating || _tab != 0
+              ? null
+              : _openCreator,
+          icon: const Icon(Icons.add),
+          tooltip: 'เพิ่ม Dataset สำหรับตรวจสอบ',
+        ),
+        IconButton(
+          onPressed: _loading || _deleting || _creating ? null : _load,
           icon: const Icon(Icons.refresh),
           tooltip: 'โหลดข้อมูลใหม่',
         ),
@@ -384,6 +424,185 @@ class _AdminDatasetsScreenState extends State<AdminDatasetsScreen> {
   }
 }
 
+class _DatasetCreateDialog extends StatefulWidget {
+  const _DatasetCreateDialog({
+    required this.repository,
+    required this.taxonomyLeaves,
+  });
+
+  final AdminRepository repository;
+  final List<DatasetReviewTaxonomyLeaf> taxonomyLeaves;
+
+  @override
+  State<_DatasetCreateDialog> createState() => _DatasetCreateDialogState();
+}
+
+class _DatasetCreateDialogState extends State<_DatasetCreateDialog> {
+  final _title = TextEditingController();
+  final _url = TextEditingController();
+  final _transcript = TextEditingController();
+  String _taxonomyLeafKey = '';
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _url.dispose();
+    _transcript.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final title = _title.text.trim();
+    final transcript = _transcript.text.trim();
+    if (title.isEmpty) {
+      setState(() => _error = 'กรุณาระบุชื่อรายการ');
+      return;
+    }
+    if (_taxonomyLeafKey.isEmpty) {
+      setState(() => _error = 'กรุณาเลือกหมวดหมู่มาตรฐาน');
+      return;
+    }
+    if (transcript.isEmpty) {
+      setState(() => _error = 'กรุณาระบุ Transcript ที่ต้องการตรวจสอบ');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final created = await widget.repository.createDataset({
+        'title': title,
+        'video_url': _url.text.trim().isEmpty ? null : _url.text.trim(),
+        'transcript': transcript,
+        'taxonomy_leaf_key': _taxonomyLeafKey,
+        'source_platform': 'admin_manual',
+        'dataset_source': 'admin',
+        'dataset_version': 'manual-v1',
+        'language': 'th',
+        'verification_status': 'unverified',
+        'label_source': 'admin',
+        'data_split': 'unassigned',
+        'is_training_eligible': false,
+        'is_active': true,
+      });
+      if (created.datasetId <= 0 ||
+          created.dataSplit != 'unassigned' ||
+          created.isTrainingEligible ||
+          created.transcriptSha256.length != 64 ||
+          created.taxonomyLeafKey != _taxonomyLeafKey) {
+        throw StateError('ระบบยังไม่ยืนยันข้อมูลแถวรอตรวจอย่างครบถ้วน');
+      }
+      if (!mounted) return;
+      Navigator.pop(context, created);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('เพิ่ม Dataset สำหรับตรวจสอบ'),
+      content: SizedBox(
+        width: 640,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'รายการนี้จะถูกบันทึกเป็น unassigned และยังไม่ใช้ฝึกโมเดลหรือสร้างคำแนะนำ '
+                'จนกว่าจะผ่านขั้นตอนตรวจสอบแยกต่างหาก',
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('dataset-create-title'),
+                controller: _title,
+                enabled: !_saving,
+                decoration: const InputDecoration(labelText: 'ชื่อรายการ'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                key: const ValueKey('dataset-create-taxonomy-leaf'),
+                initialValue: null,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'หมวดหมู่มาตรฐาน'),
+                items: widget.taxonomyLeaves
+                    .map(
+                      (leaf) => DropdownMenuItem(
+                        value: leaf.leafKey,
+                        child: Text(
+                          leaf.path,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() => _taxonomyLeafKey = value ?? ''),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                key: const ValueKey('dataset-create-url'),
+                controller: _url,
+                enabled: !_saving,
+                decoration: const InputDecoration(
+                  labelText: 'URL ต้นทาง (ถ้ามี)',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                key: const ValueKey('dataset-create-transcript'),
+                controller: _transcript,
+                enabled: !_saving,
+                minLines: 6,
+                maxLines: 12,
+                decoration: const InputDecoration(
+                  labelText: 'Transcript',
+                  helperText:
+                      'ระบบจะจัดช่องว่างและสร้าง Transcript hash ให้อัตโนมัติ',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('ยกเลิก'),
+        ),
+        FilledButton.icon(
+          key: const ValueKey('dataset-create-save'),
+          onPressed: _saving ? null : _save,
+          icon: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save_outlined),
+          label: Text(_saving ? 'กำลังบันทึก...' : 'บันทึกเป็นรายการรอตรวจ'),
+        ),
+      ],
+    );
+  }
+}
+
 class _DatasetEditorDialog extends StatefulWidget {
   const _DatasetEditorDialog({
     required this.item,
@@ -519,7 +738,7 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Edit dataset'),
+      title: const Text('แก้ไขข้อมูล Dataset'),
       content: SizedBox(
         width: 640,
         child: SingleChildScrollView(
@@ -536,7 +755,7 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
               TextField(
                 key: const ValueKey('dataset-title'),
                 controller: _title,
-                decoration: const InputDecoration(labelText: 'Title'),
+                decoration: const InputDecoration(labelText: 'ชื่อรายการ'),
               ),
               const SizedBox(height: 10),
               Row(
@@ -544,7 +763,7 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
                   Expanded(
                     child: InputDecorator(
                       decoration:
-                          const InputDecoration(labelText: 'Source platform'),
+                          const InputDecoration(labelText: 'แพลตฟอร์มต้นทาง'),
                       child: Text(widget.item.sourcePlatform),
                     ),
                   ),
@@ -556,7 +775,7 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
                           _taxonomyLeafKey.isEmpty ? null : _taxonomyLeafKey,
                       isExpanded: true,
                       decoration:
-                          const InputDecoration(labelText: 'Model category'),
+                          const InputDecoration(labelText: 'หมวดหมู่ของโมเดล'),
                       items: widget.taxonomyLeaves
                           .map(
                             (leaf) => DropdownMenuItem(
@@ -581,15 +800,14 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
               const SizedBox(height: 10),
               TextField(
                   controller: _url,
-                  decoration: const InputDecoration(labelText: 'Video URL')),
+                  decoration: const InputDecoration(labelText: 'URL วิดีโอ')),
               const SizedBox(height: 10),
               TextField(
                 key: const ValueKey('dataset-transcript'),
                 controller: _transcript,
                 decoration: const InputDecoration(
-                  labelText: 'Training transcript',
-                  helperText:
-                      'The transcript hash is recalculated automatically.',
+                  labelText: 'Transcript สำหรับฝึกโมเดล',
+                  helperText: 'ระบบจะคำนวณรหัสตรวจสอบ Transcript ใหม่อัตโนมัติ',
                 ),
                 minLines: 6,
                 maxLines: 12,
@@ -598,7 +816,7 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Changing the transcript or model category requires training and activating a new model.',
+                  'การแก้ Transcript หรือหมวดหมู่จะมีผลเมื่อเทรนและเปิดใช้โมเดลรุ่นใหม่',
                 ),
               ),
               const SizedBox(height: 10),
@@ -609,21 +827,21 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
                           controller: _views,
                           keyboardType: TextInputType.number,
                           decoration:
-                              const InputDecoration(labelText: 'Views'))),
+                              const InputDecoration(labelText: 'ยอดวิว'))),
                   const SizedBox(width: 10),
                   Expanded(
                       child: TextField(
                           controller: _likes,
                           keyboardType: TextInputType.number,
                           decoration:
-                              const InputDecoration(labelText: 'Likes'))),
+                              const InputDecoration(labelText: 'ยอดไลก์'))),
                   const SizedBox(width: 10),
                   Expanded(
                       child: TextField(
                           controller: _comments,
                           keyboardType: TextInputType.number,
                           decoration:
-                              const InputDecoration(labelText: 'Comments'))),
+                              const InputDecoration(labelText: 'ความคิดเห็น'))),
                 ],
               ),
               const SizedBox(height: 10),
@@ -634,14 +852,14 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
                           controller: _score,
                           keyboardType: TextInputType.number,
                           decoration:
-                              const InputDecoration(labelText: 'Trend score'))),
+                              const InputDecoration(labelText: 'คะแนนเทรนด์'))),
                   const SizedBox(width: 10),
                   Expanded(
                       child: TextField(
                           controller: _duration,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                              labelText: 'Duration seconds'))),
+                              labelText: 'ความยาว (วินาที)'))),
                 ],
               ),
             ],
@@ -651,7 +869,7 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
       actions: [
         TextButton(
             onPressed: _saving ? null : () => Navigator.pop(context),
-            child: const Text('Cancel')),
+            child: const Text('ยกเลิก')),
         FilledButton.icon(
           key: const ValueKey('dataset-save'),
           onPressed: _saving ? null : _save,
@@ -661,7 +879,7 @@ class _DatasetEditorDialogState extends State<_DatasetEditorDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.save_outlined),
-          label: Text(_saving ? 'Saving...' : 'Save'),
+          label: Text(_saving ? 'กำลังบันทึก...' : 'บันทึก'),
         ),
       ],
     );

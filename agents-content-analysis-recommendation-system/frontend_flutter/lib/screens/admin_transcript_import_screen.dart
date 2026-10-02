@@ -105,7 +105,7 @@ class _AdminTranscriptImportScreenState
 
   Future<void> _submit() async {
     if (_leafKey == null) {
-      setState(() => _error = 'Select the correct category before importing.');
+      setState(() => _error = 'กรุณาเลือกหมวดหมู่ให้ถูกต้องก่อนนำเข้า');
       return;
     }
     if (_inputMode == _TranscriptInputMode.files) {
@@ -142,7 +142,7 @@ class _AdminTranscriptImportScreenState
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Candidate validated and added to review')),
+            content: Text('ตรวจข้อมูลเบื้องต้นแล้วและเพิ่มเข้าคิวตรวจสอบ')),
       );
     } catch (error) {
       if (mounted) {
@@ -166,8 +166,8 @@ class _AdminTranscriptImportScreenState
     if (importable.isEmpty) {
       setState(() {
         _error = _markdownFiles.isEmpty
-            ? 'Select one or more Markdown files first.'
-            : 'All selected files are already accounted for.';
+            ? 'กรุณาเลือกไฟล์ Markdown อย่างน้อยหนึ่งไฟล์'
+            : 'ไฟล์ที่เลือกทั้งหมดถูกประมวลผลแล้ว';
       });
       return;
     }
@@ -225,15 +225,14 @@ class _AdminTranscriptImportScreenState
       _submitting = false;
       _error = failed == 0
           ? null
-          : '$failed file${failed == 1 ? '' : 's'} failed. '
-              'Review each file and retry the failed items.';
+          : 'นำเข้าไม่สำเร็จ $failed ไฟล์ กรุณาตรวจแต่ละไฟล์แล้วลองเฉพาะรายการที่ล้มเหลวอีกครั้ง';
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           'Imported $imported file${imported == 1 ? '' : 's'}'
-          '${alreadyPresent == 0 ? '' : '; $alreadyPresent already in system'}'
-          '${failed == 0 ? '' : '; $failed failed'}',
+          '${alreadyPresent == 0 ? '' : ' · มีในระบบแล้ว $alreadyPresent ไฟล์'}'
+          '${failed == 0 ? '' : ' · ล้มเหลว $failed ไฟล์'}',
         ),
       ),
     );
@@ -281,7 +280,7 @@ class _AdminTranscriptImportScreenState
   String _friendlyImportMessage(String message) {
     final normalized = message.toLowerCase();
     if (normalized.contains('transcript') && normalized.contains('duplicate')) {
-      return 'Already in system: identical transcript content exists.';
+      return 'มีข้อมูลนี้ในระบบแล้ว: พบ Transcript ที่มีเนื้อหาเหมือนกัน';
     }
     if (normalized.contains('already exists')) {
       return message;
@@ -309,21 +308,21 @@ class _AdminTranscriptImportScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm import category'),
+        title: const Text('ยืนยันหมวดหมู่ที่นำเข้า'),
         content: Text(
-          'Import $fileCount transcript file${fileCount == 1 ? '' : 's'} as '
-          '${leaf?.path ?? leafKey}?\n\n'
-          'The selected category is applied to every file in this batch.',
+          'นำเข้า Transcript $fileCount ไฟล์เป็นหมวด '
+          '${leaf?.path ?? leafKey} ใช่หรือไม่\n\n'
+          'ระบบจะใช้หมวดหมู่นี้กับทุกไฟล์ในชุดนี้',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('ยกเลิก'),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.pop(context, true),
             icon: const Icon(Icons.file_upload_outlined),
-            label: const Text('Import files'),
+            label: const Text('นำเข้าไฟล์'),
           ),
         ],
       ),
@@ -413,7 +412,7 @@ class _AdminTranscriptImportScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Loaded ${parsedFiles.length} file${parsedFiles.length == 1 ? '' : 's'}'
+            'อ่านไฟล์แล้ว ${parsedFiles.length} ไฟล์'
             '${duplicateSkips.isEmpty ? '' : '; ${duplicateSkips.length} duplicates ignored'}'
             '${errors.isEmpty ? '' : '; ${errors.length} invalid'}',
           ),
@@ -423,7 +422,7 @@ class _AdminTranscriptImportScreenState
       if (mounted) setState(() => _error = error.message.toString());
     } catch (error) {
       if (mounted) {
-        setState(() => _error = 'Could not import Markdown: $error');
+        setState(() => _error = 'อ่านไฟล์ Markdown ไม่สำเร็จ: $error');
       }
     } finally {
       if (mounted) setState(() => _readingMarkdown = false);
@@ -449,18 +448,18 @@ class _AdminTranscriptImportScreenState
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Start a new import batch?'),
+          title: const Text('เริ่มชุดนำเข้าใหม่หรือไม่'),
           content: const Text(
-            'Unsubmitted files and pasted transcript text will be cleared.',
+            'ไฟล์ที่ยังไม่ส่งและข้อความ Transcript ที่วางไว้จะถูกล้าง',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: const Text('ยกเลิก'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Start separate batch'),
+              child: const Text('เริ่มชุดใหม่'),
             ),
           ],
         ),
@@ -491,14 +490,14 @@ class _AdminTranscriptImportScreenState
         .where((item) => item.status == _MarkdownImportStatus.alreadyPresent)
         .length;
     return AppShell(
-      title: 'Transcript Import',
+      title: 'นำเข้า Transcript',
       currentRoute: '/admin-transcript-import',
       isAdmin: true,
       actions: [
         IconButton(
           onPressed: _submitting ? null : _startNewBatch,
           icon: const Icon(Icons.create_new_folder_outlined),
-          tooltip: 'Start separate import batch',
+          tooltip: 'เริ่มชุดนำเข้าใหม่',
         ),
         IconButton(
           onPressed: () => Navigator.pushNamed(
@@ -506,14 +505,14 @@ class _AdminTranscriptImportScreenState
             '/admin-dataset-review',
           ),
           icon: const Icon(Icons.fact_check_outlined),
-          tooltip: 'Open dataset review',
+          tooltip: 'เปิดคิวตรวจสอบ Dataset',
         ),
       ],
       child: _loadingTaxonomy
           ? const Center(child: CircularProgressIndicator())
           : _taxonomy.isEmpty
               ? ErrorStateView(
-                  message: 'No active taxonomy categories were found.',
+                  message: 'ไม่พบหมวดหมู่ Taxonomy ที่เปิดใช้งาน',
                   onRetry: _loadTaxonomy,
                 )
               : ListView(
@@ -540,7 +539,7 @@ class _AdminTranscriptImportScreenState
                                     TextButton(
                                       onPressed: () =>
                                           setState(() => _error = null),
-                                      child: const Text('Dismiss'),
+                                      child: const Text('ปิด'),
                                     ),
                                   ],
                                 ),
@@ -551,12 +550,12 @@ class _AdminTranscriptImportScreenState
                                   ButtonSegment(
                                     value: _TranscriptInputMode.files,
                                     icon: Icon(Icons.file_upload_outlined),
-                                    label: Text('Markdown files'),
+                                    label: Text('ไฟล์ Markdown'),
                                   ),
                                   ButtonSegment(
                                     value: _TranscriptInputMode.manual,
                                     icon: Icon(Icons.edit_note_outlined),
-                                    label: Text('Manual paste'),
+                                    label: Text('วางข้อความเอง'),
                                   ),
                                 ],
                                 selected: {_inputMode},
@@ -572,18 +571,18 @@ class _AdminTranscriptImportScreenState
                                 TextFormField(
                                   controller: _videoUrlController,
                                   decoration: const InputDecoration(
-                                    labelText: 'YouTube source URL',
+                                    labelText: 'URL ต้นทาง YouTube',
                                     prefixIcon: Icon(Icons.link),
                                   ),
                                   keyboardType: TextInputType.url,
                                   validator: (value) {
                                     final raw = value?.trim() ?? '';
                                     if (raw.isEmpty) {
-                                      return 'YouTube URL is required';
+                                      return 'กรุณากรอก URL ของ YouTube';
                                     }
                                     final uri = Uri.tryParse(raw);
                                     if (uri == null || !uri.hasScheme) {
-                                      return 'Enter a valid YouTube URL';
+                                      return 'กรุณากรอก URL ของ YouTube ให้ถูกต้อง';
                                     }
                                     return null;
                                   },
@@ -608,8 +607,8 @@ class _AdminTranscriptImportScreenState
                                           initialValue: _leafKey,
                                           isExpanded: true,
                                           decoration: const InputDecoration(
-                                            labelText: 'Proposed category',
-                                            hintText: 'Select category',
+                                            labelText: 'หมวดหมู่ที่เสนอ',
+                                            hintText: 'เลือกหมวดหมู่',
                                           ),
                                           items: _taxonomy
                                               .map(
@@ -636,16 +635,16 @@ class _AdminTranscriptImportScreenState
                                         child: DropdownButtonFormField<String>(
                                           initialValue: _language,
                                           decoration: const InputDecoration(
-                                            labelText: 'Transcript language',
+                                            labelText: 'ภาษา Transcript',
                                           ),
                                           items: const [
                                             DropdownMenuItem(
                                               value: 'th',
-                                              child: Text('Thai'),
+                                              child: Text('ภาษาไทย'),
                                             ),
                                             DropdownMenuItem(
                                               value: 'en',
-                                              child: Text('English'),
+                                              child: Text('ภาษาอังกฤษ'),
                                             ),
                                           ],
                                           onChanged: (value) {
@@ -661,20 +660,20 @@ class _AdminTranscriptImportScreenState
                                           initialValue: _captionType,
                                           isExpanded: true,
                                           decoration: const InputDecoration(
-                                            labelText: 'Caption type',
+                                            labelText: 'ประเภทคำบรรยาย',
                                           ),
                                           items: const [
                                             DropdownMenuItem(
                                               value: 'unspecified',
-                                              child: Text('Not disclosed'),
+                                              child: Text('ไม่ระบุ'),
                                             ),
                                             DropdownMenuItem(
                                               value: 'manual',
-                                              child: Text('Manual captions'),
+                                              child: Text('คำบรรยายที่ทำเอง'),
                                             ),
                                             DropdownMenuItem(
                                               value: 'auto_generated',
-                                              child: Text('Auto-generated'),
+                                              child: Text('สร้างอัตโนมัติ'),
                                             ),
                                           ],
                                           onChanged: (value) {
@@ -696,12 +695,12 @@ class _AdminTranscriptImportScreenState
                                   ButtonSegment(
                                     value: 'classification_diverse',
                                     icon: Icon(Icons.category_outlined),
-                                    label: Text('Classification'),
+                                    label: Text('ข้อมูลจำแนกหมวด'),
                                   ),
                                   ButtonSegment(
                                     value: 'recommendation_high_performance',
                                     icon: Icon(Icons.trending_up),
-                                    label: Text('High performance'),
+                                    label: Text('คลิปผลตอบรับสูง'),
                                   ),
                                 ],
                                 selected: {_strategy},
@@ -723,7 +722,7 @@ class _AdminTranscriptImportScreenState
                                   minLines: 12,
                                   maxLines: 24,
                                   decoration: const InputDecoration(
-                                    labelText: 'Full source transcript',
+                                    labelText: 'Transcript ต้นทางฉบับเต็ม',
                                     alignLabelWithHint: true,
                                   ),
                                   validator: (value) {
@@ -753,20 +752,20 @@ class _AdminTranscriptImportScreenState
                                     : const Icon(Icons.playlist_add_check),
                                 label: Text(
                                   _submitting
-                                      ? 'Importing candidates'
+                                      ? 'กำลังนำเข้าข้อมูล'
                                       : _leafKey == null
-                                          ? 'Select category first'
+                                          ? 'เลือกหมวดหมู่ก่อน'
                                           : _inputMode ==
                                                   _TranscriptInputMode.files
                                               ? importableFileCount == 0
                                                   ? _markdownFiles.isEmpty
-                                                      ? 'Select files to import'
+                                                      ? 'เลือกไฟล์ที่จะนำเข้า'
                                                       : alreadyPresentFileCount >
                                                               0
-                                                          ? 'Import complete ($alreadyPresentFileCount already in system)'
-                                                          : 'All selected files imported'
-                                                  : 'Validate and import $importableFileCount file${importableFileCount == 1 ? '' : 's'}'
-                                              : 'Validate and add candidate',
+                                                          ? 'นำเข้าเสร็จแล้ว (มีในระบบเดิม $alreadyPresentFileCount ไฟล์)'
+                                                          : 'นำเข้าไฟล์ที่เลือกครบแล้ว'
+                                                  : 'ตรวจและนำเข้า $importableFileCount ไฟล์'
+                                              : 'ตรวจและเพิ่มเข้าคิวตรวจสอบ',
                                 ),
                               ),
                               if (_inputMode == _TranscriptInputMode.manual &&
@@ -822,7 +821,7 @@ class _MarkdownFileQueue extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.file_upload_outlined),
-              label: Text(reading ? 'Reading files' : 'Select .md files'),
+              label: Text(reading ? 'กำลังอ่านไฟล์' : 'เลือกไฟล์ .md'),
             ),
             if (items.isNotEmpty) ...[
               const Spacer(),
@@ -851,7 +850,7 @@ class _MarkdownFileQueue extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'No Markdown files selected',
+                        'ยังไม่ได้เลือกไฟล์ Markdown',
                         style: TextStyle(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -896,11 +895,11 @@ class _MarkdownFileRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final statusLabel = switch (item.status) {
-      _MarkdownImportStatus.ready => 'Ready',
-      _MarkdownImportStatus.importing => 'Importing',
-      _MarkdownImportStatus.imported => 'Imported',
-      _MarkdownImportStatus.alreadyPresent => 'Already in system',
-      _MarkdownImportStatus.failed => 'Failed',
+      _MarkdownImportStatus.ready => 'พร้อมนำเข้า',
+      _MarkdownImportStatus.importing => 'กำลังนำเข้า',
+      _MarkdownImportStatus.imported => 'นำเข้าแล้ว',
+      _MarkdownImportStatus.alreadyPresent => 'มีในระบบแล้ว',
+      _MarkdownImportStatus.failed => 'ล้มเหลว',
     };
     final statusColor = switch (item.status) {
       _MarkdownImportStatus.ready => theme.colorScheme.onSurfaceVariant,
@@ -988,7 +987,7 @@ class _MarkdownFileRow extends StatelessWidget {
           IconButton(
             onPressed: submitting ? null : onRemove,
             icon: const Icon(Icons.close),
-            tooltip: 'Remove from list',
+            tooltip: 'นำออกจากรายการ',
           ),
         ],
       ),
@@ -1016,13 +1015,11 @@ class _BatchBand extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              runId == null
-                  ? 'New NotebookLM import batch'
-                  : 'Batch run $runId',
+              runId == null ? 'ชุดนำเข้า NotebookLM ใหม่' : 'ชุดนำเข้า $runId',
               style: Theme.of(context).textTheme.titleSmall,
             ),
           ),
-          if (runId != null) Text('$candidateCount candidates'),
+          if (runId != null) Text('$candidateCount รายการ'),
         ],
       ),
     );
@@ -1079,16 +1076,16 @@ class _ValidatedCandidateBand extends StatelessWidget {
             children: [
               Chip(label: Text(candidate.proposedLeafKey)),
               Chip(label: Text(candidate.transcriptLanguage.toUpperCase())),
-              const Chip(label: Text('Full video transcript')),
+              const Chip(label: Text('Transcript ทั้งคลิป')),
               Chip(label: Text(candidate.licenseName)),
-              const Chip(label: Text('Academic use only')),
+              const Chip(label: Text('ใช้เพื่อการศึกษาเท่านั้น')),
             ],
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: onReview,
             icon: const Icon(Icons.fact_check_outlined),
-            label: const Text('Open review queue'),
+            label: const Text('เปิดคิวตรวจสอบ'),
           ),
         ],
       ),

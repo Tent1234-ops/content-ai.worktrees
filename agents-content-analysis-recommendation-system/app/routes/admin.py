@@ -47,6 +47,7 @@ from app.services.admin_report import (
     list_admin_cluster_runs,
     list_admin_datasets,
     list_admin_logs,
+    sanitize_system_log_detail,
     update_admin_dataset,
     delete_admin_dataset,
     restore_admin_dataset,
@@ -286,7 +287,12 @@ def admin_logs(
     total, items = list_admin_logs(db, limit=limit, offset=offset, status=status, action=action)
     return AdminSystemLogListResponse(
         total=total,
-        items=[AdminSystemLogItem.model_validate(item, from_attributes=True) for item in items],
+        items=[
+            AdminSystemLogItem.model_validate(item, from_attributes=True).model_copy(
+                update={"detail": sanitize_system_log_detail(item.detail)}
+            )
+            for item in items
+        ],
     )
 
 

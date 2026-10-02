@@ -108,10 +108,10 @@ void main() {
       ),
     );
 
-    expect(find.text('Login'), findsAtLeastNWidgets(1));
-    expect(find.text('Email'), findsOneWidget);
-    expect(find.text('Password'), findsOneWidget);
-    expect(find.text('Create account'), findsOneWidget);
+    expect(find.text('เข้าสู่ระบบ'), findsAtLeastNWidgets(1));
+    expect(find.text('อีเมล'), findsOneWidget);
+    expect(find.text('รหัสผ่าน'), findsOneWidget);
+    expect(find.text('สร้างบัญชีใหม่'), findsOneWidget);
   });
 
   testWidgets('admin dataset review shows approve and reject controls',
@@ -128,8 +128,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Galaxy Z Flip 6 Review'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Approve'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Reject'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'อนุมัติ'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'ปฏิเสธ'), findsOneWidget);
     expect(find.text('Phone 0/30'), findsOneWidget);
     expect(find.text('Review status'), findsNothing);
     expect(find.text('Collection run'), findsNothing);
@@ -148,14 +148,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Approve'));
+    await tester.tap(find.widgetWithText(FilledButton, 'อนุมัติ'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Confirm approval'));
     await tester.pumpAndSettle();
 
     expect(repository.reviewCalls, 1);
     expect(find.text('Galaxy Z Flip 6 Review'), findsNothing);
-    expect(find.text('No candidates waiting for review'), findsOneWidget);
+    expect(find.text('ไม่มีข้อมูลรอตรวจสอบ'), findsOneWidget);
   });
 
   testWidgets('analysis result shows explicit states for empty outputs',

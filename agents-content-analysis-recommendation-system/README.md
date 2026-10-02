@@ -73,7 +73,7 @@ DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_NAME=content_ai
 DB_USER=root
-DB_PASSWORD=1234
+DB_PASSWORD=replace-with-db-password
 JWT_SECRET=change-this-secret
 ADMIN_INVITE_CODE=admin-local
 YOUTUBE_API_KEY=your-youtube-data-api-key
@@ -121,6 +121,66 @@ cd Z:\content-ai.worktrees\agents-content-analysis-recommendation-system\fronten
 flutter pub get
 flutter run -d edge --dart-define=API_BASE_URL=http://127.0.0.1:8000
 ```
+
+## Delivery Demo Runbook
+
+ข้อกำหนดบนเครื่องสาธิต:
+
+- MySQL ต้องเปิดอยู่และฐานที่ `.env` ระบุเข้าถึงได้
+- ติดตั้ง Python packages จาก `requirements.txt`, Flutter packages จาก `pubspec.lock`
+- มี `ffmpeg` และ `ffprobe` ใน `PATH`
+- มี release build ที่ `frontend_flutter/build/web`
+- มี Faster Whisper model ใน `models_cache/faster_whisper/small`
+- มี classification artifact ตาม path ที่ Active Model ในฐานข้อมูลอ้างถึง
+
+ตรวจ ASR model และ build เว็บก่อนวันสาธิต:
+
+```powershell
+python -B scripts/setup_faster_whisper.py --model small --verify-only
+cd frontend_flutter
+flutter pub get
+flutter build web --release --dart-define=API_BASE_URL=http://127.0.0.1:8000
+cd ..
+```
+
+เปิด Backend และ release web แบบซ่อนหน้าต่าง service ทั้งสองตัว:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_demo.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check_demo_readiness.ps1
+```
+
+Launcher จะปฏิเสธการเริ่มหากพอร์ต `8000` หรือ `8080` ถูกใช้อยู่ และจะไม่ kill
+process ที่ไม่ได้สร้างเอง เมื่อพร้อมแล้วเปิด `http://127.0.0.1:8080/#/dashboard`
+Backend health อยู่ที่ `http://127.0.0.1:8000/health` ส่วน readiness ของ
+Classification ดูใน `/#/admin-training` เพราะ HTTP 200 ไม่ได้แปลว่าโมเดลผ่านเกณฑ์รับผล
+
+หยุดเฉพาะ process ที่ launcher เปิดและตรวจ identity ตรงกับ state file:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop_demo.ps1
+```
+
+State และ log อยู่ใต้ `runtime_artifacts/demo-launcher/` ซึ่งไม่ใช่ส่วนของ release bundle
+และไม่มี credential อยู่ใน state file
+
+### Private backup and separate restore check
+
+Backup มีข้อมูลผู้ใช้และ password hash จึงเป็นไฟล์ส่วนตัว ห้ามแนบในชุดภาพหรือเอกสารพรีเซนต์:
+
+```powershell
+python scripts/create_delivery_backup.py `
+  --output artifacts/project-closeout/PRIVATE-BACKUP-ID/private-backup
+
+python scripts/restore_delivery_backup.py `
+  --backup artifacts/project-closeout/PRIVATE-BACKUP-ID/private-backup `
+  --database-url sqlite:///Z:/safe/separate/content-ai-restore.sqlite3 `
+  --report artifacts/project-closeout/PRIVATE-BACKUP-ID/restore-report.json
+```
+
+Restore tool รับเฉพาะ SQLite ที่ว่างและปฏิเสธฐานต้นทาง จึงใช้ตรวจความครบของ backup
+โดยไม่เขียนทับ MySQL `content_ai` ไฟล์ `.env` ไม่ถูกคัดลอก มีเพียงรายชื่อ key จาก
+`.env.example` ผู้ดูแลต้องเก็บ `.env` จริงแยกในที่ปลอดภัย
 
 ## Build Public YouTube Research Dataset
 

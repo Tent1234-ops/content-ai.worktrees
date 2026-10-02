@@ -9,8 +9,14 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database.db import Base
 from app.database.models import DatasetCollectionRun, DatasetContent, SystemLog
-from app.schemas.admin_report import AdminDatasetUpdate
-from app.services.admin_report import update_admin_dataset, delete_admin_dataset, restore_admin_dataset, list_admin_datasets
+from app.schemas.admin_report import AdminDatasetCreate, AdminDatasetUpdate
+from app.services.admin_report import (
+    create_admin_dataset,
+    delete_admin_dataset,
+    list_admin_datasets,
+    restore_admin_dataset,
+    update_admin_dataset,
+)
 from app.services.dataset_eligibility import production_transcript_query
 from app.services.dataset_contract import (
     NOTEBOOKLM_TRANSCRIPT_ACQUISITION,
@@ -23,7 +29,10 @@ from app.services.dataset_contract import (
     channel_dataset_split,
 )
 from app.services.taxonomy import TAXONOMY_VERSION, taxonomy_path
-from app.services.training_transcript import normalize_training_transcript
+from app.services.training_transcript import (
+    normalize_training_transcript,
+    training_transcript_sha256,
+)
 
 
 def _hash(value: str) -> str:
@@ -118,6 +127,74 @@ class AdminDatasetCorrectionTests(unittest.TestCase):
         self.db.commit()
         self.db.refresh(row)
         return row
+
+    def test_manual_create_normalizes_transcript_taxonomy_and_stays_unassigned(self):
+        item = create_admin_dataset(
+            self.db,
+            payload=AdminDatasetCreate(
+                title="  Manual camera row  ",
+                transcript="  กล้อง   เซนเซอร์ และ คุณภาพภาพ  ",
+                taxonomy_leaf_key="camera",
+                source_platform="admin_manual",
+                dataset_source="admin",
+                dataset_version="manual-v1",
+                language="th",
+            ),
+            user_id=91,
+        )
+
+        self.assertEqual(item.title, "Manual camera row")
+        self.assertEqual(item.transcript, "กล้อง เซนเซอร์ และ คุณภาพภาพ")
+        self.assertEqual(
+            item.transcript_sha256,
+            training_transcript_sha256(item.transcript),
+        )
+        self.assertEqual(item.taxonomy_leaf_key, "camera")
+        self.assertEqual(item.category, "camera")
+        self.assertEqual(item.taxonomy_version, TAXONOMY_VERSION)
+        self.assertEqual(item.category_level_3, "Camera")
+        self.assertEqual(item.data_split, "unassigned")
+        self.assertFalse(item.is_training_eligible)
+        self.assertFalse(item.is_keyword_recommendation_eligible)
+        self.assertFalse(item.is_duration_recommendation_eligible)
+        audit = self.db.query(SystemLog).filter_by(
+            action="admin_dataset_create"
+        ).one()
+        self.assertEqual(audit.user_id, 91)
+        self.assertIn("split=unassigned", audit.detail)
+        self.assertIn("training_eligible=False", audit.detail)
+
+    def test_manual_create_rejects_duplicate_or_untrusted_transcript_hash(self):
+        transcript = "ข้อความทดสอบสำหรับตรวจ duplicate hash"
+        create_admin_dataset(
+            self.db,
+            payload=AdminDatasetCreate(
+                title="First manual row",
+                transcript=transcript,
+                taxonomy_leaf_key="phone",
+            ),
+        )
+
+        with self.assertRaisesRegex(ValueError, "duplicates existing dataset"):
+            create_admin_dataset(
+                self.db,
+                payload=AdminDatasetCreate(
+                    title="Duplicate manual row",
+                    transcript=f"  {transcript}  ",
+                    taxonomy_leaf_key="phone",
+                ),
+            )
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            create_admin_dataset(
+                self.db,
+                payload=AdminDatasetCreate(
+                    title="Wrong hash row",
+                    transcript="เนื้อหาอีกชุดหนึ่ง",
+                    transcript_sha256="0" * 64,
+                    taxonomy_leaf_key="laptop",
+                ),
+            )
+        self.assertEqual(self.db.query(DatasetContent).count(), 1)
 
     def test_trash_restore_preserves_content_split_and_permissions_after_restart(self):
         row = self._add_dataset(video_id="restore0001", leaf_key="phone",

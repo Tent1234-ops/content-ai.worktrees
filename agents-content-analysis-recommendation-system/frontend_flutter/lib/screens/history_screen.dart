@@ -62,7 +62,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   List<ContentHistoryItem> _getFilteredAndSorted() {
-    var filtered = _items;
+    var filtered = List<ContentHistoryItem>.of(_items);
 
     // Apply domain filter
     if (_filterDomain != 'all') {
@@ -95,7 +95,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final hasItems = _items.isNotEmpty;
 
     return AppShell(
-      title: 'My Ideas & History',
+      title: 'ไอเดียและประวัติ',
       currentRoute: '/history',
       isAdmin: auth.isAdmin,
       child: _error != null
@@ -103,9 +103,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
+                padding: const EdgeInsets.only(bottom: 24),
                 children: [
-                  const UsageStatisticsPanel(),
-                  const Divider(),
                   // Filters & Sort
                   if (hasItems) ...[
                     Padding(
@@ -117,7 +116,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'Showing ${filtered.length} of ${_items.length}',
+                                'ผลวิเคราะห์ ${filtered.length} จาก ${_items.length} รายการ',
                                 style: Theme.of(context).textTheme.labelMedium,
                               ),
                               if (_loading)
@@ -130,43 +129,60 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          // Sort dropdown
-                          DropdownButton<String>(
-                            value: _sortBy,
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'recent', child: Text('Sort: Recent')),
-                              DropdownMenuItem(
-                                  value: 'domain', child: Text('Sort: Domain')),
-                              DropdownMenuItem(
-                                  value: 'duration',
-                                  child: Text('Sort: Duration')),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              SizedBox(
+                                width: 220,
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _sortBy,
+                                  decoration: const InputDecoration(
+                                      labelText: 'เรียงตาม'),
+                                  items: const [
+                                    DropdownMenuItem(
+                                        value: 'recent',
+                                        child: Text('รายการล่าสุด')),
+                                    DropdownMenuItem(
+                                        value: 'domain',
+                                        child: Text('หมวดหมู่')),
+                                    DropdownMenuItem(
+                                        value: 'duration',
+                                        child: Text('ความยาวที่แนะนำ')),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => _sortBy = value);
+                                    }
+                                  },
+                                ),
+                              ),
+                              if (_domains.isNotEmpty)
+                                SizedBox(
+                                  width: 220,
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: _filterDomain,
+                                    decoration: const InputDecoration(
+                                        labelText: 'หมวดหมู่'),
+                                    items: [
+                                      const DropdownMenuItem(
+                                          value: 'all',
+                                          child: Text('ทุกหมวดหมู่')),
+                                      ..._domains
+                                          .map((domain) => DropdownMenuItem(
+                                                value: domain,
+                                                child: Text(domain),
+                                              )),
+                                    ],
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() => _filterDomain = value);
+                                      }
+                                    },
+                                  ),
+                                ),
                             ],
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _sortBy = value);
-                              }
-                            },
                           ),
-                          const SizedBox(height: 8),
-                          // Domain filter
-                          if (_domains.isNotEmpty)
-                            DropdownButton<String>(
-                              value: _filterDomain,
-                              items: [
-                                const DropdownMenuItem(
-                                    value: 'all', child: Text('All Domains')),
-                                ..._domains.map((domain) => DropdownMenuItem(
-                                      value: domain,
-                                      child: Text(domain),
-                                    )),
-                              ],
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setState(() => _filterDomain = value);
-                                }
-                              },
-                            ),
                         ],
                       ),
                     ),
@@ -178,8 +194,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const Padding(
                       padding: EdgeInsets.all(32),
                       child: EmptyStateView(
-                        title: 'No results',
-                        message: 'Try adjusting your filters or sort order.',
+                        title: 'ไม่พบผลวิเคราะห์',
+                        message: 'ลองเปลี่ยนหมวดหมู่หรือการเรียงรายการ',
                         icon: Icons.filter_list_off,
                       ),
                     )
@@ -228,7 +244,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   Row(
                                     children: [
                                       Chip(
-                                        label: Text(item.domain),
+                                        label: Text(_domainLabel(item.domain)),
                                         side: const BorderSide(
                                             color: Color(0xFFE0E0E0)),
                                         backgroundColor: Colors.transparent,
@@ -236,7 +252,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       ),
                                       const SizedBox(width: 8),
                                       Chip(
-                                        label: Text(item.recommendedDuration),
+                                        label: Text(_durationLabel(
+                                            item.recommendedDuration)),
                                         side: const BorderSide(
                                             color: Color(0xFFE0E0E0)),
                                         backgroundColor: Colors.transparent,
@@ -246,7 +263,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    'Keywords: $keywordPreview',
+                                    'คำแนะนำ: $keywordPreview',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style:
@@ -279,9 +296,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         },
                       ),
                     ),
+                  if (hasItems) ...[
+                    const Divider(),
+                    const UsageStatisticsPanel(),
+                  ],
                 ],
               ),
             ),
     );
   }
+}
+
+String _domainLabel(String value) => switch (value.toLowerCase()) {
+      'phone' => 'มือถือ',
+      'camera' => 'กล้อง',
+      'laptop' => 'แล็ปท็อป',
+      'unknown' => 'ไม่ทราบหมวดหมู่',
+      _ => value,
+    };
+
+String _durationLabel(String value) {
+  final seconds = int.tryParse(value.trim());
+  return seconds == null ? value : '$seconds วินาที';
 }

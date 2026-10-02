@@ -33,7 +33,7 @@ class ErrorStateView extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Try again'),
+                label: const Text('ลองอีกครั้ง'),
               ),
             ],
           ],
@@ -98,17 +98,17 @@ class PaginationBar extends StatelessWidget {
         total == 0 ? 0 : (offset + limit > total ? total : offset + limit);
     return Row(
       children: [
-        Text('Showing $start-$end of $total'),
+        Text('แสดง $start-$end จาก $total รายการ'),
         const Spacer(),
         IconButton(
           onPressed: onPrevious,
           icon: const Icon(Icons.chevron_left),
-          tooltip: 'Previous page',
+          tooltip: 'หน้าก่อนหน้า',
         ),
         IconButton(
           onPressed: onNext,
           icon: const Icon(Icons.chevron_right),
-          tooltip: 'Next page',
+          tooltip: 'หน้าถัดไป',
         ),
       ],
     );
@@ -129,8 +129,8 @@ class SimpleBarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.isEmpty) {
       return const EmptyStateView(
-        title: 'No chart data',
-        message: 'This section will populate when more records are available.',
+        title: 'ยังไม่มีข้อมูลกราฟ',
+        message: 'ระบบจะแสดงส่วนนี้เมื่อมีข้อมูลเพียงพอ',
         icon: Icons.bar_chart_outlined,
       );
     }

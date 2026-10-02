@@ -174,6 +174,28 @@ void main() {
             .widget<CheckboxListTile>(find.byType(CheckboxListTile).first)
             .value,
         true);
+
+    // Rebuild the private panel as after reload/relogin. The repository-backed
+    // follow remains selected instead of falling back to an empty local state.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, update) => InterestPreferencesPanel(
+              repository: repo,
+              topics: List.of(repo.topics),
+              onChanged: () async => update(() {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<CheckboxListTile>(find.byType(CheckboxListTile).first)
+            .value,
+        true);
     await tester.tap(find.text('เฉพาะที่ติดตาม'));
     await tester.pumpAndSettle();
     expect(repo.mode, 'following');

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.datetime_utils import utc_isoformat
-from app.database.models import TrendHistoryAttempt, TrendHistoryBucket, TrendSnapshotItem, TrendSnapshotRun
+from app.database.models import SystemConfig, TrendHistoryAttempt, TrendHistoryBucket, TrendSnapshotItem, TrendSnapshotRun
 from app.services.view_metrics import view_metrics_are_comparable
 
 RETENTION_DAYS = 90
@@ -222,7 +222,7 @@ def _rank_movement(points: list[dict], key: str, *, stale: bool, interrupted: bo
 
 
 def load_trend_history(
-    db: Session, *, region: str, platform: str, days: int = 5,
+    db: Session, *, region: str, platform: str, days: int = 7,
     category_id: str | None = None, item_key: str | None = None, now: datetime | None = None,
 ) -> dict:
     if platform not in {"youtube", "google"} or days not in {1, 5, 7, 30, 90}:
@@ -232,6 +232,9 @@ def load_trend_history(
     scope = f"category:{category_id}" if category_id else "global"
     end = now or datetime.utcnow()
     start = end - timedelta(days=days)
+    if days == 7:
+        # Seven Bangkok calendar dates, including the unfinished current day.
+        start = (end + timedelta(hours=7)).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6, hours=7)
     buckets = db.query(TrendHistoryBucket).filter(
         TrendHistoryBucket.region == region,
         TrendHistoryBucket.platform == platform,
@@ -279,7 +282,10 @@ def load_trend_history(
         previous_at = timestamp
     latest_ranks = points[-1]["ranks"] if points else {}
     keys = sorted(titles, key=lambda k: (latest_ranks.get(k, 999), titles[k]))
-    selected_key = item_key if item_key in titles else next(iter(keys), None)
+    occurrences = Counter(key for point in points for key in point["ranks"])
+    candidates = list(latest_ranks) or keys
+    default_key = min(candidates, key=lambda k: (-occurrences[k], latest_ranks.get(k, 999), k)) if candidates else None
+    selected_key = item_key if item_key in titles else default_key
     previous = None
     for point in points:
         for field in ("views", "view_metrics", "item_ids"):
@@ -304,6 +310,20 @@ def load_trend_history(
     latest_attempt = attempts[-1] if attempts else None
     interrupted = bool(latest_attempt and latest_attempt.status != "observed"
                        and (not ordered or latest_attempt.observed_at >= ordered[-1][0]))
+    daily = {}
+    for entry in hours:
+        local = datetime.fromisoformat(entry["hour"].replace("Z", "+00:00")) + timedelta(hours=7)
+        day = daily.setdefault(local.date().isoformat(), {"date": local.date().isoformat(),
+            "observed_hours": 0, "failed_attempts": 0, "unobserved_hours": 0})
+        day["observed_hours"] += int(entry["observed"])
+        day["unobserved_hours"] += int(not entry["observed"])
+        day["failed_attempts"] += entry["failed_attempts"]
+    config = db.query(SystemConfig).filter(SystemConfig.user_id.is_(None)).order_by(SystemConfig.config_id).first()
+    schedule = None if config is None else {
+        "mode": config.trend_schedule_mode, "enabled": bool(config.trend_refresh_enabled),
+        "start_hour": config.trend_window_start_hour, "end_hour": config.trend_window_end_hour,
+        "timezone": "Asia/Bangkok", "applies_to": "current_configuration_only",
+    }
     return {
         "platform": platform, "region": region, "ranking_scope": scope,
         "selected_key": selected_key,
@@ -313,6 +333,9 @@ def load_trend_history(
         "method_version": "observed-scope-history-v2",
         "gap_threshold_seconds": GAP_SECONDS,
         "hours": hours,
+        "daily_coverage": list(daily.values()),
+        "collection_schedule": schedule,
+        "default_selection": "most_observed_in_latest_ranking",
         "coverage": {
             "sample_count": len(points), "hours_observed": len(observed_hours),
             "hours_requested": len(hours),
@@ -327,6 +350,7 @@ def load_trend_history(
             "is_stale": stale,
         },
         "items": [{"key": k, "title": titles[k], "latest_rank": latest_ranks.get(k),
+                   "observation_count": occurrences[k],
                    "last_seen_at": last_seen[k],
                    "movement": _rank_movement(points, k, stale=stale, interrupted=interrupted)} for k in keys],
         "points": points,

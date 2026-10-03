@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
 
 from faster_whisper.utils import download_model
 
-from models.speech_to_text import check_model_readiness, configured_model_path
+from models.speech_to_text import ModelManager, check_model_readiness, configured_model_path
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,6 +28,8 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Check required model files without downloading",
     )
+    parser.add_argument("--verify-load", action="store_true",
+                        help="Also load local weights and run a short inference smoke test")
     return parser.parse_args()
 
 
@@ -45,6 +47,12 @@ def main() -> int:
 
     readiness = check_model_readiness(args.model)
     print(readiness)
+    if readiness["ready"] and args.verify_load:
+        import numpy as np
+        model = ModelManager.get_model(args.model)
+        segments, _ = model.transcribe(np.zeros(16000, dtype=np.float32), language="th", beam_size=1)
+        list(segments)
+        print(f"Local model load and inference succeeded: {args.model}", flush=True)
     return 0 if readiness["ready"] else 1
 
 

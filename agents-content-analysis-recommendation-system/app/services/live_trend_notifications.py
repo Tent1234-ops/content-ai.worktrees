@@ -20,7 +20,7 @@ from app.database.models import (
 from app.services.live_trend_snapshots import (
     GLOBAL_RANKING_SCOPE,
     GLOBAL_SNAPSHOT_KIND,
-    PLATFORMS,
+    ACTIVE_PLATFORMS as PLATFORMS,
     load_latest_live_snapshot,
 )
 from app.services.notifications import create_live_trend_notification

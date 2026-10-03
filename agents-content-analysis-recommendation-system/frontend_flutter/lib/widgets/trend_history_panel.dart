@@ -52,7 +52,7 @@ class TrendHistoryPanel extends StatefulWidget {
 
 class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
   TrendHistory? _data;
-  int _days = 5;
+  static const _days = 7;
   int _request = 0;
   bool _loading = true;
   bool _failed = false;
@@ -140,26 +140,11 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
                 Text(
                     'แนวโน้มย้อนหลัง · ${widget.platform == 'youtube' ? 'YouTube' : 'Google'}',
                     style: theme.textTheme.titleLarge),
-                SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(value: 1, label: Text('24 ชั่วโมง')),
-                    ButtonSegment(value: 5, label: Text('5 วัน')),
-                    ButtonSegment(value: 7, label: Text('7 วัน')),
-                    ButtonSegment(value: 30, label: Text('30 วัน')),
-                    ButtonSegment(value: 90, label: Text('90 วัน')),
-                  ],
-                  selected: {_days},
-                  onSelectionChanged: (value) {
-                    setState(() {
-                      _days = value.first;
-                      _data = null;
-                    });
-                    _load();
-                  },
-                ),
+                const Text('7 วันล่าสุด'),
               ]),
           const SizedBox(height: 12),
           if (data != null) _coverage(data),
+          if (data != null) _dailyCoverage(data),
           if (_loading) const LinearProgressIndicator(),
           if (_failed)
             Row(children: [
@@ -232,6 +217,53 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
     );
   }
 
+  Widget _dailyCoverage(TrendHistory data) {
+    final schedule = data.collectionSchedule;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (schedule['mode'] == 'hourly_window')
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(schedule['enabled'] == true
+              ? 'ตารางเก็บปัจจุบัน ${schedule['start_hour']}:00–${schedule['end_hour']}:00 น. ทุกชั่วโมง (เวลาไทย)'
+              : 'ขณะนี้หยุดเก็บข้อมูลอัตโนมัติ'),
+        ),
+      if (data.dailyCoverage.isNotEmpty) ...[
+        Wrap(spacing: 16, runSpacing: 12, children: [
+          for (final day in data.dailyCoverage)
+            SizedBox(
+                width: 130,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${day['date']}',
+                        style: Theme.of(context).textTheme.labelMedium),
+                    const SizedBox(height: 6),
+                    Text((day['observed_hours'] as num) > 0
+                        ? '${day['observed_hours']} ชั่วโมงที่มีข้อมูล'
+                        : 'ไม่มีข้อมูลที่เก็บได้'),
+                    const SizedBox(height: 6),
+                    LinearProgressIndicator(
+                      value: (day['observed_hours'] as num).toDouble() / 24,
+                      color: const Color(0xFF168067),
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ),
+                    if ((day['failed_attempts'] as num) > 0)
+                      Text('ล้มเหลว ${day['failed_attempts']} ครั้ง',
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.error)),
+                  ],
+                )),
+        ]),
+        const SizedBox(height: 12),
+        Text(
+            'ช่องว่างของกราฟอาจเป็นช่วงไม่ได้เก็บข้อมูล หรือรายการไม่ติดอันดับในรอบนั้น ไม่ใช่ค่าศูนย์',
+            style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 12),
+      ],
+    ]);
+  }
+
   Widget _coverage(TrendHistory data) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Wrap(
@@ -301,8 +333,10 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
           items: data.items
               .map((item) => DropdownMenuItem(
                   value: item.key,
-                  child: Text(item.title,
-                      maxLines: 1, overflow: TextOverflow.ellipsis)))
+                  child: Text(
+                      '${item.title}${item.observationCount > 0 ? ' · พบ ${item.observationCount} รอบ' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis)))
               .toList(),
           onChanged: (value) {
             setState(() {
@@ -386,11 +420,10 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
                   : 'อันดับในหมวด${widget.categoryLabel}',
           style: Theme.of(context).textTheme.bodySmall),
       const SizedBox(height: 12),
-      if (data.points.length < 2 || occurrences < 2)
+      if (occurrences == 0)
         const SizedBox(
             height: 230,
-            child: Center(
-                child: Text('ยังมีจุดข้อมูลของรายการนี้ไม่พอเปรียบเทียบ')))
+            child: Center(child: Text('ไม่พบรายการนี้ในรอบที่เก็บได้')))
       else
         HistoryLineChart(
           points: data.points,
@@ -406,6 +439,8 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
           'พบใน $occurrences จาก ${data.points.length} จุดข้อมูล'
           ' · ไม่พบในรายการที่เก็บได้ ไม่ได้หมายถึงอันดับ 0 หรือ 51',
           style: Theme.of(context).textTheme.bodySmall),
+      if (occurrences == 1)
+        const Text('พบเพียงรอบเดียว ยังสรุปการเปลี่ยนอันดับไม่ได้'),
     ]);
   }
 

@@ -23,7 +23,7 @@ _RATE_LIMIT_SECONDS = {
     "google": 60,
     "tiktok": 60,
 }
-_DEFAULT_SOURCES = ["youtube", "google", "tiktok"]
+_DEFAULT_SOURCES = ["youtube", "google"]
 _CACHE_TTL_SECONDS = 60
 
 _last_fetch: Dict[str, datetime] = {}

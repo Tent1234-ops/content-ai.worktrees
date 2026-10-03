@@ -32,7 +32,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 def public_trend_history(
     platform: str = Query(pattern="^(youtube|google)$"),
     region: str = Query(default=settings.youtube_region, pattern="^[a-zA-Z]{2}$"),
-    days: int = Query(default=5, ge=1, le=90),
+    days: int = Query(default=7, ge=1, le=90),
     video_category_id: str | None = Query(default=None, pattern=r"^\d{1,3}$"),
     item_key: str | None = Query(default=None, pattern=r"^[0-9a-f]{40}$"),
     db: Session = Depends(get_db),

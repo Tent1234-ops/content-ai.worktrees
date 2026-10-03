@@ -26,6 +26,11 @@ class TrendHistory {
         hours = (json['hours'] as List? ?? [])
             .map((e) => HistoryHour.fromJson(Map<String, dynamic>.from(e)))
             .toList(),
+        dailyCoverage = (json['daily_coverage'] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList(),
+        collectionSchedule = Map<String, dynamic>.from(
+            json['collection_schedule'] as Map? ?? {}),
         failedAttempts =
             ((json['coverage'] as Map?)?['failed_attempts'] as num?)?.toInt() ??
                 0,
@@ -45,6 +50,8 @@ class TrendHistory {
   final DateTime? requestedFrom, requestedTo;
   final int hoursObserved, hoursRequested;
   final List<HistoryHour> hours;
+  final List<Map<String, dynamic>> dailyCoverage;
+  final Map<String, dynamic> collectionSchedule;
   final int gaps;
   final int failedAttempts;
   final int unobservedHours;
@@ -55,10 +62,12 @@ class HistoryItem {
       : key = json['key'] as String,
         title = json['title'] as String,
         latestRank = (json['latest_rank'] as num?)?.toInt(),
+        observationCount = (json['observation_count'] as num?)?.toInt() ?? 0,
         movement = Map<String, dynamic>.from(json['movement'] as Map? ?? {});
   final String key;
   final String title;
   final int? latestRank;
+  final int observationCount;
   final Map<String, dynamic> movement;
 }
 

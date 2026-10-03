@@ -35,7 +35,7 @@ class HistoryRepository extends DashboardRepository {
   @override
   Future<TrendHistory> getTrendHistory(
       {required String platform,
-      int days = 5,
+      int days = 7,
       String? categoryId,
       String? itemKey}) async {
     requests.add('$platform:$categoryId:$days');
@@ -233,9 +233,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(LineChart), findsNWidgets(2));
     expect(find.text('หมวดไหนติดอันดับรวมมากขึ้น'), findsOneWidget);
-    await tester.tap(find.text('24 ชั่วโมง'));
-    await tester.pumpAndSettle();
-    expect(repo.requests.last, 'youtube:null:1');
+    expect(find.text('7 วันล่าสุด'), findsOneWidget);
+    expect(find.byType(SegmentedButton<int>), findsNothing);
+    expect(find.text('24 ชั่วโมง'), findsNothing);
+    expect(find.text('90 วัน'), findsNothing);
+    expect(repo.requests.last, 'youtube:null:7');
     await tester.ensureVisible(find.byTooltip('ดูตารางข้อมูลกราฟ'));
     await tester.tap(find.byTooltip('ดูตารางข้อมูลกราฟ'));
     await tester.pumpAndSettle();
@@ -255,7 +257,7 @@ void main() {
         findsOneWidget);
     await tester.pumpWidget(panel(repo, category: '20'));
     await tester.pumpAndSettle();
-    expect(repo.requests.last, 'youtube:20:5');
+    expect(repo.requests.last, 'youtube:20:7');
     expect(find.byType(LineChart), findsOneWidget);
   });
 
@@ -293,8 +295,8 @@ void main() {
         });
     await tester.tap(find.byTooltip('ลองโหลดประวัติอีกครั้ง'));
     await tester.pumpAndSettle();
-    expect(find.byType(LineChart), findsNothing);
-    expect(find.text('ยังมีจุดข้อมูลของรายการนี้ไม่พอเปรียบเทียบ'),
+    expect(find.byType(LineChart), findsOneWidget);
+    expect(find.text('พบเพียงรอบเดียว ยังสรุปการเปลี่ยนอันดับไม่ได้'),
         findsOneWidget);
     expect(tester.takeException(), isNull);
   });

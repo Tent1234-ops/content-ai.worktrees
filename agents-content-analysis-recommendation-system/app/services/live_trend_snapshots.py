@@ -28,6 +28,7 @@ from app.services.trend_history import archive_snapshot_run, prune_trend_history
 
 
 PLATFORMS = ("youtube", "google", "tiktok")
+ACTIVE_PLATFORMS = ("youtube", "google")
 GLOBAL_SNAPSHOT_KIND = "global"
 YOUTUBE_CATEGORY_SNAPSHOT_KIND = "youtube_categories"
 GLOBAL_RANKING_SCOPE = "global"
@@ -251,7 +252,7 @@ def refresh_global_live_trends(
     *,
     region: str | None = None,
     limit: int | None = None,
-    platforms: Iterable[str] = PLATFORMS,
+    platforms: Iterable[str] = ACTIVE_PLATFORMS,
     fetchers: Mapping[str, ProviderFetcher] | None = None,
     db: Session | None = None,
 ) -> Dict[str, object]:

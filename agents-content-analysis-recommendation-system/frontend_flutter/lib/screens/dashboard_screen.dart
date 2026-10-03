@@ -11,7 +11,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/trend_detail_panel.dart';
 import '../widgets/trend_catalog.dart';
-import '../widgets/interest_preferences_panel.dart';
+import '../widgets/dashboard_personal_dialog.dart';
 import '../widgets/trend_history_panel.dart';
 import 'login_screen.dart';
 
@@ -26,7 +26,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
-  static const _platforms = ['youtube', 'google', 'tiktok'];
+  static const _platforms = ['youtube', 'google'];
 
   late final DashboardRepository _repository;
   late final TabController _platformTabController;
@@ -160,7 +160,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         _followedTopics = topicsResult.value!;
       }
       if (notificationsResult.value != null) {
-        _notifications = notificationsResult.value!;
+        _notifications = notificationsResult.value!
+            .where((n) => n.platform != 'tiktok')
+            .toList();
       }
       _sectionErrors = errors;
       _error = _data == null
@@ -296,7 +298,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       final notifications = await _repository.getNotifications(limit: 20);
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
-        _notifications = notifications;
+        _notifications =
+            notifications.where((n) => n.platform != 'tiktok').toList();
         if (_sectionErrors.containsKey('Notifications')) {
           final errors = Map<String, String>.from(_sectionErrors)
             ..remove('Notifications');
@@ -314,19 +317,19 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  Future<void> _markAllRead() async {
-    if (_authenticated != true) return;
-    final generation = _loadGeneration;
-    final unreadIds = _notifications
-        .where((item) => !item.isRead)
-        .map((item) => item.id)
-        .where((id) => id > 0)
-        .toList();
-    if (unreadIds.isEmpty) return;
-    await _repository.markNotificationsRead(unreadIds);
-    final notifications = await _repository.getNotifications(limit: 20);
-    if (!mounted || generation != _loadGeneration) return;
-    setState(() => _notifications = notifications);
+  Future<void> _openPersonalDialog({required bool following}) async {
+    final auth = AuthScope.of(context);
+    final ownerId = auth.user?.userId;
+    if (!auth.isAuthenticated || ownerId == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AuthScope(
+          controller: auth,
+          child: DashboardPersonalDialog(
+              repository: _repository, following: following, ownerId: ownerId)),
+    );
+    if (!mounted || AuthScope.of(context).user?.userId != ownerId) return;
+    await _loadAll();
   }
 
   Future<void> _logout() async {
@@ -517,10 +520,16 @@ class _DashboardScreenState extends State<DashboardScreen>
               unreadNotifications > 99 ? '99+' : '$unreadNotifications',
             ),
             child: IconButton(
-              onPressed: _loadNotificationsOnly,
+              onPressed: () => _openPersonalDialog(following: false),
               icon: const Icon(Icons.notifications_outlined),
-              tooltip: 'อัปเดตการแจ้งเตือน',
+              tooltip: 'การแจ้งเตือนเทรนด์',
             ),
+          ),
+        if (auth.isAuthenticated)
+          IconButton(
+            onPressed: () => _openPersonalDialog(following: true),
+            icon: const Icon(Icons.bookmarks_outlined),
+            tooltip: 'หัวข้อที่ติดตาม',
           ),
         if (auth.isAdmin)
           IconButton(
@@ -609,7 +618,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 onOpenSource: _openTrendSource,
                               ),
                               const SizedBox(height: 16),
-                              if (_selectedPlatform != 'tiktok') ...[
+                              ...[
                                 TrendHistoryPanel(
                                   repository: _repository,
                                   platform: _selectedPlatform,
@@ -622,29 +631,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                                       _formatTrendCategory('youtube', c),
                                   revision:
                                       '${_snapshot?.generatedAt}:${_youtubeCategorySnapshot?.generatedAt}',
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-                              if (auth.isAuthenticated) ...[
-                                InterestPreferencesPanel(
-                                  repository: _repository,
-                                  topics: _followedTopics,
-                                  onChanged: _loadFollowStateOnly,
-                                ),
-                                const Divider(),
-                                _NotificationPanel(
-                                  notifications: _notifications,
-                                  onMarkAllRead: _markAllRead,
-                                ),
-                                const SizedBox(height: 16),
-                                _FollowedTopicsPanel(
-                                  topics: _followedTopics
-                                      .where((t) => t.matchType != 'category')
-                                      .toList(),
-                                  onDelete: (topic) async {
-                                    await _repository.unfollowTopic(topic.id);
-                                    await _loadFollowStateOnly();
-                                  },
                                 ),
                                 const SizedBox(height: 16),
                               ],
@@ -806,13 +792,12 @@ class _TrendFilters extends StatelessWidget {
                 child: TabBar(
                   controller: platformTabController,
                   onTap: (index) {
-                    const platforms = ['youtube', 'google', 'tiktok'];
+                    const platforms = ['youtube', 'google'];
                     onPlatformChanged(platforms[index]);
                   },
                   tabs: const [
                     Tab(icon: Icon(Icons.play_circle_outline), text: 'YouTube'),
                     Tab(icon: Icon(Icons.search), text: 'Google'),
-                    Tab(icon: Icon(Icons.music_video_outlined), text: 'TikTok'),
                   ],
                 ),
               ),
@@ -926,13 +911,6 @@ class _TrendDashboardSections extends StatelessWidget {
             ],
           ),
         ),
-      );
-    }
-    if (_platformFamily(platform) == 'tiktok' && trends.isEmpty) {
-      return const EmptyStateView(
-        title: 'TikTok ยังไม่พร้อมใช้งาน',
-        message: 'ระบบยังไม่มีแหล่งข้อมูล TikTok ที่ได้รับอนุญาตและตรวจสอบได้',
-        icon: Icons.music_video_outlined,
       );
     }
     final trendingNow = trends.take(50).toList();
@@ -1449,127 +1427,6 @@ class _MetricCard extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationPanel extends StatelessWidget {
-  const _NotificationPanel({
-    required this.notifications,
-    required this.onMarkAllRead,
-  });
-
-  final List<NotificationItem> notifications;
-  final VoidCallback onMarkAllRead;
-
-  @override
-  Widget build(BuildContext context) {
-    final unread = notifications.where((item) => !item.isRead).length;
-    final visible = notifications.take(4).toList();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.notifications_outlined),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'การแจ้งเตือนเทรนด์',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                if (unread > 0)
-                  TextButton.icon(
-                    onPressed: onMarkAllRead,
-                    icon: const Icon(Icons.done_all),
-                    label: Text('อ่านแล้ว $unread รายการ'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (visible.isEmpty)
-              Text(
-                'ระบบจะแจ้งเมื่อพบรายการใหม่หลังจากรอบข้อมูลอ้างอิงของคุณ',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              ...visible.map(
-                (item) => ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    item.isRead
-                        ? Icons.notifications_none
-                        : Icons.notifications_active,
-                    color: item.isRead
-                        ? Theme.of(context).disabledColor
-                        : Theme.of(context).colorScheme.primary,
-                  ),
-                  title: Text(item.title,
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(
-                    '${_formatPlatformName(item.platform)} | ${_formatTrendCategory(item.platform, item.category)} | ${_formatDateTime(item.detectedAt)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: item.type == 'new_live_trend'
-                      ? const Icon(Icons.fiber_new_outlined)
-                      : const Icon(Icons.notifications_none),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FollowedTopicsPanel extends StatelessWidget {
-  const _FollowedTopicsPanel({
-    required this.topics,
-    required this.onDelete,
-  });
-
-  final List<FollowedTopicItem> topics;
-  final Future<void> Function(FollowedTopicItem topic) onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('หัวข้อที่ติดตาม',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            if (topics.isEmpty)
-              Text(
-                'กดปุ่มบันทึกที่รายการเทรนด์เพื่อเพิ่มหัวข้อที่ต้องการติดตาม',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: topics
-                    .map(
-                      (topic) => InputChip(
-                        avatar: const Icon(Icons.bookmark, size: 18),
-                        label: Text(topic.value),
-                        onDeleted: () => onDelete(topic),
-                      ),
-                    )
-                    .toList(),
-              ),
           ],
         ),
       ),

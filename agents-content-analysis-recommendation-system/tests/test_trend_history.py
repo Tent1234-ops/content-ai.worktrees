@@ -158,6 +158,27 @@ class TrendHistoryTests(unittest.TestCase):
         self.assertEqual(data['items'], [])
         self.assertTrue(data['coverage']['is_stale'])
 
+    def test_seven_calendar_days_and_daily_coverage_keep_gaps_honest(self):
+        self.run_sample(self.now - timedelta(days=2))
+        self.run_sample(self.now, (), status='error')
+        data = self.history(days=7)
+        self.assertEqual(len(data['daily_coverage']), 7)
+        self.assertEqual(sum(d['observed_hours'] for d in data['daily_coverage']), 1)
+        self.assertEqual(data['daily_coverage'][-1]['failed_attempts'], 1)
+        self.assertEqual(data['daily_coverage'][-1]['observed_hours'], 0)
+        self.assertEqual(len(data['points']), 1)
+        self.assertEqual(data['requested_from'], '2026-09-12T17:00:00Z')
+
+    def test_default_selects_longer_history_but_explicit_item_wins(self):
+        self.run_sample(self.now - timedelta(days=2), (('old', 4, 'Gaming'),))
+        self.run_sample(self.now - timedelta(days=1), (('old', 3, 'Gaming'),))
+        self.run_sample(self.now, (('new', 1, 'Gaming'), ('old', 2, 'Gaming')))
+        data = self.history()
+        self.assertEqual(data['selected_key'], 'old')
+        self.assertEqual(data['items'][0]['key'], 'new')  # Rankings stay untouched.
+        self.assertEqual(next(i for i in data['items'] if i['key'] == 'old')['observation_count'], 3)
+        self.assertEqual(self.history(item_key='new')['selected_key'], 'new')
+
     def test_failure_survives_raw_prune_and_breaks_line_inside_one_hour(self):
         self.run_sample(self.now - timedelta(minutes=20))
         failed = self.run_sample(self.now - timedelta(minutes=10), (), status='error')

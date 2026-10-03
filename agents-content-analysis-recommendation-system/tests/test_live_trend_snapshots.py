@@ -221,10 +221,19 @@ class LiveTrendSnapshotTests(unittest.TestCase):
             run.completed_at -= timedelta(minutes=minutes)
         self.db.commit()
 
+    def test_default_collection_excludes_paused_tiktok(self):
+        def unexpected(*args):
+            self.fail('TikTok must not be fetched by scheduled/default collections')
+        result = refresh_global_live_trends(region='TH', limit=50,
+            fetchers={'youtube': self._youtube, 'google': self._google, 'tiktok': unexpected}, db=self.db)
+        self.assertEqual(result['status'], 'completed')
+        self.assertEqual(set(result['providers']), {'youtube', 'google'})
+
     def test_partial_run_keeps_successful_platforms_and_reads_quickly(self):
         result = refresh_global_live_trends(
             region="TH",
             limit=50,
+            platforms=("youtube", "google", "tiktok"),
             fetchers={
                 "youtube": self._youtube,
                 "google": self._google,

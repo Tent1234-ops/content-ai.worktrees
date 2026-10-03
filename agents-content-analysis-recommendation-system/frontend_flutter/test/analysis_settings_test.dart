@@ -19,6 +19,8 @@ Map<String, dynamic> settingsJson() => {
       'whisper_models': [
         {'name': 'base', 'ready': false},
         {'name': 'small', 'ready': true},
+        {'name': 'medium', 'ready': true},
+        {'name': 'large-v3', 'ready': true},
       ],
       'classification_model': {
         'model_id': 14,
@@ -87,7 +89,9 @@ void main() {
             matching: find.byType(DropdownMenuItem<String>))
         .last);
     expect(unavailable.enabled, isFalse);
-    await tester.tap(find.text('small').last);
+    expect(find.text('medium'), findsOneWidget);
+    expect(find.text('large-v3'), findsOneWidget);
+    await tester.tap(find.text('large-v3').last);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(0), '30');
     await tester.enterText(find.byType(TextFormField).at(1), '60');
@@ -102,7 +106,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(repository.saved, {
       'upload_max_duration_seconds': 120,
-      'asr_model': 'small',
+      'asr_model': 'large-v3',
       'hook_duration_seconds': 20
     });
     await tester.tap(find.byTooltip('โหลดค่าล่าสุด'));

@@ -363,7 +363,6 @@ class LiveTrendSnapshot {
   List<DashboardPlatformTrends> get platformTrends => [
         youtubeTrends,
         googleTrends,
-        tiktokTrends,
       ];
 
   LiveTrendSnapshot retainPreviousItems(LiveTrendSnapshot? previous) {
@@ -570,7 +569,6 @@ class DashboardOverview {
   List<DashboardPlatformTrends> get platformTrends => [
         youtubeTrends,
         googleTrends,
-        tiktokTrends,
       ];
 
   List<DashboardTrendItem> get liveYoutubeTrends => youtubeTrends.items;

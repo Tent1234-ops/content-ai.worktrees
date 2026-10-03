@@ -9,7 +9,7 @@ class DashboardRepository {
 
   Future<TrendHistory> getTrendHistory(
       {required String platform,
-      int days = 5,
+      int days = 7,
       String? categoryId,
       String? itemKey}) async {
     final query = Uri(queryParameters: {
@@ -117,7 +117,7 @@ class DashboardRepository {
   }
 
   Future<List<TrendSyncResult>> syncAllTrendsLive({int limit = 50}) async {
-    final platforms = ['youtube', 'google', 'tiktok'];
+    final platforms = ['youtube', 'google'];
     final results = <TrendSyncResult>[];
     for (final platform in platforms) {
       try {

@@ -126,6 +126,67 @@ void main() {
     }
   });
 
+  testWidgets('top-right inboxes open lists and keep failed writes visible',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final auth = AuthController(repository: _GuestAuthRepository());
+    await auth.initialize();
+    await auth.login('guest@example.com', 'test-password');
+    addTearDown(auth.dispose);
+    final repository = _FakeDashboardRepository()
+      ..topics = [
+        const FollowedTopicItem(
+            id: 1,
+            matchType: 'keyword',
+            value: 'หัวข้อที่บันทึก',
+            createdAt: '')
+      ]
+      ..messages = [
+        NotificationItem.fromJson({
+          'notification_id': 1,
+          'platform': 'youtube',
+          'title': 'เทรนด์ใหม่สำหรับคุณ'
+        })
+      ];
+    await tester.pumpWidget(MaterialApp(
+        home: AuthScope(
+            controller: auth, child: DashboardScreen(repository: repository))));
+    await tester.pumpAndSettle();
+    expect(find.text('หมวดที่ติดตามและการแจ้งเตือน'), findsNothing);
+    expect(find.text('หัวข้อที่บันทึก'), findsNothing);
+    await tester.tap(find.byTooltip('การแจ้งเตือนเทรนด์'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('เทรนด์ใหม่สำหรับคุณ'), findsOneWidget);
+    repository.failWrite = true;
+    await tester.tap(find.byTooltip('อ่านแล้ว'));
+    await tester.pumpAndSettle();
+    expect(find.text('ดำเนินการไม่สำเร็จ กรุณาลองอีกครั้ง'), findsOneWidget);
+    expect(find.byTooltip('อ่านแล้ว'), findsOneWidget);
+    repository.failWrite = false;
+    await tester.tap(find.byTooltip('อ่านแล้ว'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('อ่านแล้ว'), findsNothing);
+    await tester.tap(find.byTooltip('ปิด'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('หัวข้อที่ติดตาม'));
+    await tester.pumpAndSettle();
+    expect(find.text('หัวข้อที่บันทึก'), findsOneWidget);
+    repository.failWrite = true;
+    await tester.tap(find.byTooltip('เลิกติดตาม'));
+    await tester.pumpAndSettle();
+    expect(find.text('หัวข้อที่บันทึก'), findsOneWidget);
+    repository.failWrite = false;
+    await tester.tap(find.byTooltip('เลิกติดตาม'));
+    await tester.pumpAndSettle();
+    expect(find.text('ยังไม่มีหัวข้อที่ติดตาม'), findsOneWidget);
+    await auth.logout();
+    await tester.pumpAndSettle();
+    expect(find.text('กรุณาเข้าสู่ระบบเพื่อดูข้อมูลส่วนตัว'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('dashboard keeps platform rankings in separate tabs',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 900));
@@ -146,7 +207,7 @@ void main() {
     expect(find.byType(TabBar), findsOneWidget);
     expect(find.text('YouTube'), findsOneWidget);
     expect(find.text('Google'), findsOneWidget);
-    expect(find.text('TikTok'), findsOneWidget);
+    expect(find.text('TikTok'), findsNothing);
     expect(find.text('Current Trend Strength'), findsNothing);
     expect(find.text('Fastest Rising'), findsNothing);
     expect(find.text('Stable'), findsNothing);
@@ -448,12 +509,12 @@ void main() {
     expect(find.byType(TabBar), findsOneWidget);
     expect(find.text('YouTube'), findsOneWidget);
     expect(find.text('Google'), findsOneWidget);
-    expect(find.text('TikTok'), findsOneWidget);
+    expect(find.text('TikTok'), findsNothing);
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.text('TikTok'));
+    await tester.tap(find.text('Google'));
     await tester.pumpAndSettle();
-    expect(find.text('TikTok ยังไม่พร้อมใช้งาน'), findsOneWidget);
+    expect(find.text('TikTok ยังไม่พร้อมใช้งาน'), findsNothing);
     expect(find.text('หมวดหมู่'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -508,6 +569,32 @@ class _FakeDashboardRepository extends DashboardRepository {
   int publicReads = 0;
   int privateReads = 0;
   int categoryReads = 0;
+  List<FollowedTopicItem> topics = [];
+  List<NotificationItem> messages = [];
+  bool failWrite = false;
+
+  @override
+  Future<void> unfollowTopic(int id) async {
+    if (failWrite) throw Exception('offline');
+    topics.removeWhere((t) => t.id == id);
+  }
+
+  @override
+  Future<void> markNotificationsRead(List<int> ids) async {
+    if (failWrite) throw Exception('offline');
+    messages = messages
+        .map((n) => NotificationItem.fromJson({
+              'notification_id': n.id,
+              'platform': n.platform,
+              'title': n.title,
+              'is_read': ids.contains(n.id) || n.isRead,
+            }))
+        .toList();
+  }
+
+  @override
+  Future<Map<String, dynamic>> followPreferences() async =>
+      {'notification_mode': 'all', 'categories': []};
 
   @override
   Future<LiveTrendSnapshot> getPublicTrendSnapshot({int limit = 50}) async {
@@ -541,7 +628,7 @@ class _FakeDashboardRepository extends DashboardRepository {
   @override
   Future<List<FollowedTopicItem>> getFollowedTopics() async {
     privateReads++;
-    return const [];
+    return List.of(topics);
   }
 
   @override
@@ -550,7 +637,7 @@ class _FakeDashboardRepository extends DashboardRepository {
     int limit = 20,
   }) async {
     privateReads++;
-    return const [];
+    return List.of(messages);
   }
 }
 

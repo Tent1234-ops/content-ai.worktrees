@@ -106,7 +106,7 @@ fs.mkdirSync(out, { recursive: true });
       await guest.getByRole('button', { name: 'ปิด' }).click();
 
       await (await seek(guest, 'ดูเพิ่มเติม')).click();
-      await (await seek(guest, 'แสดง 24 จาก 50 รายการ')).waitFor();
+      await (await seek(guest, /แสดง 24 จาก \d+ รายการ/)).waitFor();
       await shot(guest, `guest-youtube-more-${suffix}`);
       await (await seek(guest, 'อันดับย้อนหลัง')).waitFor();
       await shot(guest, `guest-youtube-history-${suffix}`);
@@ -132,12 +132,11 @@ fs.mkdirSync(out, { recursive: true });
       await (await seek(guest, 'อันดับวิดีโอ YouTube หมวดเกม')).waitFor();
       await shot(guest, `guest-youtube-category-${suffix}`);
 
+      await scrollToTop(guest);
       await guest.getByRole('tab', { name: 'Google' }).click();
       await (await seek(guest, 'อันดับคำค้นบน Google ตอนนี้')).waitFor();
       await shot(guest, `guest-google-${suffix}`);
-      await guest.getByRole('tab', { name: 'TikTok' }).click();
-      await (await seek(guest, 'TikTok ยังไม่พร้อมใช้งาน')).waitFor();
-      await shot(guest, `guest-tiktok-${suffix}`);
+      assert.equal(await guest.getByRole('tab', { name: 'TikTok' }).count(), 0);
       await open(guest, '/upload');
       assert.ok((await guest.locator('body').ariaSnapshot()).includes('เข้าสู่ระบบ'));
       await shot(guest, `guest-auth-gate-${suffix}`);

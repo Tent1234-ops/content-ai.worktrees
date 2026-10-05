@@ -385,7 +385,7 @@ class _ReviewFilters extends StatelessWidget {
                   ...taxonomy.map(
                     (leaf) => DropdownMenuItem(
                       value: leaf.leafKey,
-                      child: Text(leaf.level3, overflow: TextOverflow.ellipsis),
+                      child: Text(leaf.displayName, overflow: TextOverflow.ellipsis),
                     ),
                   ),
                 ],
@@ -418,17 +418,15 @@ class _TaxonomyProgress extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: taxonomy
-              .map(
-                (leaf) => Chip(
+              .expand(
+                (leaf) => leaf.coverageLabels.map((label) => Chip(
                   avatar: Icon(
                     leaf.ready ? Icons.check_circle : Icons.pending_outlined,
                     size: 18,
                     color: leaf.ready ? Colors.green : null,
                   ),
-                  label: Text(
-                    '${leaf.level3} ${leaf.verifiedSampleCount}/${leaf.minimumSampleCount}',
-                  ),
-                ),
+                  label: Text(label),
+                )),
               )
               .toList(),
         ),

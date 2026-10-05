@@ -6,6 +6,7 @@ from typing import Dict, List
 from app.services.pipeline.domain_rules import domain_phrase_lexicon
 from app.services.pipeline.core import normalize_asr_terms, normalize_space
 from utils.text_clean import clean_text
+from app.services.recommendation_catalog import template_catalog
 
 USE_PYTHAINLP = os.getenv("NLP_USE_PYTHAINLP", "1").strip().lower() in {
     "1",
@@ -195,6 +196,13 @@ COMPARABLE_SYNONYMS_BY_DOMAIN = {
             "ทนทาน",
         ),
     },
+}
+
+
+# Use the same camera concepts for comparison and actionable advice.
+COMPARABLE_SYNONYMS_BY_DOMAIN["camera"] = {
+    item["key"]: tuple(dict.fromkeys([item["key"], *item["aliases"]]))
+    for item in template_catalog()["categories"]["camera"]
 }
 
 

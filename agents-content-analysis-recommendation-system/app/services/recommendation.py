@@ -20,6 +20,7 @@ from app.services.recommendation_evidence import attach_evidence, fingerprint, f
 from app.services.actionable_recommendations import build_actionable_recommendations
 from app.services.topic_comparisons import build_topic_comparisons
 from app.services.nlp import (
+    COMPARABLE_SYNONYMS_BY_DOMAIN,
     extract_comparable_keyword_candidates,
     extract_keyword_candidates,
     filter_tokens,
@@ -81,7 +82,7 @@ DURATION_COHORT_UPLOAD_COMPATIBLE = "upload_compatible_under_5m"
 
 KEYWORD_DOMAIN_BY_TAXONOMY_LEAF = {
     "phone": "smartphone",
-    "camera": "general",
+    "camera": "camera",
     "laptop": "general",
     "audio": "audio",
     "headphone": "audio",
@@ -123,6 +124,10 @@ GENERIC_RECOMMENDATION_BLACKLIST = {
     "มือถือ",
     "โทรศัพท์",
     "สมาร์ตโฟน",
+    "ผม",
+    "ดู",
+    "อ่ะ",
+    "ถ่าย",
 }
 
 KEYWORD_DOCUMENT_WEIGHT = 0.45
@@ -167,6 +172,7 @@ def _keyword_is_domain_relevant(keyword: str, domain: str) -> bool:
         _normalize_keyword(name)
         for name in DOMAIN_DIMENSIONS_ORDER.get(domain, [])
     }
+    canonical_dimensions.update(COMPARABLE_SYNONYMS_BY_DOMAIN.get(domain, {}))
     if lower in canonical_dimensions:
         return True
     hints = [*DOMAIN_HINTS.get(domain, []), *DOMAIN_BASE.get(domain, [])]

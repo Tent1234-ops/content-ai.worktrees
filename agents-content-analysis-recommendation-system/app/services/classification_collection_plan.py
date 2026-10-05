@@ -49,6 +49,8 @@ def build_collection_plan(report: dict, *, enforce_phase22_gate: bool = True) ->
 
 
 def preview_collection_channels(db: Session, channel_ids: list[str]) -> dict:
+    from app.services.dataset_split_plan import load_split_registry
+    registry = load_split_registry(db)
     ids = list(dict.fromkeys(str(value).strip() for value in channel_ids))
     if not 1 <= len(channel_ids) <= 50 or any(not re.fullmatch(r"UC[A-Za-z0-9_-]{22}", value) for value in ids):
         raise ValueError("Provide 1-50 YouTube channel IDs in UC... format (24 characters), not handles or video URLs")
@@ -59,11 +61,12 @@ def preview_collection_channels(db: Session, channel_ids: list[str]) -> dict:
         existing[row.source_channel_id].append(row.data_split)
     result = []
     for channel_id in ids:
-        split, _ = channel_dataset_split(channel_id)
+        split, _ = channel_dataset_split(channel_id, overrides=registry["overrides"])
         previous = sorted({str(value) for value in existing[channel_id] if value})
         result.append({"channel_id": channel_id, "assigned_split": split,
                        "existing_dataset_count": len(existing[channel_id]), "existing_splits": previous,
                        "split_conflict": any(value != split for value in previous),
                        "unknown_usage": "reserved_not_used" if split == "train" else split,
                        "independence_confirmed": False})
-    return {"split_strategy": SPLIT_STRATEGY, "items": result, "database_changed": False}
+    return {"split_strategy": SPLIT_STRATEGY, "registered_holdout_plans": registry["plans"],
+            "items": result, "database_changed": False}

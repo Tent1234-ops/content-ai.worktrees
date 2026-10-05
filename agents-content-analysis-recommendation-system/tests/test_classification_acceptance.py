@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 
 from app.services.classification_acceptance import (
+    CONTRAST_POLICY_VERSION, is_validated_acceptance_policy,
     POLICY_VERSION, acceptance_summary, apply_acceptance_policy,
     evaluate_acceptance_policy, fit_acceptance_policy, partition_conflicts,
 )
@@ -158,6 +159,63 @@ class ClassificationAcceptanceTests(unittest.TestCase):
         before = copy.deepcopy(acceptance_summary(policy))
         evaluate_acceptance_policy(policy, self.estimator, [example("unknown", "test", 800)], labels=self.labels)
         self.assertEqual(before, acceptance_summary(policy))
+
+    def test_contrast_policy_is_validation_selected_and_serializable_summary(self):
+        import json
+        policy = fit_acceptance_policy(self.estimator, self.train, self.validation, self.outside,
+                                      labels=self.labels, confidence_threshold=0.6,
+                                      policy_version=CONTRAST_POLICY_VERSION)
+        self.assertTrue(is_validated_acceptance_policy(policy))
+        self.assertEqual(len(policy["selection_candidates"]), 60)
+        json.dumps(acceptance_summary(policy))
+        result, decisions = apply_acceptance_policy(policy, [TEXTS["camera"]], ["camera"], [0.99])
+        self.assertEqual(result, ["camera"])
+        self.assertEqual(decisions[0]["policy_version"], CONTRAST_POLICY_VERSION)
+        self.assertIn("support_contrast", decisions[0])
+
+    def test_contrast_rejects_ambiguous_support_without_changing_category(self):
+        policy = self.fit()
+        policy.update(version=CONTRAST_POLICY_VERSION, contrast_margin_threshold=0.05)
+        with patch("app.services.classification_acceptance._support_scores", return_value=([0.9], [-0.1])):
+            result, decisions = apply_acceptance_policy(policy, [TEXTS["camera"]], ["phone"], [0.99])
+        self.assertEqual(result, ["unknown"])
+        self.assertEqual(decisions[0]["reason"], "ambiguous_training_support")
+
+    def test_v1_does_not_silently_acquire_v2_margin_rule(self):
+        policy = self.fit()
+        with patch("app.services.classification_acceptance._support_scores", return_value=([0.9], [-0.1])):
+            result, decisions = apply_acceptance_policy(policy, [TEXTS["phone"]], ["phone"], [0.99])
+        self.assertEqual(result, ["phone"])
+        self.assertEqual(decisions[0]["policy_version"], POLICY_VERSION)
+        self.assertNotIn("support_contrast", decisions[0])
+
+    def test_corrupt_v2_margin_fails_closed(self):
+        for threshold in (None, float("nan"), -1, 2):
+            policy = self.fit()
+            policy.update(version=CONTRAST_POLICY_VERSION, contrast_margin_threshold=threshold)
+            result, _ = apply_acceptance_policy(policy, [TEXTS["phone"]], ["phone"], [0.99])
+            self.assertEqual(result, ["unknown"])
+
+    def test_high_overall_score_cannot_hide_laptop_recall_below_gate(self):
+        self.validation = [r for r in self.validation if r.leaf_key != "laptop"] + [
+            example("laptop", "validation", 500 + i) for i in range(5)]
+        original = self.estimator.predict_proba
+
+        def uncertain_laptops(texts):
+            values = original(texts)
+            for i, text in enumerate(texts):
+                if text.endswith(("validation 503", "validation 504")):
+                    values[i] = [0.3, 0.2, 0.5]
+            return values
+
+        self.estimator.predict_proba = uncertain_laptops
+        policy = fit_acceptance_policy(self.estimator, self.train, self.validation, self.outside,
+                                      labels=self.labels, confidence_threshold=0.6,
+                                      policy_version=CONTRAST_POLICY_VERSION)
+        self.assertEqual(policy["status"], "failed_validation")
+        self.assertFalse(any(row["passes"] for row in policy["selection_candidates"]))
+        self.assertIsNone(policy["similarity_threshold"])
+        self.assertEqual(policy["required_recall"], 0.8)
 
     def test_unknown_never_queries_category_references_or_trend_ideas(self):
         with patch("app.services.recommendation.build_dataset_profile_for_domain") as profile, \

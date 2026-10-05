@@ -17,6 +17,7 @@ def migrate_reference_statistics_schema(engine: Engine) -> None:
                 connection.execute(text(f"ALTER TABLE dataset_contents MODIFY COLUMN {name} BIGINT NOT NULL DEFAULT 0"))
 
 from app.services.dataset_contract import (
+    HOLDOUT_SPLIT_STRATEGY,
     SPLIT_STRATEGY,
     SUPPORTED_YOUTUBE_DATASET_SOURCES,
     channel_dataset_split,
@@ -477,30 +478,34 @@ def migrate_analysis_payload_schema(engine: Engine) -> Dict[str, object]:
     """Allow saved analysis JSON to exceed MySQL TEXT's 64 KiB limit."""
     widened_columns: list[str] = []
     with engine.begin() as connection:
-        inspector = inspect(connection)
-        if "analysis_results" not in set(inspector.get_table_names()):
+        if connection.dialect.name != "mysql":
             return {"widened_columns": widened_columns}
-
-        summary_column = next(
-            (
-                column
-                for column in inspector.get_columns("analysis_results")
-                if column["name"] == "summary"
-            ),
-            None,
-        )
-        if (
-            connection.dialect.name == "mysql"
-            and summary_column is not None
-            and not str(summary_column["type"]).upper().startswith("LONGTEXT")
+        inspector = inspect(connection)
+        tables = set(inspector.get_table_names())
+        # These names are fixed schema identifiers, never user input.
+        for table_name, column_name in (
+            ("analysis_results", "summary"),
+            ("recommendations", "recommended_keywords"),
         ):
+            if table_name not in tables:
+                continue
+            payload_column = next(
+                (
+                    column
+                    for column in inspector.get_columns(table_name)
+                    if column["name"] == column_name
+                ),
+                None,
+            )
+            if payload_column is None or str(payload_column["type"]).upper().startswith("LONGTEXT"):
+                continue
             connection.execute(
                 text(
-                    "ALTER TABLE analysis_results "
-                    "MODIFY COLUMN summary LONGTEXT NULL"
+                    f"ALTER TABLE {table_name} "
+                    f"MODIFY COLUMN {column_name} LONGTEXT NULL"
                 )
             )
-            widened_columns.append("analysis_results.summary")
+            widened_columns.append(f"{table_name}.{column_name}")
 
     return {"widened_columns": widened_columns}
 
@@ -977,6 +982,8 @@ def migrate_classification_split_strategy(engine: Engine) -> Dict[str, object]:
     updated_rows = 0
     skipped_rows = 0
     with engine.begin() as connection:
+        from app.services.dataset_split_plan import load_split_registry
+        overrides = load_split_registry(connection)["overrides"]
         inspector = inspect(connection)
         if "dataset_contents" not in set(inspector.get_table_names()):
             return {
@@ -998,14 +1005,15 @@ def migrate_classification_split_strategy(engine: Engine) -> Dict[str, object]:
         for row in rows:
             try:
                 split, creator_group_key = channel_dataset_split(
-                    str(row["source_channel_id"])
+                    str(row["source_channel_id"]), overrides=overrides
                 )
             except ValueError:
                 skipped_rows += 1
                 continue
+            strategy = HOLDOUT_SPLIT_STRATEGY if row["source_channel_id"] in overrides else SPLIT_STRATEGY
             if (
                 str(row["data_split"] or "") == split
-                and str(row["split_strategy"] or "") == SPLIT_STRATEGY
+                and str(row["split_strategy"] or "") == strategy
                 and str(row["creator_group_key"] or "") == creator_group_key
             ):
                 continue
@@ -1017,7 +1025,7 @@ def migrate_classification_split_strategy(engine: Engine) -> Dict[str, object]:
                 ),
                 {
                     "data_split": split,
-                    "split_strategy": SPLIT_STRATEGY,
+                    "split_strategy": strategy,
                     "group_key": creator_group_key,
                     "dataset_id": int(row["dataset_id"]),
                 },

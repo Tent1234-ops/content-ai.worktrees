@@ -15,7 +15,7 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.database.db import Base, get_db
 from app.database.migrations import migrate_training_requestor_schema
 from app.database.models import (
-    AnalysisResult, Cluster, ClusterMembership, ClusterRun, ContentKeyword, DatasetContent,
+    AnalysisResult, Cluster, ClusterMembership, ClusterRun, ContentKeyword, DatasetContent, DatasetSplitPlan,
     FollowedTopic, Keyword, ModelTrainingRun, Notification, Recommendation,
     SystemConfig, SystemLog, User, UserContent, UserTrendWatchSession,
 )
@@ -179,6 +179,8 @@ class UserManagementTests(unittest.TestCase):
             FollowedTopic(user_id=self.target_id, match_type='keyword', value='camera'),
             SystemConfig(user_id=self.target_id), SystemLog(user_id=self.target_id, action='video_analyze_save', status='success', detail='legacy log'),
             ModelTrainingRun(run_id='history', requested_by=self.target_id, status='completed', parameters_json='{}'),
+            DatasetSplitPlan(plan_version='retained-plan', plan_sha256='0' * 64,
+                             payload_json='{}', created_by=self.target_id),
         ])
         session = self.db.query(UserTrendWatchSession).filter_by(user_id=self.target_id).first()
         self.db.add(Notification(user_id=self.target_id, watch_session_id=session.watch_session_id, trend_key='key', platform='youtube', title='trend', detected_at=session.started_at))
@@ -200,6 +202,8 @@ class UserManagementTests(unittest.TestCase):
         self.assertEqual(self.db.query(Keyword).count(), 1)
         self.assertEqual(self.db.query(SystemConfig).count(), 1)
         self.assertIsNone(self.db.get(ModelTrainingRun, 'history').requested_by)
+        self.assertIsNone(self.db.get(DatasetSplitPlan, 'retained-plan').created_by)
+        self.assertEqual(self.db.get(DatasetSplitPlan, 'retained-plan').payload_json, '{}')
         old_log = self.db.query(SystemLog).filter_by(action='video_analyze_save').one()
         self.assertIsNone(old_log.user_id)
         self.assertEqual(json.loads(old_log.detail)['deleted_actor_user_id'], self.target_id)

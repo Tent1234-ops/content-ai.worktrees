@@ -69,6 +69,7 @@ class TrainingOverview {
 }
 
 String trainingModelName(String key) {
+  if (key.contains('hybrid')) return 'Thai Text + Multilingual Embeddings';
   if (key.contains('complement')) return 'Complement Naive Bayes';
   if (key.contains('embedding')) return 'Multilingual Embeddings';
   if (key.contains('svm')) return 'Calibrated Linear SVM';
@@ -91,6 +92,7 @@ String trainingStatus(String value) => switch (value) {
       'failed' => 'เทรนไม่สำเร็จ',
       'interrupted' => 'งานเทรนหยุดกลางทาง',
       'qualified' => 'ผ่านเกณฑ์ที่บันทึกไว้',
+      'presentation_only' => 'ใช้สาธิตชั่วคราว ยังไม่ผ่านเกณฑ์',
       'evaluated_below_threshold' => 'ยังไม่ผ่านเกณฑ์',
       'smoke_test_only' => 'ทดลองเท่านั้น',
       _ => value,

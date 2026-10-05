@@ -5,6 +5,36 @@ import 'package:content_ai_web/screens/result_screen.dart';
 import 'package:content_ai_web/ui/app_theme.dart';
 
 void main() {
+  testWidgets('accepted presentation result still displays its warning',
+      (tester) async {
+    final data = AnalysisResultViewData.fromJson({
+      'transcript': 'ข้อความในคลิป',
+      'recommendation': {
+        'domain': 'phone',
+        'classification': {
+          'domain': 'phone',
+          'taxonomy_leaf_key': 'phone',
+          'confidence': 0.9,
+          'warning': 'โหมดสาธิตชั่วคราว: ยังไม่ผ่านเกณฑ์ 80%',
+          'acceptance': {
+            'accepted': true,
+            'presentation_only': true,
+            'validation_passed': false
+          },
+        },
+        'missing_keywords': [],
+        'hook_keywords': [],
+        'dataset_profile': {'sample_size': 10},
+      },
+    });
+    await tester.pumpWidget(MaterialApp(
+        theme: buildAppTheme(Brightness.light),
+        home: Scaffold(
+            body: SingleChildScrollView(child: AnalysisReport(data: data)))));
+    await tester.pumpAndSettle();
+    expect(find.text('โหมดสาธิตชั่วคราว: ยังไม่ผ่านเกณฑ์ 80%'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('unvalidated high confidence is not described as low confidence',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1100, 900));

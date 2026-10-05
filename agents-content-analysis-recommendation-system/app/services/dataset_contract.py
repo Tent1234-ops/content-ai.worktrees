@@ -48,6 +48,7 @@ USER_UPLOAD_MAX_DURATION_SECONDS = 300
 RECOMMENDATION_DURATION_MAX_SECONDS = 300
 SPLIT_STRATEGY = "channel_sha256_bucket_v2_70_15_15"
 SPLIT_HASH_SALT = "content-ai-split-v2:1974"
+HOLDOUT_SPLIT_STRATEGY = "channel_scope_holdout_v1"
 
 
 def youtube_license_metadata(license_code: str) -> tuple[str, str]:
@@ -60,12 +61,17 @@ def youtube_license_metadata(license_code: str) -> tuple[str, str]:
     return "Unknown YouTube License", YOUTUBE_LICENSE_INFO_URL
 
 
-def channel_dataset_split(channel_id: str) -> tuple[str, str]:
+def channel_dataset_split(channel_id: str, *, overrides=None) -> tuple[str, str]:
     """Return a stable split and anonymized group key for one YouTube channel."""
     normalized_channel_id = str(channel_id or "").strip()
     if not normalized_channel_id:
         raise ValueError("channel_id is required for channel-grouped dataset splits")
     creator_group_key = hashlib.sha256(normalized_channel_id.encode("utf-8")).hexdigest()
+    if overrides and normalized_channel_id in overrides:
+        split = overrides[normalized_channel_id]
+        if split not in ("validation", "test"):
+            raise ValueError("A registered holdout cannot be assigned to training")
+        return split, creator_group_key
     # The versioned salt freezes a balanced pilot split without exposing channel IDs.
     # Every video from one channel still lands in exactly one split.
     split_digest = hashlib.sha256(

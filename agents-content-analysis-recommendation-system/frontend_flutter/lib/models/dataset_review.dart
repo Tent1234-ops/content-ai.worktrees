@@ -164,6 +164,8 @@ class DatasetReviewTaxonomyLeaf {
     required this.minimumSampleCount,
     required this.verifiedSampleCount,
     required this.ready,
+    this.splitCounts = const {},
+    this.minimumSplitCounts = const {},
   });
 
   final String leafKey;
@@ -173,6 +175,21 @@ class DatasetReviewTaxonomyLeaf {
   final int minimumSampleCount;
   final int verifiedSampleCount;
   final bool ready;
+  final Map<String, int> splitCounts;
+  final Map<String, int> minimumSplitCounts;
+
+  String get displayName => leafKey == 'unknown'
+      ? 'นอกขอบเขต'
+      : [level3, level2, level1, leafKey].firstWhere((v) => v.trim().isNotEmpty);
+
+  List<String> get coverageLabels => leafKey == 'unknown'
+      ? [
+          '$displayName $verifiedSampleCount คลิป',
+          'ปรับเกณฑ์ ${splitCounts['validation'] ?? 0}/${minimumSplitCounts['validation'] ?? 10}',
+          'ทดสอบ ${splitCounts['test'] ?? 0}/${minimumSplitCounts['test'] ?? 30}',
+          if ((splitCounts['train'] ?? 0) > 0) 'สำรอง ${splitCounts['train']} คลิป',
+        ]
+      : ['$displayName $verifiedSampleCount/$minimumSampleCount'];
 
   String get path => [level1, level2, level3]
       .where((value) => value.trim().isNotEmpty)
@@ -188,6 +205,12 @@ class DatasetReviewTaxonomyLeaf {
       verifiedSampleCount:
           (json['verified_sample_count'] as num?)?.toInt() ?? 0,
       ready: json['ready'] as bool? ?? false,
+      splitCounts: (json['split_counts'] as Map? ?? const {}).map(
+        (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+      ),
+      minimumSplitCounts: (json['minimum_split_counts'] as Map? ?? const {}).map(
+        (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+      ),
     );
   }
 }

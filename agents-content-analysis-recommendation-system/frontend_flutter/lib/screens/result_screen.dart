@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/common_models.dart';
+import '../models/actionable_recommendations.dart';
 import '../models/recommendation_result.dart';
 import '../repositories/content_repository.dart';
 import '../state/auth_scope.dart';
@@ -194,6 +195,42 @@ class AnalysisReport extends StatelessWidget {
     final withheld = classification?.isUnknown == true;
     final bundle = recommendation.evidenceBundle;
     final actions = recommendation.actionableRecommendations;
+    final actionTopics = {
+      for (final topic
+          in (bundle['action_topics'] as List? ?? []).whereType<Map>())
+        topic['topic_id'].toString(): topic,
+    };
+    final adviceKeywords = [
+      for (final advice in actions?.items ?? <ActionableAdvice>[])
+        KeywordScore(
+          keyword: advice.title,
+          score: 0,
+          supportCount:
+              (actionTopics[advice.evidenceTopicId]?['support_count'] as num?)
+                      ?.toInt() ??
+                  0,
+          sampleSize:
+              (actionTopics[advice.evidenceTopicId]?['sample_size'] as num?)
+                      ?.toInt() ??
+                  0,
+          supportingDatasetRowIds: (actionTopics[advice.evidenceTopicId]
+                      ?['supporting_dataset_row_ids'] as List? ??
+                  [])
+              .whereType<num>()
+              .map((id) => id.toInt())
+              .toList(),
+        ),
+    ];
+    final adviceLabels = {
+      for (final advice in actions?.items ?? <ActionableAdvice>[])
+        if (actionTopics[advice.evidenceTopicId]?['canonical_topic'] is String)
+          actionTopics[advice.evidenceTopicId]!['canonical_topic'].toString():
+              advice.title,
+    };
+    final openingKeywords = recommendation.hookKeywords
+        .where(
+            (word) => actions == null || adviceLabels.containsKey(word.keyword))
+        .toList();
     final topicEvidence = actions == null
         ? bundle
         : <String, dynamic>{
@@ -225,6 +262,14 @@ class AnalysisReport extends StatelessWidget {
     final domain = classification?.displayCategory ?? recommendation.domain;
     final evidence = recommendation.evidence;
     final duration = recommendation.duration;
+    final medianDuration =
+        duration.medianSeconds ?? duration.recommendedSeconds;
+    final rangeLow = duration.percentileLowSeconds;
+    final rangeHigh = duration.percentileHighSeconds;
+    final hasDurationRange = rangeLow != null &&
+        rangeHigh != null &&
+        rangeLow > 0 &&
+        rangeHigh >= rangeLow;
     final hasReference = recommendation.datasetProfile.sampleSize > 0;
     final supported = <String, KeywordScore>{
       for (final item in [
@@ -325,20 +370,31 @@ class AnalysisReport extends StatelessWidget {
                                 ? data.transcript
                                 : data.cleanedTranscript),
                       ]),
-                  if (actions == null) ...[
-                    _Suggestions(
-                        title: 'คำแนะนำที่บันทึกไว้เดิม',
-                        words: recommendation.missingKeywords,
-                        empty: 'ไม่มีคำแนะนำคำสำคัญบันทึกไว้'),
-                    _Suggestions(
-                        title: 'คำแนะนำช่วงเปิดที่บันทึกไว้เดิม',
-                        words: recommendation.hookKeywords,
-                        empty: 'ไม่มีคำแนะนำช่วงเปิดบันทึกไว้'),
-                  ],
                 ]),
           ]),
       const SizedBox(height: 24),
       _Band(title: '2. ควรเพิ่มอะไร', icon: Icons.lightbulb_outline, children: [
+        if (!withheld && !inputUnassessable) ...[
+          _Suggestions(
+              title: actions == null
+                  ? 'คำแนะนำที่บันทึกไว้เดิม'
+                  : 'คำสำคัญที่แนะนำให้เพิ่ม',
+              words: actions == null
+                  ? recommendation.missingKeywords
+                  : adviceKeywords,
+              empty: actions == null
+                  ? 'ไม่มีคำแนะนำคำสำคัญบันทึกไว้'
+                  : 'ยังไม่มีประเด็นเพิ่มที่มีหลักฐานเพียงพอ'),
+          _Suggestions(
+              title: actions == null
+                  ? 'คำแนะนำช่วงเปิดที่บันทึกไว้เดิม'
+                  : 'คำสำคัญที่เสนอสำหรับช่วงเปิดคลิป',
+              words: openingKeywords,
+              labels: adviceLabels,
+              empty: actions == null
+                  ? 'ไม่มีคำแนะนำช่วงเปิดบันทึกไว้'
+                  : 'ยังไม่มีข้อเสนอช่วงเปิดที่มีหลักฐานเพียงพอ'),
+        ],
         if (inputUnassessable)
           const Text(
               'งดข้อเสนอให้เพิ่มหัวข้อ เพราะข้อความถอดเสียงไม่สมบูรณ์ จึงยังสรุปไม่ได้ว่าผู้ใช้ไม่ได้พูดเรื่องนั้น'),
@@ -372,8 +428,10 @@ class AnalysisReport extends StatelessWidget {
         const SizedBox(height: 8),
         Text(withheld
             ? 'งดแนะนำความยาวจนกว่าจะยืนยันหมวดหมู่ได้'
-            : duration.hasSufficientEvidence
-                ? 'ค่ากลาง ${duration.medianSeconds ?? duration.recommendedSeconds} วินาที · ช่วง ${duration.percentileLow}–${duration.percentileHigh} วินาที'
+            : duration.hasSufficientEvidence &&
+                    medianDuration != null &&
+                    medianDuration > 0
+                ? 'ค่ากลาง $medianDuration วินาที · ${hasDurationRange ? 'ช่วง $rangeLow–$rangeHigh วินาที' : 'ไม่ได้บันทึกช่วงความยาว'}'
                 : 'ข้อมูลอ้างอิงยังไม่เพียงพอ'),
         Text(
             'มีข้อมูลความยาว ${duration.sampleSize} คลิป · ขั้นต่ำ ${duration.minimumSampleSize} คลิป',
@@ -490,9 +548,13 @@ class _Words extends StatelessWidget {
 
 class _Suggestions extends StatelessWidget {
   const _Suggestions(
-      {required this.title, required this.words, required this.empty});
+      {required this.title,
+      required this.words,
+      required this.empty,
+      this.labels = const {}});
   final String title, empty;
   final List<KeywordScore> words;
+  final Map<String, String> labels;
   @override
   Widget build(BuildContext context) => Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -511,7 +573,7 @@ class _Suggestions extends StatelessWidget {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      Text(word.keyword,
+                      Text(labels[word.keyword] ?? word.keyword,
                           style: Theme.of(context).textTheme.titleSmall),
                       if (word.hasDatasetEvidence)
                         Text(

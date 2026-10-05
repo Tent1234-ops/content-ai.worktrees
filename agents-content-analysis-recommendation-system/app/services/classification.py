@@ -206,7 +206,7 @@ def get_active_classification_model(db: Session) -> ClassificationModel | None:
         db.query(ClassificationModel)
         .filter(
             ClassificationModel.is_active.is_(True),
-            ClassificationModel.status == "qualified",
+            ClassificationModel.status.in_(("qualified", "presentation_only")),
         )
         .order_by(
             ClassificationModel.trained_at.desc(),
@@ -230,7 +230,7 @@ def _classify_with_active_model(
         if model_id is None:
             return None
         model = db.get(ClassificationModel, model_id)
-        if model is None or model.status != "qualified":
+        if model is None or model.status not in ("qualified", "presentation_only"):
             raise ClassificationTrainingError("The queued classification model is no longer available")
         if classification_artifact_sha256(model.artifact_path) != model_snapshot["artifact_sha256"]:
             raise ClassificationTrainingError("The classification artifact changed after this job was queued")
@@ -242,6 +242,7 @@ def _classify_with_active_model(
             str(model.artifact_path),
             title=title,
             text=text,
+            allow_presentation=model.status == "presentation_only",
             require_scope_validation=(
                 model_snapshot.get("scope_validation_required", settings.classification_require_scope_validation)
                 if model_snapshot else settings.classification_require_scope_validation
@@ -272,6 +273,12 @@ def _classify_with_active_model(
         warning = "The predicted category no longer meets the dataset coverage gate."
     elif acceptance.get("accepted") is False:
         warning = "คำเตือน: ยังไม่ได้ยืนยันความสามารถในการปฏิเสธคลิปนอกขอบเขต ผลหมวดและคำแนะนำนี้อาจผิดหมวด"
+
+    if model.status == "presentation_only":
+        from app.services.classification_presentation import PRESENTATION_WARNING
+        warning = PRESENTATION_WARNING + (" " + warning if warning else "")
+        if (acceptance.get("presentation_authorization") or {}).get("reason") == "presentation_expired":
+            warning = "สิทธิ์ใช้งานโมเดลสาธิตหมดอายุแล้ว ระบบงดคำแนะนำเฉพาะหมวด " + PRESENTATION_WARNING
 
     path = taxonomy_path(predicted_leaf_key)
     probabilities = dict(prediction.get("probabilities") or {})

@@ -10,6 +10,7 @@ from app.services.classification_acceptance import (
 from app.services.classification_training import (
     classification_artifact_sha256, load_classification_artifact,
 )
+from app.services.classification_presentation import presentation_authorization, PRESENTATION_STATUS
 
 
 def classification_model_snapshot(model) -> dict:
@@ -48,7 +49,7 @@ def classification_model_snapshot(model) -> dict:
             unknown_threshold=float(artifact["unknown_threshold"]),
             artifact_sha256=classification_artifact_sha256(model.artifact_path),
             scope_validation_required=required,
-            acceptance_policy_version=POLICY_VERSION,
+            acceptance_policy_version=(artifact.get("scope_policy") or {}).get("version", POLICY_VERSION),
             scope_validation=acceptance_summary(artifact.get("scope_policy")),
         )
     except Exception:
@@ -73,4 +74,11 @@ def classification_model_snapshot(model) -> dict:
     readiness["can_accept_predictions"] = model.status == "qualified" and (valid or not required)
     if readiness["can_accept_predictions"]:
         readiness["status"] = "ready" if valid and required else "unvalidated"
+    if model.status == PRESENTATION_STATUS:
+        grant = presentation_authorization(artifact)
+        result["presentation_authorization"] = grant
+        readiness["presentation_expires_at"] = grant.get("expires_at")
+        readiness["reason_codes"].append(grant["reason"])
+        readiness["can_accept_predictions"] = grant["authorized"]
+        readiness["status"] = "presentation" if grant["authorized"] else "blocked"
     return result

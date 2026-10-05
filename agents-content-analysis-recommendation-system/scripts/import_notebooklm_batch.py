@@ -69,6 +69,8 @@ def audit_entries(db, entries: list[dict]) -> tuple[list[dict], dict]:
 
 
 def attach_metadata(db, rows: list[dict], *, api_key: str, getter=_youtube_get) -> dict:
+    from app.services.dataset_split_plan import load_split_registry
+    overrides = load_split_registry(db)["overrides"]
     pending = [row for row in rows if row["status"] == "needs_metadata"]
     metadata = {}
     # Fetch real metadata once in batches, then reuse it with the existing importer.
@@ -95,7 +97,7 @@ def attach_metadata(db, rows: list[dict], *, api_key: str, getter=_youtube_get) 
         if not channel_id:
             row.update(status="metadata_unavailable", reason="YouTube channel ID is missing")
             continue
-        split, _ = channel_dataset_split(channel_id)
+        split, _ = channel_dataset_split(channel_id, overrides=overrides)
         row.update(channel_id=channel_id, channel_title=snippet.get("channelTitle"),
                    youtube_title=snippet.get("title"), data_split=split,
                    existing_channel_splits=sorted(existing_splits[channel_id]))

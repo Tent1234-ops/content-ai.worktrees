@@ -16,6 +16,10 @@ String systemLogActorLabel(int? userId, String detail) {
 String systemLogActionLabel(String action) {
   if (action == 'admin_dataset_restore') return 'กู้คืน Dataset จากถังขยะ';
   switch (action.trim().toLowerCase()) {
+    case 'classification_presentation_activate':
+      return 'เปิดโมเดลชั่วคราวสำหรับสาธิต โดยรับทราบว่ายังไม่ผ่านเกณฑ์';
+    case 'classification_presentation_disable':
+      return 'ปิดโมเดลสาธิตและคืนโมเดลเดิม';
     case 'admin_user_create':
       return 'เพิ่มบัญชีผู้ใช้โดยผู้ดูแล';
     case 'admin_user_update':
@@ -68,6 +72,8 @@ String systemLogActionLabel(String action) {
       return 'ทดสอบขั้นตอนฝึกโมเดลเบื้องต้น';
     case 'classification_model_benchmark':
       return 'ฝึกและประเมินโมเดลจำแนกหมวด';
+    case 'dataset_scope_holdout_plan_applied':
+      return 'บันทึกแผนแบ่งข้อมูลปรับเกณฑ์และทดสอบตามช่อง';
     case 'classification_training_requested':
       return 'เริ่มรอบเทรนโมเดลจากหน้า Admin';
     case 'classification_training_completed':

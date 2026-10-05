@@ -1,12 +1,10 @@
 """Deterministic Thai editing advice derived only from frozen transcript evidence."""
 from __future__ import annotations
 
-import json
 import math
-from functools import lru_cache
-from pathlib import Path
 
 from app.services.nlp import COMPARABLE_SYNONYMS_BY_DOMAIN
+from app.services.recommendation_catalog import template_catalog
 from app.services.recommendation_evidence import _observation, fingerprint, locate_terms, text_hash
 
 METHOD_VERSION = "thai-action-advice-v1"
@@ -17,13 +15,8 @@ REVIEW_TERMS = ["รีวิว", "ลองใช้", "ใช้งานจ�
 LIMITATION = "หลักฐานนี้เป็นความสัมพันธ์ในคลิปอ้างอิง ไม่ยืนยันว่าเพิ่มหัวข้อนี้แล้วจะทำให้ยอดวิว ไลก์ หรือความคิดเห็นเพิ่มขึ้น"
 
 
-@lru_cache(maxsize=1)
-def template_catalog() -> dict:
-    return json.loads(Path(__file__).with_name("recommendation_templates.json").read_text(encoding="utf-8"))
-
-
 def _aliases(template: dict, domain: str) -> list[str]:
-    existing = COMPARABLE_SYNONYMS_BY_DOMAIN.get("smartphone", {}) if domain == "phone" else {}
+    existing = COMPARABLE_SYNONYMS_BY_DOMAIN.get("smartphone" if domain == "phone" else domain, {})
     return list(dict.fromkeys([template["key"], *template["aliases"], *existing.get(template["key"], ())]))
 
 

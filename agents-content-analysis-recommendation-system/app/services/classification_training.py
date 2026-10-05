@@ -45,6 +45,7 @@ from app.services.dataset_eligibility import (
     production_transcript_query,
 )
 from app.services.classification_acceptance import (
+    POLICY_VERSION,
     MIN_UNKNOWN_TEST, MIN_UNKNOWN_CHANNELS, acceptance_summary,
     apply_acceptance_policy, evaluate_acceptance_policy, fit_acceptance_policy,
     partition_conflicts, is_validated_acceptance_policy,
@@ -132,6 +133,7 @@ class ClassificationModelSpec:
     tuning_factories: tuple[
         tuple[dict[str, float | int | str], Callable[[], Any]], ...
     ] = ()
+    scope_policy_version: str = POLICY_VERSION
 
 
 @lru_cache(maxsize=4)
@@ -481,6 +483,7 @@ def _dataset_readiness(
     *,
     required_leaf_keys: Sequence[str],
     minimum_samples_per_leaf: int,
+    split_overrides=None,
 ) -> dict[str, Any]:
     split_counts: Counter[str] = Counter()
     language_counts: Counter[str] = Counter()
@@ -502,7 +505,7 @@ def _dataset_readiness(
 
         try:
             expected_split, expected_group = channel_dataset_split(
-                item.source_channel_id
+                item.source_channel_id, overrides=split_overrides
             )
         except ValueError as exc:
             issues.append(f"dataset_id={item.dataset_id}: {exc}")
@@ -609,16 +612,19 @@ def prepare_classification_dataset(
 
     examples = _load_training_examples(db, required_leaf_keys=leaves)
     out_of_scope_examples = _load_out_of_scope_examples(db)
+    from app.services.dataset_split_plan import load_split_registry
+    registry = load_split_registry(db)
     fingerprint = _dataset_fingerprint([*examples, *out_of_scope_examples])
     readiness = _dataset_readiness(
         examples,
         required_leaf_keys=leaves,
         minimum_samples_per_leaf=minimum_samples_per_leaf,
+        split_overrides=registry["overrides"],
     )
     invalid_assignments = []
     for row in [*examples, *out_of_scope_examples]:
         try:
-            expected_split, expected_group = channel_dataset_split(row.source_channel_id)
+            expected_split, expected_group = channel_dataset_split(row.source_channel_id, overrides=registry["overrides"])
             valid_assignment = row.split == expected_split and row.creator_group_key == expected_group
         except ValueError:
             valid_assignment = False
@@ -661,6 +667,11 @@ def prepare_classification_dataset(
         "required_leaf_keys": list(leaves),
         "minimum_samples_per_leaf": minimum_samples_per_leaf,
         "split_strategy": SPLIT_STRATEGY,
+        "registered_holdout_plans": registry["plans"],
+        "evaluation_dataset_note": (
+            "Versioned channel repartition; not a fresh external test. Candidates fit from scratch."
+            if registry["plans"] else "Original channel-hash partitions"
+        ),
         "unknown_support": {
             "leaf_key": UNKNOWN_LEAF_KEY,
             "strategy": "validation_selected_confidence_and_train_similarity",
@@ -1797,6 +1808,7 @@ def train_and_evaluate_classification_models(
                 estimator, development_rows, validation_rows, unknown_validation,
                 labels=labels, confidence_threshold=unknown_threshold,
                 required_recall=promotion_threshold,
+                policy_version=spec.scope_policy_version,
             )
             validation_result = evaluate_acceptance_policy(policy, estimator, validation_rows, labels=labels)
             test_raw = _evaluation_by_language(
@@ -2254,8 +2266,11 @@ def classify_with_artifact(
     text: str,
     title: str | None = None,
     require_scope_validation: bool = True,
+    allow_presentation: bool = False,
 ) -> dict[str, Any]:
     payload = load_classification_artifact(path)
+    from app.services.classification_presentation import presentation_authorization
+    grant = presentation_authorization(payload) if allow_presentation else {"authorized": False}
     # Keep title for API compatibility, but user filenames are never model features.
     del title
     merged_text = str(text or "").strip()
@@ -2275,11 +2290,19 @@ def classify_with_artifact(
         unknown_threshold=float(payload["unknown_threshold"]),
     )
     policy = payload.get("scope_policy")
-    acceptance_labels = [raw_prediction] if isinstance(policy, dict) and policy.get("status") == "validated" else predictions
+    acceptance_labels = [raw_prediction] if isinstance(policy, dict) and (
+        policy.get("status") == "validated" or grant["authorized"]
+    ) else predictions
     predictions, acceptance = apply_acceptance_policy(
         policy, [merged_text], acceptance_labels, confidences,
         require_validation=require_scope_validation,
+        allow_presentation=grant["authorized"],
     )
+    if allow_presentation:
+        acceptance[0].update(presentation_authorization=grant)
+        if not grant["authorized"]:
+            predictions = [UNKNOWN_LEAF_KEY]
+            acceptance[0].update(accepted=False, enforced=True, reason=grant["reason"])
     return {
         "model_key": str(payload["model_key"]),
         "model_version": str(payload["model_version"]),

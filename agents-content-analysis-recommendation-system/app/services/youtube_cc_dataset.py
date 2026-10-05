@@ -2503,8 +2503,8 @@ def _load_candidates(
     return candidates
 
 
-def _split_for_channel(channel_id: str) -> tuple[str, str]:
-    return channel_dataset_split(channel_id)
+def _split_for_channel(channel_id: str, *, overrides=None) -> tuple[str, str]:
+    return channel_dataset_split(channel_id, overrides=overrides)
 
 
 def _performance_signal(candidate: dict[str, Any]) -> float:
@@ -2732,7 +2732,11 @@ def import_reviewed_youtube_cc_dataset(
             )
             continue
 
-        split, creator_group_key = _split_for_channel(str(candidate.get("channel_id") or ""))
+        from app.services.dataset_contract import HOLDOUT_SPLIT_STRATEGY
+        from app.services.dataset_split_plan import load_split_registry
+        overrides = load_split_registry(db)["overrides"]
+        source_channel_id = str(candidate.get("channel_id") or "")
+        split, creator_group_key = _split_for_channel(source_channel_id, overrides=overrides)
         path = taxonomy_path(reviewed_leaf)
         license_name, license_url = youtube_license_metadata(
             str(candidate.get("youtube_license_code") or "")
@@ -2802,7 +2806,7 @@ def import_reviewed_youtube_cc_dataset(
             "license_name": license_name,
             "license_url": license_url,
             "data_split": split,
-            "split_strategy": SPLIT_STRATEGY,
+            "split_strategy": HOLDOUT_SPLIT_STRATEGY if source_channel_id in overrides else SPLIT_STRATEGY,
             "creator_group_key": creator_group_key,
             "transcript_sha256": transcript_hash,
             "transcript_segment_count": int(candidate.get("transcript_segment_count") or 0),
@@ -3614,7 +3618,15 @@ def list_youtube_cc_review_queue(
 
     coverage = taxonomy_coverage(db)
     unknown_path = taxonomy_path(UNKNOWN_LEAF_KEY)
-    unknown_count = out_of_scope_evaluation_query(db).count()
+    from app.services.classification_acceptance import MIN_UNKNOWN_CHANNELS, MIN_UNKNOWN_VALIDATION
+    from app.services.classification_training import PHASE22_MINIMUM_OUT_OF_SCOPE_SAMPLES
+    unknown_rows = out_of_scope_evaluation_query(db).all()
+    unknown_count = len(unknown_rows)
+    unknown_splits = {split: sum(r.data_split == split for r in unknown_rows)
+                      for split in ("train", "validation", "test")}
+    unknown_channels = {split: len({r.source_channel_id for r in unknown_rows if r.data_split == split})
+                        for split in ("train", "validation", "test")}
+    unknown_minimums = {"validation": MIN_UNKNOWN_VALIDATION, "test": PHASE22_MINIMUM_OUT_OF_SCOPE_SAMPLES}
     review_taxonomy = [
         *coverage["leaves"],
         {
@@ -3625,9 +3637,14 @@ def list_youtube_cc_review_queue(
             "source_dataset": YOUTUBE_PUBLIC_DATASET_SOURCE,
             "source_category": "human_review_evaluation_only",
             "source_subcategories": [],
-            "minimum_sample_count": 30,
+            "minimum_sample_count": sum(unknown_minimums.values()),
             "verified_sample_count": unknown_count,
-            "ready": unknown_count >= 30,
+            "split_counts": unknown_splits,
+            "channel_counts": unknown_channels,
+            "minimum_split_counts": unknown_minimums,
+            "minimum_channel_count": MIN_UNKNOWN_CHANNELS,
+            "ready": all(unknown_splits[s] >= n and unknown_channels[s] >= MIN_UNKNOWN_CHANNELS
+                         for s, n in unknown_minimums.items()),
         },
     ]
     return {

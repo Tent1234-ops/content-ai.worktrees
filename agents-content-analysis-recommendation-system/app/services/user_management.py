@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.database.models import (
-    AnalysisResult, ClusterMembership, ClusterRun, ContentKeyword, DatasetContent,
+    AnalysisResult, ClusterMembership, ClusterRun, ContentKeyword, DatasetContent, DatasetSplitPlan,
     FollowedTopic, ModelTrainingRun, Notification, Recommendation, SystemConfig,
     SystemLog, User, UserContent, UserTrendWatchSession,
 )
@@ -216,7 +216,10 @@ def delete_account(db: Session, user_id: int, revision: str, confirmation: str, 
     db.query(ClusterRun).filter_by(user_id=user_id).update({"user_id": None}, synchronize_session=False)
     run_ids = [r[0] for r in db.query(ModelTrainingRun.run_id).filter_by(requested_by=user_id)]
     db.query(ModelTrainingRun).filter_by(requested_by=user_id).update({"requested_by": None}, synchronize_session=False)
+    plan_versions = [r[0] for r in db.query(DatasetSplitPlan.plan_version).filter_by(created_by=user_id)]
+    db.query(DatasetSplitPlan).filter_by(created_by=user_id).update({"created_by": None}, synchronize_session=False)
     _audit(db, actor_id, "admin_user_delete", user, retained_training_run_ids=run_ids,
+           retained_split_plan_versions=plan_versions,
            deleted_counts={k: v for k, v in counts.items() if isinstance(v, int)})
     db.query(User).filter_by(user_id=user_id).delete(synchronize_session=False)
     db.commit()

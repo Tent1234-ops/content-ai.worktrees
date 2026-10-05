@@ -528,11 +528,21 @@ class Recommendation(Base):
 
     rec_id = Column(Integer, primary_key=True)
     content_id = Column(Integer, ForeignKey("user_contents.content_id"), nullable=False)
-    recommended_keywords = Column(Text)
+    recommended_keywords = Column(AnalysisPayloadText)
     recommended_duration = Column(Integer)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     content = relationship("UserContent", back_populates="recommendations")
+
+
+class DatasetSplitPlan(Base):
+    __tablename__ = "dataset_split_plans"
+
+    plan_version = Column(String(100), primary_key=True)
+    plan_sha256 = Column(String(64), nullable=False)
+    payload_json = Column(AnalysisPayloadText, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.user_id"))
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class SystemConfig(Base):

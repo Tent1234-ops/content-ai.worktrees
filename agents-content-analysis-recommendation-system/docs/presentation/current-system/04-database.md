@@ -2,7 +2,7 @@
 
 [กลับสารบัญ](README.md)
 
-ตรวจ MySQL จริงวันที่ 3 ต.ค. 2026 พบ **41 ตาราง** ตรงกับ model ที่ประกาศใน [app/database/models.py](../../../app/database/models.py) ตารางไม่ใช่หน้าเว็บแบบหนึ่งต่อหนึ่ง: หน้าเดียวอาจอ่านหลายตาราง และบางตารางเป็นงานเบื้องหลัง/ของเดิมที่ยังเก็บไว้
+ตรวจ MySQL วันที่ 3 ต.ค. 2026 พบ41ตาราง; วันที่4ต.ค.เพิ่ม `dataset_split_plans` อีก1ตาราง รวม **42 ตาราง** ที่ประกาศใน [app/database/models.py](../../../app/database/models.py) ตารางไม่ใช่หน้าเว็บแบบหนึ่งต่อหนึ่ง: หน้าเดียวอาจอ่านหลายตาราง และบางตารางเป็นงานเบื้องหลัง/ของเดิมที่ยังเก็บไว้
 
 คำว่า ID คือรหัสเชื่อมแถว ไม่ใช่คะแนน เช่น `dataset_id=123` แปลว่ารายการข้อมูล #123 ไม่ใช่ลำดับเทรนด์ 123
 
@@ -49,6 +49,7 @@ analysis_results.result_id -> clip_revision_plans.analysis_id
 | `taxonomy_nodes` | รายการหมวดมาตรฐาน/ลำดับชั้น เช่น Technology > Electronics > Phone | อ้าง label เดียวกันใน Import, Train, Analyze ไม่ใช้ชื่อที่พิมพ์ผิดเป็นหมวดใหม่ |
 | `dataset_collection_runs` | รอบนำเข้า/เก็บข้อมูล; วิธี แหล่ง จำนวน สถานะ และ path/hash artifact | รู้ว่าชุดนี้เข้ามาตอนไหน ใช้เครื่องมือ/รุ่นใด |
 | `dataset_contents` | Transcript และ metadata ของแต่ละคลิป พร้อม provenance, label, split, eligibility, soft delete | แหล่งฝึก/ตรวจ/อ้างอิงที่กรองตามวัตถุประสงค์ ไม่ได้ใช้ทุกแถวพร้อมกัน |
+| `dataset_split_plans` | แผนแบ่งชุดตามช่องที่ Adminยืนยัน, assignmentเดิม/ใหม่, version, checksum, ผู้ทำและเวลา | กันUnknownสำหรับปรับเกณฑ์/ทดสอบ; Import, Training และตอนเปิดระบบอ่านแผนเดียวกัน ไม่ย้ายกลับตามhashเดิม |
 | `dataset_review_events` | ผล approve/reject จากรอบนำเข้า; หมวดที่เสนอ/ตรวจรับ ผู้ตรวจ คุณภาพ เวลา และเหตุผล | ตรวจว่าใครรับรองข้อมูลต้นแบบ; การแก้จากหน้า Datasets ภายหลังบันทึกแยกใน `system_logs` ไม่ใช่ version history ของ Transcript ทุกฉบับ |
 | `model_training_runs` | กดเริ่มเทรน; parameters, dataset fingerprint, progress/heartbeat, result/error | หน้า Training แสดงงานเบื้องหลังและประวัติ ไม่ทำงานค้างใน request |
 | `classification_models` | ผลการ Train; รุ่น ชนิด model, path artifact, metadata, is_active, เวลาฝึก | ทะเบียนว่า Analyze จะโหลดโมเดลใด ไม่เก็บน้ำหนัก Whisper ที่นี่ |
@@ -68,7 +69,7 @@ analysis_results.result_id -> clip_revision_plans.analysis_id
 | `is_training_eligible`, สิทธิ์ keyword/duration | แถวเดียวอาจฝึกได้แต่ยังอ้าง duration ไม่ได้ |
 | `deleted_at` และผู้ลบ | Soft delete เพื่อหยุดใช้ในงานใหม่และกู้คืนได้ |
 
-จำนวนทั้งหมดในตารางจึง **ไม่เท่ากับจำนวนฝึกโมเดล** วันที่ตรวจมีทั้งหมด 472 แถว แต่ eligible สามหมวด 245 และ fit จริง 191 จำนวนที่เลือกอ้างอิงยังเป็นอีกชุด และเปลี่ยนตามเงื่อนไขของงาน
+จำนวนทั้งหมดในตารางจึง **ไม่เท่ากับจำนวนฝึกโมเดล** รอบตรวจ3ต.ค.มีทั้งหมด472แถว แต่ eligibleสามหมวด245 และหลังจัดชุด4ต.ค. fitจริง178 จำนวนที่เลือกอ้างอิงยังเป็นอีกชุด และเปลี่ยนตามเงื่อนไขของงาน
 
 ```text
 dataset_collection_runs -> dataset_contents -> dataset_review_events

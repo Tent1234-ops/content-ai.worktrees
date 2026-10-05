@@ -11,6 +11,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 POLICY_VERSION = "validation-scope-v1"
+CONTRAST_POLICY_VERSION = "validation-scope-thai-contrast-v2"
+SUPPORTED_POLICY_VERSIONS = (POLICY_VERSION, CONTRAST_POLICY_VERSION)
+CONTRAST_MARGINS = (0.0, 0.05, 0.10)
 MIN_VALIDATION_PER_LABEL = 3
 MIN_UNKNOWN_VALIDATION = 10
 MIN_UNKNOWN_CHANNELS = 3
@@ -56,14 +59,22 @@ def _raw_predictions(estimator, texts):
 
 
 def _similarities(policy, texts, predictions):
+    return _support_scores(policy, texts, predictions)[0]
+
+
+def _support_scores(policy, texts, predictions):
     vectors = policy["vectorizer"].transform(texts)
     references = policy["train_vectors"]
     labels = np.asarray(policy["train_labels"])
-    scores = []
+    scores, margins = [], []
     for vector, label in zip(vectors, predictions):
         subset = references[labels == label]
-        scores.append(float((vector @ subset.T).max()) if subset.shape[0] else 0.0)
-    return scores
+        score = float((vector @ subset.T).max()) if subset.shape[0] else 0.0
+        others = references[labels != label]
+        competing = float((vector @ others.T).max()) if others.shape[0] else 0.0
+        scores.append(score)
+        margins.append(score - competing)
+    return scores, margins
 
 
 def _metrics(gold, predicted, labels):
@@ -88,10 +99,13 @@ def _metrics(gold, predicted, labels):
 
 
 def fit_acceptance_policy(estimator, train_rows, validation_rows, unknown_validation_rows, *,
-                          labels, confidence_threshold: float, required_recall: float = 0.8):
+                          labels, confidence_threshold: float, required_recall: float = 0.8,
+                          policy_version: str = POLICY_VERSION):
     """Fit text similarity on train only; choose the cutoff on validation only."""
     if not 0 < required_recall <= 1 or not 0 < confidence_threshold < 1:
         raise ValueError("Invalid acceptance requirements")
+    if policy_version not in SUPPORTED_POLICY_VERSIONS:
+        raise ValueError("Unsupported acceptance policy version")
     if (any(r.split != "train" or r.leaf_key not in labels for r in train_rows)
             or any(r.split != "validation" or r.leaf_key not in labels for r in validation_rows)
             or any(r.split != "validation" or r.leaf_key != "unknown" for r in unknown_validation_rows)):
@@ -109,7 +123,7 @@ def fit_acceptance_policy(estimator, train_rows, validation_rows, unknown_valida
         reasons.append("insufficient_unknown_validation")
     if len(channels) < MIN_UNKNOWN_CHANNELS:
         reasons.append("insufficient_unknown_validation_channels")
-    policy = {"version": POLICY_VERSION, "status": "not_ready", "labels": list(labels),
+    policy = {"version": policy_version, "status": "not_ready", "labels": list(labels),
               "confidence_threshold": confidence_threshold, "similarity_threshold": None,
               "selection_split": "validation", "fit_split": "train",
               "required_recall": required_recall, "reasons": reasons,
@@ -120,23 +134,34 @@ def fit_acceptance_policy(estimator, train_rows, validation_rows, unknown_valida
               "selection_candidates": []}
     if reasons:
         return policy
+    contrast = policy_version == CONTRAST_POLICY_VERSION
+    preprocessor = None
+    if contrast:
+        from app.services.classification_features import normalize_classification_text
+        preprocessor = normalize_classification_text
+        policy["contrast_margin_threshold"] = None
     vectorizer = TfidfVectorizer(analyzer="char", ngram_range=(3, 5), sublinear_tf=True,
-                                 max_features=30000, dtype=np.float32)
+                                 max_features=30000, dtype=np.float32, preprocessor=preprocessor)
     policy.update(vectorizer=vectorizer,
                   train_vectors=vectorizer.fit_transform([r.model_text for r in train_rows]),
                   train_labels=[r.leaf_key for r in train_rows])
     rows = [*validation_rows, *unknown_validation_rows]
     texts = [r.model_text for r in rows]
     predictions, confidences = _raw_predictions(estimator, texts)
-    scores = _similarities(policy, texts, predictions)
+    scores, margins = _support_scores(policy, texts, predictions)
     gold = [r.leaf_key for r in rows]
     for threshold in SIMILARITY_THRESHOLDS:
-        accepted = [label if confidence >= confidence_threshold and score >= threshold else "unknown"
-                    for label, confidence, score in zip(predictions, confidences, scores)]
-        metrics = _metrics(gold, accepted, labels)
-        passes = all(metrics[name] >= required_recall for name in (
-            "minimum_class_recall", "unknown_recall", "in_scope_macro_f1"))
-        policy["selection_candidates"].append({"threshold": threshold, "passes": passes, **metrics})
+        for margin_cutoff in CONTRAST_MARGINS if contrast else (None,):
+            accepted = [label if confidence >= confidence_threshold and score >= threshold
+                        and (margin_cutoff is None or margin >= margin_cutoff) else "unknown"
+                        for label, confidence, score, margin in zip(predictions, confidences, scores, margins)]
+            metrics = _metrics(gold, accepted, labels)
+            passes = all(metrics[name] >= required_recall for name in (
+                "minimum_class_recall", "unknown_recall", "in_scope_macro_f1"))
+            candidate = {"threshold": threshold, "passes": passes, **metrics}
+            if contrast:
+                candidate["contrast_margin_threshold"] = margin_cutoff
+            policy["selection_candidates"].append(candidate)
     feasible = [r for r in policy["selection_candidates"] if r["passes"]]
     if not feasible:
         policy.update(status="failed_validation", reasons=["no_validation_cutoff_passed"])
@@ -144,8 +169,11 @@ def fit_acceptance_policy(estimator, train_rows, validation_rows, unknown_valida
     selected = max(feasible, key=lambda r: (
         (r["in_scope_macro_f1"] + r["unknown_recall"]) / 2,
         r["minimum_class_recall"], r["unknown_recall"], -r["threshold"],
+        -r.get("contrast_margin_threshold", 0),
     ))
     policy.update(status="validated", similarity_threshold=selected["threshold"], selected_validation=selected)
+    if contrast:
+        policy["contrast_margin_threshold"] = selected["contrast_margin_threshold"]
     return policy
 
 
@@ -156,7 +184,7 @@ def acceptance_summary(policy) -> dict:
 
 
 def is_validated_acceptance_policy(policy) -> bool:
-    return (isinstance(policy, dict) and policy.get("version") == POLICY_VERSION
+    return (isinstance(policy, dict) and policy.get("version") in SUPPORTED_POLICY_VERSIONS
              and policy.get("status") == "validated" and policy.get("selection_split") == "validation"
              and policy.get("fit_split") == "train"
              and all(k in policy for k in ("vectorizer", "train_vectors", "train_labels"))
@@ -165,25 +193,37 @@ def is_validated_acceptance_policy(policy) -> bool:
              and isinstance(policy.get("confidence_threshold"), (float, int))
              and 0 < policy["confidence_threshold"] < 1
              and isinstance(policy.get("similarity_threshold"), (float, int))
-             and 0 <= policy["similarity_threshold"] <= 1)
+             and 0 <= policy["similarity_threshold"] <= 1
+             and (policy["version"] != CONTRAST_POLICY_VERSION or (
+                 isinstance(policy.get("contrast_margin_threshold"), (float, int))
+                 and 0 <= policy["contrast_margin_threshold"] <= 1)))
 
 
-def apply_acceptance_policy(policy, texts, predictions, confidences, *, require_validation=True):
+def is_presentation_acceptance_policy(policy) -> bool:
+    return (isinstance(policy, dict) and policy.get("status") == "presentation_only"
+            and policy.get("original_status") == "failed_validation"
+            and is_validated_acceptance_policy({**policy, "status": "validated"}))
+
+
+def apply_acceptance_policy(policy, texts, predictions, confidences, *, require_validation=True,
+                            allow_presentation=False):
     if not (len(texts) == len(predictions) == len(confidences)):
         raise ValueError("Acceptance input counts do not match")
-    if not is_validated_acceptance_policy(policy):
+    version = policy.get("version", POLICY_VERSION) if isinstance(policy, dict) else POLICY_VERSION
+    presentation = allow_presentation and is_presentation_acceptance_policy(policy)
+    if not is_validated_acceptance_policy(policy) and not presentation:
         final = ["unknown"] * len(texts) if require_validation else list(predictions)
         return final, [{"accepted": False, "enforced": require_validation,
-                        "reason": "scope_validation_unavailable", "policy_version": POLICY_VERSION}
+                        "reason": "scope_validation_unavailable", "policy_version": version}
                        for _ in texts]
     try:
-        scores = _similarities(policy, texts, predictions)
+        scores, margins = _support_scores(policy, texts, predictions)
     except (ValueError, KeyError, TypeError, AttributeError, IndexError):
         return ["unknown"] * len(texts), [
             {"accepted": False, "enforced": True, "reason": "scope_policy_invalid",
-             "policy_version": POLICY_VERSION} for _ in texts]
+             "policy_version": version} for _ in texts]
     final, decisions = [], []
-    for text, label, confidence, score in zip(texts, predictions, confidences, scores):
+    for text, label, confidence, score, margin in zip(texts, predictions, confidences, scores, margins):
         reason = "accepted"
         if not str(text).strip():
             reason = "no_transcript"
@@ -193,13 +233,22 @@ def apply_acceptance_policy(policy, texts, predictions, confidences, *, require_
             reason = "low_confidence"
         elif not np.isfinite(score) or score < policy["similarity_threshold"]:
             reason = "outside_training_support"
+        elif version == CONTRAST_POLICY_VERSION and (
+            not np.isfinite(margin) or margin < policy["contrast_margin_threshold"]
+        ):
+            reason = "ambiguous_training_support"
         accepted = reason == "accepted"
         final.append(label if accepted else "unknown")
         decisions.append({"accepted": accepted, "enforced": True, "reason": reason,
-                          "policy_version": POLICY_VERSION,
+                          "policy_version": version,
                           "support_similarity": round(score, 6) if np.isfinite(score) else None,
                           "similarity_threshold": policy["similarity_threshold"],
                           "selection_split": "validation"})
+        if version == CONTRAST_POLICY_VERSION:
+            decisions[-1].update(support_contrast=round(margin, 6) if np.isfinite(margin) else None,
+                                 contrast_margin_threshold=policy["contrast_margin_threshold"])
+        if presentation:
+            decisions[-1].update(presentation_only=True, validation_passed=False)
     return final, decisions
 
 

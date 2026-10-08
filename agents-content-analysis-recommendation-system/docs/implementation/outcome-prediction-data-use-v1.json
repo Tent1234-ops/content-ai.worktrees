@@ -1,0 +1,45 @@
+{
+  "schema_version": "outcome-data-use-decision-v1",
+  "record_version": "youtube-derived-metrics-review-20261008",
+  "checked_at": "2026-10-08T09:35:00Z",
+  "owner": "project_owner",
+  "status": "unverified",
+  "sources": [
+    {
+      "name": "YouTube Data API video statistics",
+      "intended_fields": ["views", "likes", "comments", "observed_at", "view_metric_version"],
+      "terms_url": "https://developers.google.com/youtube/terms/developer-policies-guide"
+    },
+    {
+      "name": "Project dataset transcripts and reviewed metadata",
+      "intended_fields": ["transcript", "taxonomy_leaf_key", "published_at", "duration_seconds", "confirmed_format"],
+      "terms_url": "https://developers.google.com/youtube/terms/derived-metrics-policy"
+    }
+  ],
+  "intended_uses": ["audit", "training", "serving"],
+  "confirmation_evidence": [],
+  "decision": {
+    "audit_allowed": true,
+    "real_training_allowed": false,
+    "real_serving_allowed": false,
+    "reason": "No project-owner evidence was found that the applicable Analytics & Reporting amendment/permission and retention basis have been confirmed for this use."
+  },
+  "conditions_observed_from_official_pages": [
+    "Additional derived metrics require the applicable amendment and approved analytics use case.",
+    "The policy guide states that audited developers must explicitly apply for permission; unapproved use cases must not create additional derived metrics or store beyond the ordinary policy.",
+    "Accepted use cases may store specified statistical and derived metrics for up to 36 calendar months, while other API data retains separate refresh/deletion duties.",
+    "Derived metrics must be distinguished from YouTube API-sourced metrics and must not be presented as YouTube-approved predictions."
+  ],
+  "retention": {
+    "statistical_and_derived_metrics": "Do not assume the 36-month allowance until the applicable permission is confirmed.",
+    "titles_creator_names_descriptions_comment_text": "Retain/refresh/delete only under the applicable base policy; verify with the project owner.",
+    "withdrawal": "Block new training/serving, preserve an audit status, and remove or refresh data as the applicable terms require."
+  },
+  "required_owner_actions": [
+    "Confirm whether the Google Cloud/YouTube API project has applied for and received the permission described in the current policy guide.",
+    "Record the project/use-case identifier, confirmation date, reviewer, accepted amendment or approval evidence, and permitted retention period without storing credentials.",
+    "Confirm rights for transcript reuse independently from permission to read API statistics."
+  ],
+  "review_note": "This record is a technical gate, not legal advice. An agent cannot accept terms or assert project approval for the owner."
+}
+

@@ -1,0 +1,164 @@
+{
+  "schema_version": "outcome-prediction-protocol-v1",
+  "protocol_version": "reference-relative-views-protocol-v1",
+  "protocol_sha256": "ef3a7475e2a005b5dda4f9311eec6740570277b82204847a32114d6bdae6e12b",
+  "frozen_on": "2026-10-08",
+  "target": {
+    "version": "reference_relative_views_v1",
+    "question": "Within a declared reference context, estimate whether observed cumulative views are above the fit-derived channel-balanced median.",
+    "outcome_field": "reference_video_statistics.views",
+    "unit": "one source_youtube_id",
+    "positive_label": "views_strictly_greater_than_frozen_fit_benchmark",
+    "tie_label": 0,
+    "causal_claim": false,
+    "not_a_seven_day_forecast": true
+  },
+  "cutoff_policy": {
+    "timezone": "UTC",
+    "latest_successful_observation_max_age_hours": 24,
+    "statuses": ["complete", "partial"],
+    "views_required": true,
+    "missing_is_zero": false,
+    "observation_after_cutoff_allowed": false,
+    "age_buckets_days": [[0, 7], [7, 30], [30, 90], [90, 365], [365, null]],
+    "supported_view_metric_versions": ["youtube_qualified_view_v1", "youtube_play_start_view_v2"]
+  },
+  "sampling": {
+    "target_categories": ["phone", "camera", "laptop"],
+    "frame": "human-reviewed YouTube videos available to this project under a frozen manifest",
+    "include_general_and_high_response": true,
+    "exclude_outcome_selected_from_calibration_and_test": true,
+    "collection_strategy_is_not_label": true,
+    "probability_population": "channels in the declared reference frame receive equal total weight; videos within a channel receive equal weight",
+    "convenience_sample_limit": "Do not generalize to all YouTube videos or a user's channel."
+  },
+  "split_policy": {
+    "roles": ["fit", "tuning", "calibration", "independent_test"],
+    "group_by": ["source_channel_id", "creator_group_key", "source_youtube_id", "transcript_sha256"],
+    "protected_source_splits": ["validation", "test"],
+    "minimums": {
+      "fit": {"videos": 40, "channels": 8},
+      "tuning": {"videos": 30, "channels": 5},
+      "calibration": {"videos": 20, "channels": 5},
+      "independent_test": {"videos": 30, "channels": 10}
+    },
+    "both_labels_required_in_every_partition": true,
+    "calibration_and_test_minimum_per_label": 10,
+    "minimum_test_per_qualified_category": {"videos": 10, "channels": 3, "both_labels": true},
+    "freshness_must_be_demonstrated": true,
+    "test_never_selects_model_threshold_feature_or_copy": true
+  },
+  "benchmark_policy": {
+    "cell": ["taxonomy_leaf_key", "confirmed_format", "age_bucket", "view_metric_version"],
+    "fit_partition_only": true,
+    "fit_inside_each_cross_validation_fold": true,
+    "channel_weight": "1 / number_of_fit_videos_for_channel_within_cell",
+    "weighted_median_rule": "first observed view value where cumulative sorted weight reaches at least 0.5",
+    "validation_calibration_test_use_frozen_fit_threshold": true,
+    "unsupported_cell_action": "abstain"
+  },
+  "feature_policy": {
+    "version": "outcome-features-v1",
+    "allowed": ["canonical_topic_presence", "accepted_category", "confirmed_format", "duration_seconds", "frozen_age_context"],
+    "forbidden": ["target_views", "likes", "comments", "growth", "trend_rank", "high_performance_flag", "channel_id", "video_id", "url", "title_text", "classifier_confidence"],
+    "canonical_topics_use_existing_versioned_catalog": true,
+    "full_transcript_required": true,
+    "unassessable_is_not_all_false": true,
+    "repeating_a_term_does_not_increase_binary_presence": true
+  },
+  "model_policy": {
+    "random_seed": 261008,
+    "candidates": [
+      {"name": "constant_prior", "purpose": "baseline"},
+      {"name": "metadata_logistic_regression", "purpose": "baseline"},
+      {"name": "metadata_topics_logistic_regression", "purpose": "candidate", "penalty": "l2", "C": [0.1, 1.0, 10.0]}
+    ],
+    "group_aware_tuning": true,
+    "class_weight": null,
+    "oversampling": false,
+    "calibration": {"method": "sigmoid", "partition": "calibration", "independent_from_estimator_fit": true},
+    "stop_after_validation_decision": true
+  },
+  "evaluation": {
+    "primary_weighting": "channel_balanced",
+    "secondary_weighting": "video_weighted",
+    "primary_metric": "brier_score",
+    "secondary_metrics": ["log_loss", "roc_auc_when_defined", "pr_auc_when_defined"],
+    "report_by": ["overall", "category", "confirmed_format", "age_context"],
+    "coverage_and_abstention_required": true,
+    "calibration": {"bins": 3, "binning": "quantile_tie_stable", "minimum_videos_per_bin": 10, "minimum_channels_per_bin": 3, "maximum_absolute_gap": 0.15},
+    "bootstrap": {"unit": "source_channel_id", "resamples": 2000, "confidence": 0.95, "seed": 261008, "paired": true}
+  },
+  "qualification": {
+    "validation_brier_improvement_over_each_baseline": 0.01,
+    "maximum_log_loss_regression_from_best_baseline": 0.02,
+    "maximum_category_brier_regression_from_metadata_baseline": 0.02,
+    "independent_test_brier_difference_ci_direction": "candidate_better_and_interval_does_not_cross_zero",
+    "scope_list_frozen_before_test": true,
+    "insufficient_or_uncertain_status": "experimental",
+    "test_required_before_qualified": true,
+    "activation_requires_separate_user_approval": true
+  },
+  "context_support": {
+    "minimum_fit_videos": 20,
+    "minimum_fit_channels": 5,
+    "minimum_fit_videos_per_label": 5,
+    "format_must_be_confirmed": true,
+    "context_selection_must_not_maximize_probability": true,
+    "unsupported_action": "abstain"
+  },
+  "claims": {
+    "allowed": [
+      "Estimated probability of belonging to the above-fit-median reference group within the stated context.",
+      "Observed association in the available reference sample.",
+      "Insufficient data or unsupported context."
+    ],
+    "forbidden": [
+      "Following this recommendation will increase views.",
+      "Estimated percentage increase in views.",
+      "This is the probability that the video will go viral.",
+      "Classifier confidence is recommendation quality.",
+      "Seven-day forecast without actual seven-day labels."
+    ],
+    "scenario_label": "hypothetical model-score difference in percentage points, not an engagement uplift"
+  },
+  "data_use": {
+    "decision_record": "docs/implementation/outcome-prediction-data-use-v1.json",
+    "require_confirmation_for": ["training", "serving"],
+    "unverified_action": "block_real_training_and_serving",
+    "scraping_as_workaround": false,
+    "withdrawal_action": "withdraw evidence and show status; never silently recreate"
+  },
+  "resources": {
+    "training_wall_clock_minutes": 30,
+    "training_memory_gib": 8,
+    "single_inference_p95_milliseconds": 500,
+    "inference_timeout_milliseconds": 1500,
+    "network_model_downloads": false,
+    "paid_api": false,
+    "runtime": "CPU deterministic where supported"
+  },
+  "utility_study": {
+    "freeze_deadline": "2026-10-15",
+    "minimum_real_reviewers": 3,
+    "in_scope_cases": {"phone": 4, "camera": 4, "laptop": 4},
+    "refusal_cases": 3,
+    "variants": {
+      "A": "legacy keywords",
+      "B": "actionable recommendation with evidence",
+      "C": "variant B plus qualified outcome assessment and limitations"
+    },
+    "rating_scale": [1, 5],
+    "score_fields": ["relevance", "non_redundancy", "evidence_correctness", "clarity", "actionability"],
+    "interpretation_check": "The result does not guarantee higher views.",
+    "pass": {
+      "median_clarity": 4,
+      "median_actionability": 4,
+      "correct_non_guarantee_interpretation_ratio": 0.8,
+      "fabricated_evidence_count": 0
+    },
+    "human_ratings_required": true,
+    "ai_rater_is_not_human_review": true
+  }
+}
+

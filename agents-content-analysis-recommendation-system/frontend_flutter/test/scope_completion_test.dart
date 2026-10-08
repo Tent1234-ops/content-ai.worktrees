@@ -54,38 +54,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-      'trend schedule validates minimum and saves real fields including pause',
+  testWidgets('daily schedule saves real fields and pause persists',
       (tester) async {
     final repo = _Schedule();
     await frame(tester, TrendSettingsPanel(repository: repo));
-    await tester.enterText(find.byType(TextFormField).first, '30');
-    await tester.tap(find.text('บันทึกรอบอัปเดต'));
-    await tester.pumpAndSettle();
-    expect(repo.saved, isNull);
-    expect(find.text('ระบุ 60 ถึง 86400 วินาที'), findsOneWidget);
-    await tester.enterText(find.byType(TextFormField).first, '120');
-    await tester.enterText(find.byType(TextFormField).last, '900');
+    expect(find.text('ตามช่วงเวลา'), findsNothing);
+    expect(find.byType(SegmentedButton<String>), findsNothing);
+    expect(find.byType(TextFormField), findsNothing);
+    expect(find.text('การตั้งค่าเดิมยังมีผลจนกว่าจะบันทึกตารางรายวัน'),
+        findsOneWidget);
     await tester.tap(find.byType(Switch));
     await tester.tap(find.text('บันทึกรอบอัปเดต'));
     await tester.pumpAndSettle();
     expect(repo.saved, {
       'enabled': false,
-      'global_interval_seconds': 120,
-      'category_interval_seconds': 900,
-      'schedule_mode': 'interval',
+      'global_interval_seconds': 3600,
+      'category_interval_seconds': 3600,
+      'schedule_mode': 'hourly_window',
       'start_hour': 14,
       'end_hour': 23,
     });
-    expect(find.text('พักอัปเดตอัตโนมัติ'), findsNWidgets(2));
+    expect(find.text('พักอัปเดตอัตโนมัติ'), findsOneWidget);
+    expect(find.text('การตั้งค่าเดิมยังมีผลจนกว่าจะบันทึกตารางรายวัน'),
+        findsNothing);
     await tester.tap(find.byTooltip('โหลดรอบอัปเดตล่าสุด'));
     await tester.pumpAndSettle();
-    expect(
-        tester
-            .widget<TextFormField>(find.byType(TextFormField).first)
-            .controller!
-            .text,
-        '120');
+    expect(tester.widget<Switch>(find.byType(Switch)).value, false);
     expect(tester.takeException(), isNull);
   });
 
@@ -110,9 +104,6 @@ void main() {
       (tester) async {
     final repo = _Schedule();
     await frame(tester, TrendSettingsPanel(repository: repo), width: 850);
-    await tester.enterText(find.byType(TextFormField).first, '');
-    await tester.tap(find.text('ตามเวลารายวัน'));
-    await tester.pumpAndSettle();
     expect(find.text('ทุก 1 ชั่วโมง · 10 รอบ/วัน · เวลาไทย'), findsOneWidget);
     expect(find.byType(TextFormField), findsNothing);
     await tester.tap(find.text('บันทึกรอบอัปเดต'));
@@ -133,8 +124,6 @@ void main() {
   testWidgets('daily schedule rejects end before start', (tester) async {
     final repo = _Schedule();
     await frame(tester, TrendSettingsPanel(repository: repo), width: 850);
-    await tester.tap(find.text('ตามเวลารายวัน'));
-    await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<int>).last);
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('13:00').last, -220,

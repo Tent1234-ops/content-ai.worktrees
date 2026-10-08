@@ -243,57 +243,13 @@ void main() {
       const Offset(0, -500),
     );
     await tester.pumpAndSettle();
-    expect(find.text(firstRoundMessage), findsOneWidget);
-    expect(find.text('อันดับคำค้นขยับขึ้นล่าสุดบน Google'), findsOneWidget);
+    expect(find.text(firstRoundMessage), findsNothing);
+    expect(find.text('อันดับคำค้นขยับขึ้นล่าสุดบน Google'), findsNothing);
     expect(find.text('เทรนด์ตามหมวดหมู่'), findsNothing);
   });
 
-  testWidgets('rank movement list explains the exact snapshot comparison',
-      (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1280, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    final authController = AuthController();
-    addTearDown(authController.dispose);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: AuthScope(
-          controller: authController,
-          child: DashboardScreen(repository: _FakeDashboardRepository()),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.scrollUntilVisible(
-      find.text('อันดับวิดีโอขยับขึ้นล่าสุดบน YouTube').first,
-      500,
-      maxScrolls: 20,
-      scrollable: find.byType(Scrollable).first,
-    );
-
-    expect(
-      find.text('อันดับวิดีโอขยับขึ้นล่าสุดบน YouTube'),
-      findsOneWidget,
-    );
-    expect(find.text('น่าจับตาในรอบล่าสุด'), findsNothing);
-    expect(find.text('YouTube climber'), findsWidgets);
-    expect(
-      find.text('ขยับขึ้น 5 อันดับ · #18 → #13'),
-      findsOneWidget,
-    );
-    expect(find.text('เข้าอันดับรอบนี้ที่ #14'), findsOneWidget);
-    expect(find.textContaining('เปรียบเทียบอันดับรอบ'), findsOneWidget);
-    expect(find.textContaining('ภายใน YouTube เท่านั้น'), findsOneWidget);
-    expect(find.textContaining('Momentum'), findsNothing);
-    expect(find.textContaining('ความสนใจเพิ่มขึ้น'), findsNothing);
-    expect(find.text('ขยับขึ้น'), findsOneWidget);
-    expect(find.text('เข้าอันดับใหม่'), findsOneWidget);
-    expect(find.text('อันดับคงเดิม'), findsOneWidget);
-    expect(find.text('อันดับลดลง'), findsOneWidget);
-  });
-
-  testWidgets('unchanged ranking round shows evidence instead of an empty card',
+  testWidgets(
+      'overall ranking displays category donut without movement section',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -313,20 +269,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('อันดับวิดีโอขยับขึ้นล่าสุดบน YouTube').first,
-      500,
-      maxScrolls: 20,
-      scrollable: find.byType(Scrollable).first,
-    );
-
-    expect(
-      find.text('อันดับทั้ง 5 รายการยังคงเดิมเมื่อเทียบกับรอบก่อน'),
-      findsOneWidget,
-    );
-    expect(find.text('อันดับคงเดิม'), findsOneWidget);
-    expect(find.text('จำนวนข้อมูลตามแหล่งที่มา'), findsNothing);
-
+    expect(find.text('อันดับวิดีโอขยับขึ้นล่าสุดบน YouTube'), findsNothing);
     await tester.scrollUntilVisible(
       find.text('เทรนด์ตามหมวดหมู่').first,
       500,
@@ -334,10 +277,10 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(
-      find.text('สัดส่วนจาก 5 รายการในอันดับปัจจุบันของ YouTube'),
+      find.text('สัดส่วนจาก 5 คลิปในอันดับรวม YouTube (สูงสุด 50)'),
       findsOneWidget,
     );
-    expect(find.text('5 รายการ (100%)'), findsOneWidget);
+    expect(find.text('5 คลิป (100%)'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -382,6 +325,7 @@ void main() {
     expect(find.text('Category 24 video 50'), findsOneWidget);
     expect(find.text('#50'), findsOneWidget);
     expect(find.text('YouTube video 1'), findsNothing);
+    expect(find.text('เทรนด์ตามหมวดหมู่'), findsNothing);
   });
 
   testWidgets('top trend opens details from the current list without history',
@@ -821,7 +765,7 @@ Map<String, dynamic> _trendItem({
   bool includeMetadata = true,
 }) {
   return {
-    'key': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'key': '$platform:$title',
     'platform': platform.contains('youtube')
         ? 'youtube'
         : platform.contains('google')

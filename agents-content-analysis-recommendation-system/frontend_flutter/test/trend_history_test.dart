@@ -156,7 +156,7 @@ void main() {
     await tester.pumpWidget(panel(repo));
     await tester.pumpAndSettle();
     expect(find.byType(LineChart), findsNWidgets(3));
-    expect(find.text('ขยับขึ้น 6 อันดับ'), findsOneWidget);
+    expect(find.text('ขยับขึ้น 6 อันดับ'), findsNothing);
     final graphs =
         tester.widgetList<LineChart>(find.byType(LineChart)).toList();
     final growth = graphs[1].data;
@@ -170,17 +170,12 @@ void main() {
         growth.minX,
         equals(DateTime.parse('2026-09-19T08:00:00Z').millisecondsSinceEpoch /
             60000));
-    await tester.ensureVisible(find.byTooltip('ดูตารางข้อมูลกราฟ'));
-    await tester.tap(find.byTooltip('ดูตารางข้อมูลกราฟ'));
-    await tester.pumpAndSettle();
-    expect(find.text('ยอดเพิ่มจริง'), findsOneWidget);
-    expect(find.text('+300'), findsOneWidget);
-    expect(find.text('11 → 22'), findsOneWidget);
+    expect(find.byTooltip('ดูตารางข้อมูลกราฟ'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets(
-      'selected item reloads its metrics and coverage details are available',
+      'selected item reloads metrics without exposing collection diagnostics',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(900, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -194,11 +189,11 @@ void main() {
     await tester.tap(find.text('คลิป B').last);
     await tester.pumpAndSettle();
     expect(repo.selectedKeys.last, 'b');
-    await tester.ensureVisible(find.byTooltip('ดูความครอบคลุมรายชั่วโมง'));
-    await tester.tap(find.byTooltip('ดูความครอบคลุมรายชั่วโมง'));
-    await tester.pumpAndSettle();
-    expect(find.text('ความครอบคลุมของข้อมูล'), findsOneWidget);
-    expect(find.text('เก็บไม่สำเร็จ (1 ครั้ง)'), findsOneWidget);
+    expect(find.byTooltip('ดูความครอบคลุมรายชั่วโมง'), findsNothing);
+    expect(find.textContaining('มีข้อมูล 2 / 5'), findsNothing);
+    expect(find.textContaining('เก็บไม่สำเร็จ'), findsNothing);
+    expect(find.textContaining('ช่วงชั่วโมง'), findsNothing);
+    expect(find.byType(LineChart), findsNWidgets(3));
     expect(tester.takeException(), isNull);
   });
 
@@ -224,7 +219,7 @@ void main() {
         isNull);
   });
 
-  testWidgets('public history has working charts, periods and evidence table',
+  testWidgets('public history has working charts and only the seven day period',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1440, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -238,11 +233,7 @@ void main() {
     expect(find.text('24 ชั่วโมง'), findsNothing);
     expect(find.text('90 วัน'), findsNothing);
     expect(repo.requests.last, 'youtube:null:7');
-    await tester.ensureVisible(find.byTooltip('ดูตารางข้อมูลกราฟ'));
-    await tester.tap(find.byTooltip('ดูตารางข้อมูลกราฟ'));
-    await tester.pumpAndSettle();
-    expect(find.byType(DataTable), findsOneWidget);
-    expect(find.text('#8'), findsOneWidget);
+    expect(find.byTooltip('ดูตารางข้อมูลกราฟ'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -296,8 +287,9 @@ void main() {
     await tester.tap(find.byTooltip('ลองโหลดประวัติอีกครั้ง'));
     await tester.pumpAndSettle();
     expect(find.byType(LineChart), findsOneWidget);
-    expect(find.text('พบเพียงรอบเดียว ยังสรุปการเปลี่ยนอันดับไม่ได้'),
-        findsOneWidget);
+    final graph = tester.widget<LineChart>(find.byType(LineChart)).data;
+    expect(graph.lineBarsData.single.spots.length, 1);
+    expect(graph.lineBarsData.single.spots.single.y, -1);
     expect(tester.takeException(), isNull);
   });
 

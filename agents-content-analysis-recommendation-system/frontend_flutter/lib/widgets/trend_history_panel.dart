@@ -143,8 +143,6 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
                 const Text('7 วันล่าสุด'),
               ]),
           const SizedBox(height: 12),
-          if (data != null) _coverage(data),
-          if (data != null) _dailyCoverage(data),
           if (_loading) const LinearProgressIndicator(),
           if (_failed)
             Row(children: [
@@ -161,28 +159,8 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
                 padding: EdgeInsets.symmetric(vertical: 20),
                 child: Text('ยังไม่มีประวัติที่เก็บได้ในช่วงนี้')),
           if (data != null && data.points.isNotEmpty) ...[
-            Text(
-                '${historyTime(data.points.first.at)} ถึง ${historyTime(data.points.last.at)}'
-                ' · ${data.points.length} จุดข้อมูล · เวลาท้องถิ่น',
-                style: theme.textTheme.bodySmall),
-            const SizedBox(height: 4),
-            Text('ข้อมูลต้นและท้ายชั่วโมงที่เก็บได้จริง ไม่ใช่ข้อมูลทุกนาที',
-                style: theme.textTheme.bodySmall),
-            if (data.stale || data.gaps > 0 || data.latestUnavailable)
-              Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                      data.latestUnavailable
-                          ? 'รอบล่าสุดไม่มีข้อมูลที่ใช้ได้ กราฟแสดงเฉพาะรอบที่เก็บสำเร็จ'
-                          : data.stale
-                              ? 'ยังไม่มีข้อมูลรอบใหม่ในช่วง 90 นาทีล่าสุด'
-                              : 'ข้อมูลขาดช่วง ${data.gaps} ช่วง',
-                      style: const TextStyle(color: Color(0xFF986000)))),
-            const SizedBox(height: 20),
             _itemSelector(data),
             const SizedBox(height: 16),
-            _decisionSummary(data),
-            const SizedBox(height: 20),
             LayoutBuilder(builder: (context, constraints) {
               final rank = _rankChart(data);
               if (widget.platform != 'youtube') return rank;
@@ -203,123 +181,11 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
               const Divider(height: 40),
               _categoryChart(data),
             ],
-            const SizedBox(height: 8),
-            Align(
-                alignment: Alignment.centerRight,
-                child: IconButton(
-                  tooltip: 'ดูตารางข้อมูลกราฟ',
-                  icon: const Icon(Icons.table_chart_outlined),
-                  onPressed: () => _showTable(data),
-                )),
           ],
         ]),
       ),
     );
   }
-
-  Widget _dailyCoverage(TrendHistory data) {
-    final schedule = data.collectionSchedule;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (schedule['mode'] == 'hourly_window')
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(schedule['enabled'] == true
-              ? 'ตารางเก็บปัจจุบัน ${schedule['start_hour']}:00–${schedule['end_hour']}:00 น. ทุกชั่วโมง (เวลาไทย)'
-              : 'ขณะนี้หยุดเก็บข้อมูลอัตโนมัติ'),
-        ),
-      if (data.dailyCoverage.isNotEmpty) ...[
-        Wrap(spacing: 16, runSpacing: 12, children: [
-          for (final day in data.dailyCoverage)
-            SizedBox(
-                width: 130,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${day['date']}',
-                        style: Theme.of(context).textTheme.labelMedium),
-                    const SizedBox(height: 6),
-                    Text((day['observed_hours'] as num) > 0
-                        ? '${day['observed_hours']} ชั่วโมงที่มีข้อมูล'
-                        : 'ไม่มีข้อมูลที่เก็บได้'),
-                    const SizedBox(height: 6),
-                    LinearProgressIndicator(
-                      value: (day['observed_hours'] as num).toDouble() / 24,
-                      color: const Color(0xFF168067),
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                    ),
-                    if ((day['failed_attempts'] as num) > 0)
-                      Text('ล้มเหลว ${day['failed_attempts']} ครั้ง',
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.error)),
-                  ],
-                )),
-        ]),
-        const SizedBox(height: 12),
-        Text(
-            'ช่องว่างของกราฟอาจเป็นช่วงไม่ได้เก็บข้อมูล หรือรายการไม่ติดอันดับในรอบนั้น ไม่ใช่ค่าศูนย์',
-            style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 12),
-      ],
-    ]);
-  }
-
-  Widget _coverage(TrendHistory data) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Wrap(
-            spacing: 16,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                  'มีข้อมูล ${data.hoursObserved} / ${data.hoursRequested} ช่วงชั่วโมง',
-                  style: Theme.of(context).textTheme.labelLarge),
-              Text(
-                  'เก็บไม่สำเร็จ ${data.failedAttempts} ครั้ง · ไม่มีข้อมูล ${data.unobservedHours} ช่วงชั่วโมง'),
-              IconButton(
-                  tooltip: 'ดูความครอบคลุมรายชั่วโมง',
-                  icon: const Icon(Icons.calendar_view_week_outlined),
-                  onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                            title: const Text('ความครอบคลุมของข้อมูล'),
-                            content: SizedBox(
-                                width: 650,
-                                height: 430,
-                                child: ListView.builder(
-                                    itemCount: data.hours.length,
-                                    itemBuilder: (_, index) {
-                                      final hour = data
-                                          .hours[data.hours.length - 1 - index];
-                                      final label = switch (hour.status) {
-                                        'partial' =>
-                                          'มีข้อมูลบางรอบ และมีรอบที่เก็บไม่สำเร็จ',
-                                        'observed' => 'มีข้อมูลที่เก็บสำเร็จ',
-                                        'failed' => 'เก็บไม่สำเร็จ',
-                                        _ => 'ไม่มีข้อมูลที่เก็บได้',
-                                      };
-                                      return ListTile(
-                                          dense: true,
-                                          leading: Icon(
-                                              hour.observed
-                                                  ? Icons.check_circle_outline
-                                                  : Icons.remove_circle_outline,
-                                              color: hour.observed
-                                                  ? const Color(0xFF168067)
-                                                  : Colors.grey),
-                                          title: Text(
-                                              '${historyTime(hour.at)} - ${historyTime(hour.at.add(const Duration(hours: 1)))}'),
-                                          subtitle: Text(
-                                              '$label${hour.failures > 0 ? ' (${hour.failures} ครั้ง)' : ''}'));
-                                    })),
-                            actions: [
-                              TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('ปิด'))
-                            ],
-                          ))),
-            ]),
-      );
 
   Widget _itemSelector(TrendHistory data) => data.items.isEmpty
       ? const SizedBox.shrink()
@@ -333,10 +199,8 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
           items: data.items
               .map((item) => DropdownMenuItem(
                   value: item.key,
-                  child: Text(
-                      '${item.title}${item.observationCount > 0 ? ' · พบ ${item.observationCount} รอบ' : ''}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis)))
+                  child: Text(item.title,
+                      maxLines: 1, overflow: TextOverflow.ellipsis)))
               .toList(),
           onChanged: (value) {
             setState(() {
@@ -346,65 +210,6 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
             _load();
           },
         );
-
-  Widget _decisionSummary(TrendHistory data) {
-    final matches = data.items.where((item) => item.key == _itemKey);
-    if (matches.isEmpty) return const SizedBox.shrink();
-    final item = matches.first;
-    final movement = item.movement;
-    final change = (movement['change'] as num?)?.abs().toInt();
-    final label = switch (movement['status']) {
-      'up' => 'ขยับขึ้น $change อันดับ',
-      'down' => 'ลดลง $change อันดับ',
-      'unchanged' => 'อันดับเท่าเดิม',
-      'new_entry' => 'พบในรอบนี้ แต่ไม่พบในรอบก่อน',
-      'not_in_latest' => 'ไม่พบในรายการรอบล่าสุด',
-      'collection_gap' => 'ข้อมูลขาดช่วง ยังสรุปการขยับไม่ได้',
-      'empty_sample' => 'รอบที่เปรียบเทียบไม่มีรายการ',
-      'latest_unavailable' => 'รอบล่าสุดเก็บข้อมูลไม่ได้',
-      'stale' => 'ข้อมูลเก่า ยังสรุปสถานะตอนนี้ไม่ได้',
-      _ => 'ยังมีข้อมูลไม่พอเปรียบเทียบอันดับ',
-    };
-    final at = data.points.last.at;
-    final before =
-        DateTime.tryParse(movement['from_at']?.toString() ?? '')?.toLocal();
-    final interval = data.points.last.viewIntervals[_itemKey];
-    Widget fact(String title, String value, String detail) => SizedBox(
-        width: 280,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 4),
-          Text(value, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(detail, style: Theme.of(context).textTheme.bodySmall),
-        ]));
-    return Wrap(spacing: 24, runSpacing: 16, children: [
-      fact(
-          'อันดับที่เก็บได้ล่าสุด',
-          item.latestRank == null ? 'ไม่พบในรายการ' : '#${item.latestRank}',
-          historyTime(at)),
-      fact(
-          'การเปลี่ยนอันดับ',
-          label,
-          before == null
-              ? 'ต้องมีข้อมูลอย่างน้อยสองรอบ'
-              : '${historyTime(before)} ถึง ${historyTime(at)}'),
-      if (widget.platform == 'youtube') ...[
-        fact(
-            'ยอดวิวสะสม ณ รอบนี้',
-            historyNumber(data.points.last.views[_itemKey]),
-            'ยอดสะสม ไม่ใช่ยอดวิวที่เพิ่มในช่วงนี้'),
-        fact(
-            'ยอดวิวเพิ่มจากรอบก่อน',
-            interval?.measured == true
-                ? '+${historyNumber(interval!.delta)}'
-                : 'ยังเปรียบเทียบไม่ได้',
-            interval?.measured == true
-                ? '${(interval!.seconds! / 60).toStringAsFixed(1)} นาที · เฉลี่ย ${historyNumber(interval.perHour)} ครั้ง/ชม.'
-                : viewIntervalStatus(interval?.status)),
-      ],
-    ]);
-  }
 
   Widget _rankChart(TrendHistory data) {
     final occurrences =
@@ -432,15 +237,8 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
           from: data.requestedFrom,
           to: data.requestedTo,
           value: (p) => p.ranks[_itemKey]?.toDouble(),
-          tooltip: (p) => '#${p.ranks[_itemKey]} · รอบ #${p.runId}',
+          tooltip: (p) => '#${p.ranks[_itemKey]}',
         ),
-      const SizedBox(height: 8),
-      Text(
-          'พบใน $occurrences จาก ${data.points.length} จุดข้อมูล'
-          ' · ไม่พบในรายการที่เก็บได้ ไม่ได้หมายถึงอันดับ 0 หรือ 51',
-          style: Theme.of(context).textTheme.bodySmall),
-      if (occurrences == 1)
-        const Text('พบเพียงรอบเดียว ยังสรุปการเปลี่ยนอันดับไม่ได้'),
     ]);
   }
 
@@ -475,13 +273,8 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
               final interval = p.viewIntervals[_itemKey]!;
               return '${historyTime(interval.from!)} ถึง ${historyTime(p.at)}\n'
                   '+${historyNumber(interval.delta)} ใน ${(interval.seconds! / 60).toStringAsFixed(1)} นาที\n'
-                  '${historyNumber(interval.perHour)} ครั้ง/ชม. · รอบ #${interval.fromRunId} → #${p.runId}';
+                  '${historyNumber(interval.perHour)} ครั้ง/ชม.';
             }),
-      const SizedBox(height: 8),
-      Text(
-          '$measured ช่วงที่คำนวณได้ · ยอดวิวต่างกัน ÷ เวลาที่ผ่านไปเป็นชั่วโมง\n'
-          'แท่งอยู่ที่เวลาสิ้นสุดช่วง ค่าเฉลี่ยนี้ไม่ใช่การพยากรณ์ยอดวิวชั่วโมงถัดไป',
-          style: Theme.of(context).textTheme.bodySmall),
     ]);
   }
 
@@ -523,102 +316,10 @@ class _TrendHistoryPanelState extends State<TrendHistoryPanel> {
           to: data.requestedTo,
           value: (p) => p.share(_category ?? ''),
           tooltip: (p) => '${p.categories[_category] ?? 0}/${p.total} คลิป'
-              ' (${p.share(_category ?? '')?.toStringAsFixed(1)}%) · รอบ #${p.runId}',
+              ' (${p.share(_category ?? '')?.toStringAsFixed(1)}%)',
         ),
-      const SizedBox(height: 8),
-      Text('จำนวนคลิปหมวดนี้ ÷ จำนวนรายการในรอบนั้น × 100',
-          style: Theme.of(context).textTheme.bodySmall),
     ]);
   }
-
-  void _showTable(TrendHistory data) {
-    final rows = data.points.reversed.toList();
-    final youtube = widget.platform == 'youtube';
-    final categories = youtube && widget.categoryId == null;
-    final source = _HistoryTableSource(rows.length, (index) {
-      final p = rows[index];
-      final interval = p.viewIntervals[_itemKey];
-      return DataRow(cells: [
-        DataCell(Text(historyEvidenceTime(p.at))),
-        DataCell(Text(p.ranks[_itemKey] == null
-            ? 'ไม่พบในรายการ'
-            : '#${p.ranks[_itemKey]}')),
-        if (youtube) ...[
-          DataCell(Text(historyNumber(p.views[_itemKey]))),
-          DataCell(Text(historyNumber(interval?.fromViews))),
-          DataCell(Text(interval?.measured == true
-              ? '+${historyNumber(interval!.delta)}'
-              : '-')),
-          DataCell(Text(interval?.measured == true
-              ? historyNumber(interval!.perHour)
-              : '-')),
-          DataCell(Text(interval?.from == null
-              ? '-'
-              : '${historyEvidenceTime(interval!.from!)} ถึง ${historyEvidenceTime(p.at)}\n${interval.seconds!.toStringAsFixed(6)} วินาที')),
-          DataCell(Text(viewIntervalStatus(interval?.status))),
-        ],
-        if (categories)
-          DataCell(Text('${p.categories[_category] ?? 0} / ${p.total}')),
-        DataCell(Text(youtube
-            ? '${interval?.fromRunId ?? '-'} → ${p.runId}'
-            : '${p.runId}')),
-        DataCell(Text(youtube
-            ? '${interval?.fromItemId ?? '-'} → ${p.itemIds[_itemKey] ?? '-'}'
-            : '${p.itemIds[_itemKey] ?? '-'}')),
-      ]);
-    });
-    showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-              title: const Text('ข้อมูลที่ใช้วาดกราฟ'),
-              content: SizedBox(
-                  width: 1120,
-                  height: 500,
-                  child: SingleChildScrollView(
-                    child: PaginatedDataTable(
-                        source: source,
-                        rowsPerPage: 10,
-                        availableRowsPerPage: const [],
-                        showFirstLastButtons: true,
-                        columns: [
-                          const DataColumn(label: Text('วัน / เวลา')),
-                          const DataColumn(label: Text('อันดับรายการที่เลือก')),
-                          if (youtube) ...[
-                            const DataColumn(label: Text('ยอดวิวปลายช่วง')),
-                            const DataColumn(label: Text('ยอดวิวต้นช่วง')),
-                            const DataColumn(label: Text('ยอดเพิ่มจริง')),
-                            const DataColumn(label: Text('เฉลี่ยต่อชั่วโมง')),
-                            const DataColumn(
-                                label: Text('ช่วงเวลาที่เปรียบเทียบ')),
-                            const DataColumn(label: Text('สถานะยอดวิว')),
-                          ],
-                          if (categories)
-                            const DataColumn(
-                                label: Text('คลิปหมวดที่เลือก / ทั้งหมด')),
-                          const DataColumn(label: Text('รหัสรอบข้อมูล')),
-                          const DataColumn(label: Text('รหัสรายการต้นทาง')),
-                        ]),
-                  )),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('ปิด'))
-              ],
-            )).whenComplete(source.dispose);
-  }
-}
-
-class _HistoryTableSource extends DataTableSource {
-  _HistoryTableSource(this.rowCount, this.builder);
-  @override
-  final int rowCount;
-  final DataRow Function(int) builder;
-  @override
-  DataRow? getRow(int index) => index < rowCount ? builder(index) : null;
-  @override
-  bool get isRowCountApproximate => false;
-  @override
-  int get selectedRowCount => 0;
 }
 
 class HistoryLineChart extends StatelessWidget {

@@ -19,6 +19,9 @@ void main() {
     await tester.pumpWidget(
         MaterialApp(home: AdminDatasetsScreen(repository: repository)));
     await tester.pumpAndSettle();
+    expect(find.byType(TabBar), findsNothing);
+    await tester.tap(find.byTooltip('เครื่องมือ Dataset เพิ่มเติม'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('ถังขยะ'));
     await tester.pumpAndSettle();
     repository.failRestore = true;

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../repositories/admin_repository.dart';
 import 'source_health_panel.dart';
 
@@ -12,9 +11,7 @@ class TrendSettingsPanel extends StatefulWidget {
 
 class _TrendSettingsPanelState extends State<TrendSettingsPanel> {
   final _form = GlobalKey<FormState>();
-  final _global = TextEditingController(), _category = TextEditingController();
   bool _enabled = true, _loading = true, _saving = false;
-  String _mode = 'interval';
   int _startHour = 14, _endHour = 23;
   String? _error;
   Map<String, dynamic>? _data;
@@ -24,19 +21,9 @@ class _TrendSettingsPanelState extends State<TrendSettingsPanel> {
     _load();
   }
 
-  @override
-  void dispose() {
-    _global.dispose();
-    _category.dispose();
-    super.dispose();
-  }
-
   void _apply(Map<String, dynamic> data) {
     _data = data;
     _enabled = data['enabled'] == true;
-    _global.text = '${data['global_interval_seconds']}';
-    _category.text = '${data['category_interval_seconds']}';
-    _mode = data['schedule_mode'] as String? ?? 'interval';
     _startHour = (data['window']?['start_hour'] as num?)?.toInt() ?? 14;
     _endHour = (data['window']?['end_hour'] as num?)?.toInt() ?? 23;
   }
@@ -65,11 +52,9 @@ class _TrendSettingsPanelState extends State<TrendSettingsPanel> {
     try {
       final data = await widget.repository.saveTrendSettings({
         'enabled': _enabled,
-        'global_interval_seconds':
-            _mode == 'hourly_window' ? 3600 : int.parse(_global.text),
-        'category_interval_seconds':
-            _mode == 'hourly_window' ? 3600 : int.parse(_category.text),
-        'schedule_mode': _mode,
+        'global_interval_seconds': 3600,
+        'category_interval_seconds': 3600,
+        'schedule_mode': 'hourly_window',
         'start_hour': _startHour,
         'end_hour': _endHour,
       });
@@ -85,21 +70,6 @@ class _TrendSettingsPanelState extends State<TrendSettingsPanel> {
       if (mounted) setState(() => _saving = false);
     }
   }
-
-  Widget _seconds(TextEditingController controller, String label) =>
-      TextFormField(
-        controller: controller,
-        enabled: !_saving,
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: InputDecoration(labelText: label, suffixText: 'วินาที'),
-        validator: (v) {
-          final n = int.tryParse(v ?? '');
-          return n == null || n < 60 || n > 86400
-              ? 'ระบุ 60 ถึง 86400 วินาที'
-              : null;
-        },
-      );
 
   String _hour(int value) => '${value.toString().padLeft(2, '0')}:00';
 
@@ -183,46 +153,29 @@ class _TrendSettingsPanelState extends State<TrendSettingsPanel> {
                               ? null
                               : (v) => setState(() => _enabled = v)),
                       const SizedBox(height: 24),
-                      SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                              value: 'hourly_window',
-                              icon: Icon(Icons.schedule),
-                              label: Text('ตามเวลารายวัน')),
-                          ButtonSegment(
-                              value: 'interval',
-                              icon: Icon(Icons.timer_outlined),
-                              label: Text('ตามช่วงเวลา')),
-                        ],
-                        selected: {_mode},
-                        onSelectionChanged: _saving
-                            ? null
-                            : (v) => setState(() => _mode = v.first),
-                      ),
-                      const SizedBox(height: 24),
-                      if (_mode == 'hourly_window') ...[
-                        Row(children: [
-                          Expanded(
-                              child: _hourInput('รอบแรก', _startHour,
-                                  (v) => setState(() => _startHour = v))),
-                          const SizedBox(width: 16),
-                          Expanded(
-                              child: _hourInput('รอบสุดท้าย', _endHour,
-                                  (v) => setState(() => _endHour = v))),
-                        ]),
-                        const SizedBox(height: 16),
-                        Text(
-                            'ทุก 1 ชั่วโมง · ${_endHour >= _startHour ? _endHour - _startHour + 1 : 0} รอบ/วัน · เวลาไทย'),
-                        const SizedBox(height: 8),
-                        Text(_endHour >= _startHour
-                            ? List.generate(_endHour - _startHour + 1,
-                                (i) => _hour(_startHour + i)).join('  ·  ')
-                            : ''),
-                      ] else ...[
-                        _seconds(_global, 'อันดับรวมแต่ละแพลตฟอร์ม'),
-                        const SizedBox(height: 24),
-                        _seconds(_category, 'อันดับรายหมวด YouTube'),
-                      ],
+                      if (_data!['schedule_mode'] != 'hourly_window')
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 16),
+                          child: Text(
+                              'การตั้งค่าเดิมยังมีผลจนกว่าจะบันทึกตารางรายวัน'),
+                        ),
+                      Row(children: [
+                        Expanded(
+                            child: _hourInput('รอบแรก', _startHour,
+                                (v) => setState(() => _startHour = v))),
+                        const SizedBox(width: 16),
+                        Expanded(
+                            child: _hourInput('รอบสุดท้าย', _endHour,
+                                (v) => setState(() => _endHour = v))),
+                      ]),
+                      const SizedBox(height: 16),
+                      Text(
+                          'ทุก 1 ชั่วโมง · ${_endHour >= _startHour ? _endHour - _startHour + 1 : 0} รอบ/วัน · เวลาไทย'),
+                      const SizedBox(height: 8),
+                      Text(_endHour >= _startHour
+                          ? List.generate(_endHour - _startHour + 1,
+                              (i) => _hour(_startHour + i)).join('  ·  ')
+                          : ''),
                       const SizedBox(height: 24),
                       Align(
                           alignment: Alignment.centerLeft,

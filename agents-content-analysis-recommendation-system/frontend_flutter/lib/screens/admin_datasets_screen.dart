@@ -237,6 +237,21 @@ class _AdminDatasetsScreenState extends State<AdminDatasetsScreen> {
     }
   }
 
+  static const _viewTitles = {
+    0: 'รายการข้อมูล',
+    1: 'คุณภาพและแผนเก็บข้อมูล',
+    2: 'สถิติและการเติบโต',
+    3: 'ถังขยะ',
+  };
+
+  void _selectView(int index) {
+    setState(() {
+      _tab = index;
+      _offset = 0;
+    });
+    if (index == 0 || index == 3) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppShell(
@@ -244,6 +259,17 @@ class _AdminDatasetsScreenState extends State<AdminDatasetsScreen> {
       currentRoute: '/admin-datasets',
       isAdmin: true,
       actions: [
+        PopupMenuButton<int>(
+          tooltip: 'เครื่องมือ Dataset เพิ่มเติม',
+          enabled: !_loading && !_deleting && !_creating,
+          icon: const Icon(Icons.more_vert),
+          onSelected: _selectView,
+          itemBuilder: (_) => [
+            for (final entry in _viewTitles.entries)
+              if (entry.key != _tab)
+                PopupMenuItem(value: entry.key, child: Text(entry.value)),
+          ],
+        ),
         IconButton(
           key: const ValueKey('dataset-create'),
           onPressed: _loading || _deleting || _creating || _tab != 0
@@ -260,25 +286,22 @@ class _AdminDatasetsScreenState extends State<AdminDatasetsScreen> {
       ],
       child: Column(
         children: [
-          DefaultTabController(
-            length: 4,
-            initialIndex: _tab,
-            child: TabBar(
-                isScrollable: true,
-                onTap: (index) {
-                  setState(() {
-                    _tab = index;
-                    _offset = 0;
-                  });
-                  if (index == 0 || index == 3) _load();
-                },
-                tabs: const [
-                  Tab(text: 'รายการข้อมูล'),
-                  Tab(text: 'คุณภาพและแผนเก็บข้อมูล'),
-                  Tab(text: 'สถิติและการเติบโต'),
-                  Tab(icon: Icon(Icons.delete_outline), text: 'ถังขยะ'),
-                ]),
-          ),
+          if (_tab != 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(children: [
+                IconButton(
+                  tooltip: 'กลับรายการข้อมูล',
+                  onPressed:
+                      _loading || _deleting ? null : () => _selectView(0),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Text(_viewTitles[_tab]!,
+                        style: Theme.of(context).textTheme.titleMedium)),
+              ]),
+            ),
           if (_tab == 1)
             Expanded(child: DatasetReadinessPanel(repository: _repository))
           else if (_tab == 2)

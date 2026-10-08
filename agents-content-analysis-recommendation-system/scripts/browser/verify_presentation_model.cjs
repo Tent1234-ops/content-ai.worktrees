@@ -10,8 +10,10 @@ const root = path.resolve(__dirname, '../..');
 const out = path.resolve(process.argv[2] || 'artifacts/laptop-scope-20261004/presentation-browser');
 if (fs.existsSync(path.join(out, 'verification.json'))) throw new Error('Choose a new output directory');
 fs.mkdirSync(out, { recursive: true });
-const report = { checks: [], errors: [], real_asr: false, fresh_test: false, model_id: 43 };
-const resumeJobPath = process.argv[3] && process.argv[3] !== '-' ? path.resolve(process.argv[3]) : null;
+const expectedModelId = Number(process.argv[5] || 43);
+const savedContentId = /^content:\d+$/.test(process.argv[3] || '') ? Number(process.argv[3].split(':')[1]) : null;
+const report = { checks: [], errors: [], real_asr: false, fresh_test: false, model_id: expectedModelId };
+const resumeJobPath = process.argv[3] && process.argv[3] !== '-' && !savedContentId ? path.resolve(process.argv[3]) : null;
 const cameraFile = process.argv[4] ? path.resolve(process.argv[4]) : null;
 let browser, context, page, auth;
 function safeMessage(error) {
@@ -70,15 +72,17 @@ with SessionLocal() as db:
       return response.json();
     }
     const overview = await get('/admin/training');
-    assert.equal(overview.active_model.model_id, 43);
+    assert.equal(overview.active_model.model_id, expectedModelId);
     assert.equal(overview.active_model.status, 'presentation_only');
-    assert.equal(overview.active_model.readiness.status, 'presentation');
+    const expired = overview.active_model.readiness.reason_codes.includes('presentation_expired');
+    assert.equal(overview.active_model.readiness.status, savedContentId && expired ? 'blocked' : 'presentation');
+    report.current_model_expired = expired;
     assert.equal(overview.active_model.readiness.scope_policy_valid, false);
     assert.equal(overview.active_model.readiness.scope_validation_required, true);
     assert.equal(overview.active_model.can_activate, false);
     assert.equal(overview.policy.promotion_threshold, 0.8);
     save('active-model.json', overview.active_model);
-    pass('Active model 43 is explicitly unqualified; normal gates remain enabled');
+    pass(`Registry model ${expectedModelId} is explicitly unqualified; normal gates remain enabled`);
     await context.addInitScript(auth => {
       localStorage.setItem('flutter.access_token', JSON.stringify(auth.token));
       localStorage.setItem('flutter.trend_session_key', JSON.stringify(auth.session));
@@ -91,14 +95,20 @@ with SessionLocal() as db:
     for (const width of [1440, 1000]) {
       await page.setViewportSize({ width, height: 1000 });
       await open('/admin-training');
-      await page.getByText('เปิดใช้ชั่วคราวสำหรับสาธิต', { exact: false }).first().waitFor({ timeout: 90000 });
+      const warning = expired ? 'สิทธิ์ใช้โมเดลสาธิตหมดอายุแล้ว' : 'เปิดใช้ชั่วคราวสำหรับสาธิต';
+      await page.getByText(warning, { exact: false }).first().waitFor({ timeout: 90000 });
       const aria = await page.locator('body').ariaSnapshot();
-      assert.ok(aria.includes('เปิดใช้ชั่วคราวสำหรับสาธิต'));
+      assert.ok(aria.includes(warning));
       await shot(`training-${width}`);
       pass(`Admin presentation warning at ${width}px`);
     }
     let result;
-    if (resumeJobPath) {
+    if (savedContentId) {
+      const stored = await get(`/contents/${savedContentId}`);
+      result = {...stored, analysis_settings: stored.analysis.analysis_settings};
+      report.readonly_saved_content_id = savedContentId;
+      pass('Checking a persisted result only; no new upload, ASR, or classification claimed');
+    } else if (resumeJobPath) {
       const previousJob = JSON.parse(fs.readFileSync(resumeJobPath, 'utf8'));
       assert.equal(previousJob.status, 'completed');
       assert.ok(previousJob.result.content_id > 0);
@@ -142,7 +152,7 @@ with SessionLocal() as db:
     }
     report.content_id = result.content_id;
     const classification = result.recommendation.classification;
-    assert.equal(classification.model_id, 43);
+    assert.equal(classification.model_id, savedContentId ? result.analysis_settings.classification_model.model_id : expectedModelId);
     assert.equal(classification.domain, cameraFile ? 'camera' : 'phone');
     if (cameraFile) {
       const recommendation = result.recommendation;
@@ -207,7 +217,8 @@ with SessionLocal() as db:
       const response = await context.request.post('http://127.0.0.1:8000/auth/logout', {
         headers: { Authorization: `Bearer ${auth.token}`, 'X-Trend-Session-Key': auth.session }, data: {},
       });
-      report.temporary_session_ended = response.status() === 200;
+      assert.equal(response.status(), 200, 'Temporary session logout');
+      report.temporary_session_ended = true;
     }
     } catch (error) {
       report.passed = false;

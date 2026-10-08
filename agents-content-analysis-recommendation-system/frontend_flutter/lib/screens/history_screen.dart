@@ -9,24 +9,26 @@ import '../widgets/usage_statistics_panel.dart';
 import 'result_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  const HistoryScreen({super.key, this.repository});
+
+  final ContentRepository? repository;
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final _repository = ContentRepository();
+  late final ContentRepository _repository;
   List<ContentHistoryItem> _items = [];
   String? _error;
   bool _loading = false;
-  String _sortBy = 'recent'; // recent, domain, duration
   String _filterDomain = 'all';
   final List<String> _domains = [];
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? ContentRepository();
     _load();
   }
 
@@ -70,21 +72,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           filtered.where((item) => item.domain == _filterDomain).toList();
     }
 
-    // Apply sorting
-    switch (_sortBy) {
-      case 'domain':
-        filtered.sort((a, b) => a.domain.compareTo(b.domain));
-        break;
-      case 'duration':
-        filtered.sort(
-            (a, b) => a.recommendedDuration.compareTo(b.recommendedDuration));
-        break;
-      case 'recent':
-      default:
-        // Already sorted by recent
-        break;
-    }
-
+    // The API orders by created_at descending; filtering preserves that order.
     return filtered;
   }
 
@@ -105,7 +93,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: ListView(
                 padding: const EdgeInsets.only(bottom: 24),
                 children: [
-                  // Filters & Sort
+                  // Category filter
                   if (hasItems) ...[
                     Padding(
                       padding: const EdgeInsets.all(16),
@@ -133,30 +121,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             spacing: 12,
                             runSpacing: 12,
                             children: [
-                              SizedBox(
-                                width: 220,
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: _sortBy,
-                                  decoration: const InputDecoration(
-                                      labelText: 'เรียงตาม'),
-                                  items: const [
-                                    DropdownMenuItem(
-                                        value: 'recent',
-                                        child: Text('รายการล่าสุด')),
-                                    DropdownMenuItem(
-                                        value: 'domain',
-                                        child: Text('หมวดหมู่')),
-                                    DropdownMenuItem(
-                                        value: 'duration',
-                                        child: Text('ความยาวที่แนะนำ')),
-                                  ],
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _sortBy = value);
-                                    }
-                                  },
-                                ),
-                              ),
                               if (_domains.isNotEmpty)
                                 SizedBox(
                                   width: 220,
@@ -195,7 +159,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       padding: EdgeInsets.all(32),
                       child: EmptyStateView(
                         title: 'ไม่พบผลวิเคราะห์',
-                        message: 'ลองเปลี่ยนหมวดหมู่หรือการเรียงรายการ',
+                        message: 'ลองเปลี่ยนหมวดหมู่',
                         icon: Icons.filter_list_off,
                       ),
                     )

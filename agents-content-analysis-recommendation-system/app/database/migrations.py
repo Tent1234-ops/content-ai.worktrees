@@ -156,6 +156,54 @@ TREND_DETAIL_ITEM_COLUMNS = {
     "search_volume": "INT NULL",
 }
 
+OUTCOME_REFERENCE_RUN_COLUMNS = {
+    "purpose": "VARCHAR(64) NOT NULL DEFAULT 'reference_refresh'",
+    "manifest_sha256": "VARCHAR(64) NULL",
+    "idempotency_key": "VARCHAR(64) NULL",
+    "split_protection": "VARCHAR(64) NULL",
+}
+
+
+def migrate_outcome_statistics_schema(engine: Engine) -> Dict[str, object]:
+    """Add collector provenance without rewriting or deleting historical runs."""
+    added_columns: list[str] = []
+    added_indexes: list[str] = []
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "reference_statistics_runs" not in inspector.get_table_names():
+            return {"added_columns": [], "added_indexes": []}
+        existing = {
+            column["name"] for column in inspector.get_columns(
+                "reference_statistics_runs"
+            )
+        }
+        for name, definition in OUTCOME_REFERENCE_RUN_COLUMNS.items():
+            if name in existing:
+                continue
+            connection.execute(text(
+                "ALTER TABLE reference_statistics_runs "
+                f"ADD COLUMN {name} {definition}"
+            ))
+            added_columns.append(name)
+
+        inspector = inspect(connection)
+        indexes = {
+            str(index.get("name"))
+            for index in inspector.get_indexes("reference_statistics_runs")
+        }
+        constraints = {
+            str(item.get("name"))
+            for item in inspector.get_unique_constraints("reference_statistics_runs")
+        }
+        index_name = "uq_reference_stats_idempotency_key"
+        if index_name not in indexes and index_name not in constraints:
+            connection.execute(text(
+                "CREATE UNIQUE INDEX uq_reference_stats_idempotency_key "
+                "ON reference_statistics_runs (idempotency_key)"
+            ))
+            added_indexes.append(index_name)
+    return {"added_columns": added_columns, "added_indexes": added_indexes}
+
 
 def _available_archive_name(connection, base_name: str) -> str:
     tables = set(inspect(connection).get_table_names())

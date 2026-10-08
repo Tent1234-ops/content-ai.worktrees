@@ -94,6 +94,8 @@ def save_statistics_settings(db, values, *, user_id):
 
 def _run_dict(run):
     return {"run_id": run.run_id, "status": run.status,
+            "purpose": run.purpose, "manifest_sha256": run.manifest_sha256,
+            "split_protection": run.split_protection,
             "started_at": utc_isoformat(run.started_at), "completed_at": utc_isoformat(run.completed_at),
             "requests_used": run.requests_used, "candidate_count": run.candidate_count,
             "error_code": run.error_code}

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from sqlalchemy import event
+from sqlalchemy import event, func
 from sqlalchemy.orm import Session
 
 from app.database.models import (
@@ -210,10 +210,10 @@ def reject_database_writes(engine):
 def database_identity(db: Session) -> dict[str, Any]:
     hasher = hashlib.sha256()
     tables = {
-        "dataset_contents": db.query(DatasetContent).count(),
-        "reference_video_statistics": db.query(ReferenceVideoStatistic).count(),
-        "reference_statistics_runs": db.query(ReferenceStatisticsRun).count(),
-        "classification_models": db.query(ClassificationModel).count(),
+        "dataset_contents": int(db.query(func.count(DatasetContent.dataset_id)).scalar() or 0),
+        "reference_video_statistics": int(db.query(func.count(ReferenceVideoStatistic.observation_id)).scalar() or 0),
+        "reference_statistics_runs": int(db.query(func.count(ReferenceStatisticsRun.run_id)).scalar() or 0),
+        "classification_models": int(db.query(func.count(ClassificationModel.model_id)).scalar() or 0),
     }
     dataset_rows = db.query(
         DatasetContent.dataset_id, DatasetContent.taxonomy_leaf_key, DatasetContent.data_split,

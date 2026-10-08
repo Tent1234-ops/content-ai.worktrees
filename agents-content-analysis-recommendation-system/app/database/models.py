@@ -786,9 +786,19 @@ class ReferenceStatisticsConfig(Base):
 
 class ReferenceStatisticsRun(Base):
     __tablename__ = "reference_statistics_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "idempotency_key",
+            name="uq_reference_stats_idempotency_key",
+        ),
+    )
     run_id = Column(Integer, primary_key=True)
     status = Column(String(32), nullable=False, default="running")
     actor = Column(String(32), nullable=False)
+    purpose = Column(String(64), nullable=False, default="reference_refresh")
+    manifest_sha256 = Column(String(64))
+    idempotency_key = Column(String(64))
+    split_protection = Column(String(64))
     started_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
     completed_at = Column(DateTime)
     requests_used = Column(Integer, nullable=False, default=0)

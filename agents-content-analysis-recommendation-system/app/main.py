@@ -17,6 +17,7 @@ from app.database.migrations import (
     migrate_trend_scheduler_schema,
     migrate_training_requestor_schema,
     migrate_reference_statistics_schema,
+    migrate_outcome_statistics_schema,
     migrate_classification_split_strategy,
     migrate_phase13_taxonomy_schema,
     migrate_phase19_transcript_schema,
@@ -139,6 +140,7 @@ try:
     migrate_trend_scheduler_schema(engine)
     migrate_training_requestor_schema(engine)
     migrate_reference_statistics_schema(engine)
+    migrate_outcome_statistics_schema(engine)
     taxonomy_db = SessionLocal()
     try:
         taxonomy_seed_status = sync_taxonomy_registry(taxonomy_db)

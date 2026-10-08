@@ -1,0 +1,56 @@
+{
+  "binary_topic_presence": true,
+  "canonical_topics": {
+    "camera": [
+      "image quality",
+      "autofocus",
+      "stabilization",
+      "low light",
+      "video recording",
+      "handling"
+    ],
+    "laptop": [
+      "workload performance",
+      "thermal control",
+      "battery life",
+      "display quality",
+      "ports connectivity",
+      "memory storage",
+      "keyboard portability"
+    ],
+    "phone": [
+      "camera quality",
+      "chip performance",
+      "battery life",
+      "charging speed",
+      "display quality",
+      "thermal control"
+    ]
+  },
+  "catalog_sha256": "2fd28a658bee2707ae105a818b55bbae2b6570572b88af0682e8cb0f0c4016a5",
+  "catalog_version": "thai-action-templates-v2-camera-vocabulary",
+  "feature_policy_version": "outcome-features-v1",
+  "feature_schema_sha256": "19f9054c49378a02333062813ac4056fb264bb7af8633cdb5ed1a984c209536a",
+  "forbidden_tokens": [
+    "channel_id",
+    "classifier_confidence",
+    "comments",
+    "growth",
+    "high_performance",
+    "likes",
+    "title",
+    "trend_rank",
+    "url",
+    "video_id",
+    "views"
+  ],
+  "model_input_fields": [
+    "accepted_category",
+    "canonical_topic_presence",
+    "confirmed_format",
+    "duration_seconds",
+    "frozen_age_context"
+  ],
+  "schema_version": "outcome-features-v1",
+  "unassessable_action": "exclude_not_all_false"
+}

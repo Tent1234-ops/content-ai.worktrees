@@ -22,7 +22,8 @@ from sqlalchemy import inspect, select  # noqa: E402
 
 from app.database import models  # noqa: E402,F401
 from app.database.db import Base, SessionLocal, engine  # noqa: E402
-from app.database.models import ClassificationModel  # noqa: E402
+from app.database.models import ClassificationModel, OutcomeModel  # noqa: E402
+from app.services.outcome_training import CALIBRATION_VERSION  # noqa: E402
 
 SCHEMA_VERSION = "content-ai-private-delivery-backup-v1"
 VERSION_FILES = (
@@ -36,6 +37,13 @@ VERSION_FILES = (
     "requirements.txt",
     "frontend_flutter/pubspec.lock",
     ".env.example",
+    "docs/implementation/outcome-prediction-protocol-v1.json",
+    "docs/implementation/outcome-feature-schema-v1.json",
+    "docs/implementation/outcome-prediction-data-use-v1.json",
+    "docs/implementation/outcome-prediction-ui-contract-v1.json",
+    "docs/implementation/outcome-prediction-utility-study-v1.json",
+    "docs/implementation/outcome-prediction-phase-5-freeze.json",
+    "docs/implementation/outcome-prediction-phase-6-handoff.md",
 )
 
 
@@ -154,8 +162,61 @@ def create_backup(output: Path) -> dict:
             "artifact_path": artifact.relative_to(ROOT).as_posix(),
             "artifact_sha256": sha256_file(artifact),
         }
+
+        outcome_rows = db.query(OutcomeModel).order_by(OutcomeModel.model_id).all()
+        active_outcome_rows = [row for row in outcome_rows if row.is_active]
+        if len(active_outcome_rows) > 1:
+            raise RuntimeError(
+                f"Expected at most one active Outcome model, found {len(active_outcome_rows)}"
+            )
+        outcome_models = []
+        for row in outcome_rows:
+            outcome_artifact = Path(row.artifact_path).resolve()
+            artifact_available = outcome_artifact.is_file() and ROOT in outcome_artifact.parents
+            if row.is_active and not artifact_available:
+                raise RuntimeError("Active Outcome model artifact is missing or outside the workspace")
+            if artifact_available:
+                assets.append(
+                    _copy_asset(
+                        outcome_artifact,
+                        output,
+                        label=f"outcome_model_artifact_{row.model_id}",
+                    )
+                )
+            outcome_models.append({
+                "model_id": row.model_id,
+                "model_version": row.model_version,
+                "target_version": row.target_version,
+                "status": row.status,
+                "is_active": bool(row.is_active),
+                "source_kind": row.source_kind,
+                "protocol_sha256": row.protocol_sha256,
+                "feature_schema_sha256": row.feature_schema_sha256,
+                "manifest_sha256": row.manifest_sha256,
+                "calibration_version": row.calibration_version,
+                "artifact_sha256": row.artifact_sha256,
+                "artifact_available": artifact_available,
+                "independent_test_passed": bool(row.independent_test_passed),
+                "production_eligible": bool(row.production_eligible),
+            })
     finally:
         db.close()
+
+    outcome_protocol = json.loads(
+        (ROOT / "docs/implementation/outcome-prediction-protocol-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    outcome_feature_schema = json.loads(
+        (ROOT / "docs/implementation/outcome-feature-schema-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    outcome_data_use = json.loads(
+        (ROOT / "docs/implementation/outcome-prediction-data-use-v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
     env_keys = []
     for raw in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines():
@@ -175,11 +236,40 @@ def create_backup(output: Path) -> dict:
         "database_tables": tables,
         "database_row_total": sum(item["row_count"] for item in tables),
         "active_model": active_model,
+        "classification_model": active_model,
+        "outcome_registry": {
+            "model_count": len(outcome_models),
+            "active_model_id": next(
+                (item["model_id"] for item in outcome_models if item["is_active"]),
+                None,
+            ),
+            "models": outcome_models,
+        },
+        "outcome_contract": {
+            "target_version": (outcome_protocol.get("target") or {}).get("version"),
+            "protocol_version": outcome_protocol.get("protocol_version"),
+            "protocol_sha256": outcome_protocol.get("protocol_sha256"),
+            "feature_version": outcome_feature_schema.get("feature_policy_version"),
+            "feature_schema_sha256": outcome_feature_schema.get("feature_schema_sha256"),
+            "calibration_version": CALIBRATION_VERSION,
+            "data_use_status": outcome_data_use.get("status"),
+            "real_training_allowed": (
+                outcome_data_use.get("decision") or {}
+            ).get("real_training_allowed") is True,
+            "real_serving_allowed": (
+                outcome_data_use.get("decision") or {}
+            ).get("real_serving_allowed") is True,
+        },
         "assets": assets,
         "environment": {
             "private_env_present": (ROOT / ".env").is_file(),
             "private_env_included": False,
             "required_key_names": env_keys,
+        },
+        "distribution": {
+            "shareable": False,
+            "reason": "Database rows may include password hashes, transcripts and user content.",
+            "public_package_must_use_allowlist": True,
         },
     }
     manifest_path = output / "manifest.json"

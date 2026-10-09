@@ -47,6 +47,14 @@ class DeliveryToolTests(unittest.TestCase):
     def test_private_env_is_never_a_backup_asset(self):
         self.assertNotIn(".env", self.backup.VERSION_FILES)
         self.assertIn(".env.example", self.backup.VERSION_FILES)
+        self.assertIn(
+            "docs/implementation/outcome-prediction-protocol-v1.json",
+            self.backup.VERSION_FILES,
+        )
+        self.assertIn(
+            "docs/implementation/outcome-feature-schema-v1.json",
+            self.backup.VERSION_FILES,
+        )
 
     def test_restore_refuses_source_database_identity(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -64,10 +72,15 @@ class DeliveryToolTests(unittest.TestCase):
 
     def test_launcher_is_hidden_and_refuses_occupied_ports(self):
         script = (ROOT / "scripts" / "start_demo.ps1").read_text(encoding="utf-8")
+        readiness = (ROOT / "scripts" / "check_demo_readiness.ps1").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("-WindowStyle Hidden", script)
         self.assertIn("Port $port is already in use", script)
         self.assertIn("No process was stopped", script)
         self.assertNotIn("Stop-Process -Name", script)
+        self.assertIn("-and $asrReady", readiness)
+        self.assertIn("trend_providers", readiness)
 
 
 if __name__ == "__main__":

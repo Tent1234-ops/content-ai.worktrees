@@ -1,0 +1,57 @@
+{
+  "schema_version": "outcome-prediction-ui-contract-v1",
+  "frozen_on": "2026-10-09",
+  "probability_visibility": {
+    "required_server_status": "available",
+    "required_range": [0.0, 1.0],
+    "client_side_probability_calculation": false,
+    "null_or_invalid_action": "show_status_message_without_number"
+  },
+  "primary_label_th": "โอกาสอยู่ในกลุ่มยอดวิวสูงกว่าค่ากลางของชุดอ้างอิง",
+  "forbidden_labels": [
+    "เปอร์เซ็นต์ยอดวิวที่จะเพิ่ม",
+    "โอกาสที่ทำตามคำแนะนำแล้วยอดวิวเพิ่ม",
+    "ความแม่น AI",
+    "โอกาสไวรัล"
+  ],
+  "status_policy": {
+    "available": "show_probability_context_support_and_limitations",
+    "insufficient_data": "show_specific_no_result",
+    "unsupported_context": "show_specific_no_result",
+    "unassessable_transcript": "show_specific_no_result",
+    "classification_withheld": "show_specific_no_result",
+    "model_unavailable": "show_specific_no_result",
+    "model_unqualified": "show_specific_no_result",
+    "data_use_unverified": "show_specific_no_result",
+    "legacy_not_assessed": "show_legacy_message_without_recomputation",
+    "withdrawn": "show_withdrawn_without_reconstruction",
+    "inaccessible": "show_inaccessible_without_reconstruction",
+    "error": "show_outcome_error_without_hiding_other_analysis",
+    "unknown": "show_generic_no_result_without_number"
+  },
+  "scenario": {
+    "secondary_action": true,
+    "label_th": "สถานการณ์สมมุติ",
+    "delta_unit_th": "จุดเปอร์เซ็นต์",
+    "preserve_negative_zero_positive": true,
+    "mutates_saved_transcript_or_plan": false,
+    "success_requires_server_response": true
+  },
+  "revision_comparison": {
+    "requires_same_target_feature_model_artifact_protocol_context": true,
+    "mismatch_action": "show_not_directly_comparable_without_arrow",
+    "content_change_and_outcome_change_are_separate": true
+  },
+  "history": {
+    "reads_saved_snapshot": true,
+    "legacy_backfill_on_read": false,
+    "active_model_change_recomputes_old_result": false
+  },
+  "admin": {
+    "classification_and_outcome_models_are_separate": true,
+    "training_uses_background_job": true,
+    "browser_state_is_not_source_of_truth": true,
+    "activation_requires_server_gate_and_confirmation": true,
+    "force_qualify_or_threshold_override": false
+  }
+}

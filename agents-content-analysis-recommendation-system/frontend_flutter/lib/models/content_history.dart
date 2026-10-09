@@ -6,6 +6,7 @@ class ContentHistoryItem {
     required this.transcriptPreview,
     required this.recommendedKeywords,
     required this.recommendedDuration,
+    required this.outcomeAssessmentStatus,
   });
 
   final int contentId;
@@ -14,6 +15,7 @@ class ContentHistoryItem {
   final String transcriptPreview;
   final List<String> recommendedKeywords;
   final String recommendedDuration;
+  final String outcomeAssessmentStatus;
 
   factory ContentHistoryItem.fromJson(Map<String, dynamic> json) {
     return ContentHistoryItem(
@@ -26,6 +28,8 @@ class ContentHistoryItem {
               .map((item) => item.toString())
               .toList(),
       recommendedDuration: json['recommended_duration']?.toString() ?? '-',
+      outcomeAssessmentStatus: json['outcome_assessment_status']?.toString() ??
+          'legacy_not_assessed',
     );
   }
 }

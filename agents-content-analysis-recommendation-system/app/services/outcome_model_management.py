@@ -14,10 +14,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database.db import SessionLocal
-from app.database.models import OutcomeModel, OutcomeModelMetric, OutcomeTrainingRun
+from app.database.models import (
+    OutcomeModel,
+    OutcomeModelMetric,
+    OutcomeTrainingRun,
+    SystemConfig,
+)
+from app.services.admin_settings import get_or_create_admin_config
 from app.services.outcome_prediction_readiness import validate_protocol
 from app.services.outcome_training import (
     activation_validation,
+    load_outcome_artifact,
     load_training_inputs,
     train_and_validate_outcome_model,
 )
@@ -103,11 +110,16 @@ def outcome_preflight(manifest_sha256: str | None = None) -> dict[str, Any]:
     found = _find_manifest(manifest_sha256)
     if found is None:
         reason = "manifest_hash_not_found" if manifest_sha256 else "phase2_frozen_manifest_missing"
+        latest = _latest_blocked_report()
+        rights = (latest or {}).get("data_use_gate") or {}
         return {
             "ready": False,
-            "reason_codes": [reason],
+            "reason_codes": sorted(set([
+                reason, *(rights.get("reason_codes") or []),
+            ])),
             "requested_manifest_sha256": manifest_sha256,
-            "latest_phase2_report": _latest_blocked_report(),
+            "latest_phase2_report": latest,
+            "rights": rights,
             "independent_test_opened": False,
             "production_eligible": False,
         }
@@ -360,6 +372,12 @@ def execute_training_run(run_id: str, *, session_factory=SessionLocal) -> None:
                     "calibration": report["calibration_metrics"],
                     "bootstrap": report["paired_channel_bootstrap"],
                     "qualification": report["qualification"],
+                    "partition_counts": report["partition_counts"],
+                    "independent_test": {
+                        "status": "sealed_until_phase_6_evaluation",
+                        "opened": False,
+                        "metrics": None,
+                    },
                 }),
                 evaluated_scopes_json=json.dumps([
                     "overall", "category", "confirmed_format", "age_context"
@@ -408,11 +426,46 @@ def execute_training_run(run_id: str, *, session_factory=SessionLocal) -> None:
 
 def _serialize_model(row: OutcomeModel) -> dict[str, Any]:
     data_use = _load_json(DATA_USE_PATH)
-    gate = activation_validation({
+    gate = dict(activation_validation({
         "status": row.status,
         "independent_test_passed": row.independent_test_passed,
         "production_eligible": row.production_eligible,
-    }, data_use)
+    }, data_use))
+    gate["reason_codes"] = list(gate.get("reason_codes") or [])
+    artifact_available = Path(row.artifact_path).is_file()
+    if not artifact_available:
+        gate["reason_codes"].append("outcome_artifact_missing")
+    required_hashes = (
+        row.protocol_sha256,
+        row.feature_schema_sha256,
+        row.manifest_sha256,
+        row.artifact_sha256,
+    )
+    if any(len(str(value or "")) != 64 for value in required_hashes):
+        gate["reason_codes"].append("outcome_version_hash_invalid")
+    split_hashes = _json(row.split_hashes_json)
+    if not all(split_hashes.get(role) for role in (
+        "fit", "tuning", "calibration", "independent_test"
+    )):
+        gate["reason_codes"].append("outcome_split_hashes_incomplete")
+    required_scopes = {
+        "overall", "category", "confirmed_format", "age_context",
+    }
+    evaluated_scopes = set(_json(row.evaluated_scopes_json, []))
+    if not required_scopes.issubset(evaluated_scopes):
+        gate["reason_codes"].append("outcome_evaluated_scopes_incomplete")
+    if row.source_kind != "real":
+        gate["reason_codes"] = sorted(set([
+            *gate["reason_codes"], "synthetic_fixture_not_activatable",
+        ]))
+        gate["can_activate"] = False
+    if row.is_active:
+        gate["reason_codes"] = sorted(set([
+            *gate["reason_codes"], "model_already_active",
+        ]))
+        gate["can_activate"] = False
+    gate["reason_codes"] = sorted(set(gate["reason_codes"]))
+    gate["can_activate"] = bool(gate.get("can_activate")) and not gate["reason_codes"]
     return {
         "model_id": row.model_id, "run_id": row.run_id,
         "model_version": row.model_version, "target_version": row.target_version,
@@ -422,6 +475,7 @@ def _serialize_model(row: OutcomeModel) -> dict[str, Any]:
         "feature_schema_sha256": row.feature_schema_sha256,
         "artifact_sha256": row.artifact_sha256,
         "training_sample_count": row.training_sample_count,
+        "artifact_available": artifact_available,
         "independent_test_passed": bool(row.independent_test_passed),
         "production_eligible": bool(row.production_eligible),
         "can_activate": gate["can_activate"],
@@ -437,6 +491,23 @@ def list_models(db: Session, *, limit: int = 20, offset: int = 0) -> dict[str, A
     return {"total": query.count(), "items": [_serialize_model(row) for row in rows]}
 
 
+def active_model(db: Session) -> dict[str, Any] | None:
+    rows = db.query(OutcomeModel).filter(OutcomeModel.is_active.is_(True)).all()
+    if len(rows) > 1:
+        raise OutcomeTrainingConflict("Multiple active Outcome models require repair")
+    return _serialize_model(rows[0]) if rows else None
+
+
+def training_overview(db: Session, *, model_limit: int = 20) -> dict[str, Any]:
+    return {
+        "preflight": outcome_preflight(),
+        "runs": list_training_runs(db, limit=20),
+        "models": list_models(db, limit=model_limit),
+        "active_model": active_model(db),
+        "independent_test_opened": False,
+    }
+
+
 def model_detail(db: Session, model_id: int) -> dict[str, Any] | None:
     row = db.get(OutcomeModel, model_id)
     if row is None:
@@ -448,5 +519,88 @@ def model_detail(db: Session, model_id: int) -> dict[str, Any] | None:
         "evaluated_scopes": _json(row.evaluated_scopes_json, []),
         "library_versions": _json(row.library_versions_json),
         "artifact_available": Path(row.artifact_path).is_file(),
+        "metric_rows": [
+            {
+                "dataset_split": metric.dataset_split,
+                "phase": metric.phase,
+                "scope_type": metric.scope_type,
+                "scope_value": metric.scope_value,
+                "weighting": metric.weighting,
+                "metric_name": metric.metric_name,
+                "metric_value": metric.metric_value,
+                "metric_status": metric.metric_status,
+                "sample_size": metric.sample_size,
+                "details": _json(metric.details),
+            }
+            for metric in db.query(OutcomeModelMetric).filter_by(
+                model_id=model_id
+            ).order_by(
+                OutcomeModelMetric.dataset_split,
+                OutcomeModelMetric.phase,
+                OutcomeModelMetric.scope_type,
+                OutcomeModelMetric.scope_value,
+                OutcomeModelMetric.weighting,
+                OutcomeModelMetric.metric_name,
+            ).all()
+        ],
     })
     return result
+
+
+def activate_model(
+    db: Session,
+    model_id: int,
+    *,
+    expected_active_model_id: int | None,
+    user_id: int,
+) -> dict[str, Any]:
+    """Activate a qualified real Outcome model, or roll back to one, atomically."""
+    config = get_or_create_admin_config(db)
+    db.query(SystemConfig).filter(
+        SystemConfig.config_id == config.config_id
+    ).with_for_update().one()
+
+    active_rows = db.query(OutcomeModel).filter(
+        OutcomeModel.is_active.is_(True)
+    ).with_for_update().all()
+    if len(active_rows) > 1:
+        raise OutcomeTrainingConflict("Multiple active Outcome models require repair")
+    current = active_rows[0] if active_rows else None
+    if (current.model_id if current else None) != expected_active_model_id:
+        raise OutcomeTrainingConflict(
+            "Active Outcome model changed; refresh before confirming activation"
+        )
+
+    target = db.get(OutcomeModel, model_id)
+    if target is None:
+        raise LookupError("Outcome model not found")
+    detail = _serialize_model(target)
+    if not detail["can_activate"]:
+        reasons = ", ".join(detail["activation_reason_codes"])
+        raise ValueError(f"Outcome model activation blocked: {reasons}")
+
+    load_outcome_artifact(
+        Path(target.artifact_path),
+        trusted_root=ARTIFACT_ROOT,
+        expected_sha256=target.artifact_sha256,
+        expected_protocol_sha256=target.protocol_sha256,
+        expected_feature_schema_sha256=target.feature_schema_sha256,
+    )
+    previous_id = current.model_id if current else None
+    if current is not None:
+        current.is_active = False
+    target.is_active = True
+    log_system_event(
+        db,
+        user_id=user_id,
+        action="outcome_model_activate",
+        status="success",
+        detail=json.dumps({
+            "previous_model_id": previous_id,
+            "model_id": target.model_id,
+            "rollback": previous_id is not None and target.model_id < previous_id,
+        }),
+    )
+    db.commit()
+    db.refresh(target)
+    return _serialize_model(target)

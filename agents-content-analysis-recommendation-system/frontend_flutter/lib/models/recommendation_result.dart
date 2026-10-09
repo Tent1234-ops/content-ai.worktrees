@@ -1,6 +1,7 @@
 import 'common_models.dart';
 import 'current_trend_ideas.dart';
 import 'actionable_recommendations.dart';
+import 'outcome_prediction.dart';
 
 class DurationRecommendation {
   const DurationRecommendation({
@@ -283,6 +284,8 @@ class AnalysisResultViewData {
     required this.fallbackDomain,
     required this.saved,
     required this.raw,
+    required this.outcomeAssessment,
+    required this.outcomeAssessmentFingerprint,
     this.rawTranscript = '',
     this.cleanedTranscript = '',
   });
@@ -294,6 +297,8 @@ class AnalysisResultViewData {
   final String fallbackDomain;
   final bool saved;
   final Map<String, dynamic> raw;
+  final OutcomeAssessment outcomeAssessment;
+  final String outcomeAssessmentFingerprint;
   final String rawTranscript;
   final String cleanedTranscript;
 
@@ -318,6 +323,11 @@ class AnalysisResultViewData {
     final cleanedTranscript = json['cleaned_transcript']?.toString() ??
         analysisRoot['cleaned_transcript']?.toString() ??
         legacyTranscript;
+    final recommendationJson =
+        Map<String, dynamic>.from((json['recommendation'] as Map?) ?? const {});
+    final outcomeJson = json['outcome_assessment'] is Map
+        ? json['outcome_assessment']
+        : recommendationJson['outcome_assessment'];
     return AnalysisResultViewData(
       contentId: (json['content_id'] as num?)?.toInt(),
       title: json['title']?.toString() ??
@@ -328,11 +338,14 @@ class AnalysisResultViewData {
       rawTranscript: rawTranscript,
       cleanedTranscript: cleanedTranscript,
       recommendation: RecommendationResult.fromJson(
-        Map<String, dynamic>.from((json['recommendation'] as Map?) ?? const {}),
+        recommendationJson,
       ),
       fallbackDomain: analysis['domain']?.toString() ?? '-',
       saved: json['saved'] == true || json['content_id'] != null,
       raw: json,
+      outcomeAssessment: OutcomeAssessment.fromJson(outcomeJson),
+      outcomeAssessmentFingerprint:
+          json['outcome_assessment_fingerprint']?.toString() ?? '',
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/outcome_prediction.dart';
 
 class RevisionComparisonPanel extends StatelessWidget {
   const RevisionComparisonPanel(
@@ -18,6 +19,7 @@ class RevisionComparisonPanel extends StatelessWidget {
         (data['topics'] as List? ?? const []).whereType<Map>().toList();
     final limitations = (data['limitations'] as List? ?? const [])
         .map((item) => item.toString());
+    final outcome = _map(data['outcome_comparison']);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -67,6 +69,8 @@ class RevisionComparisonPanel extends StatelessWidget {
               'วิธีหรือข้อมูลของผลเก่าไม่พอสำหรับเทียบด้วยกติกาเดียวกัน กรุณาดูข้อความสองฉบับด้วยตนเอง')
         else
           for (final raw in topics) _TopicComparison(data: _map(raw)),
+        const Divider(height: 28),
+        _OutcomeRevisionComparison(data: outcome),
         if (limitations.isNotEmpty)
           ExpansionTile(
               tilePadding: EdgeInsets.zero,
@@ -115,10 +119,14 @@ class _TopicComparison extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium),
         Text(data['message']?.toString() ?? 'ข้อมูลยังไม่พอเปรียบเทียบ'),
         const SizedBox(height: 8),
-        Wrap(spacing: 12, runSpacing: 12, children: [
-          _EvidenceSide(label: 'ก่อนปรับ', data: before),
-          _EvidenceSide(label: 'ฉบับใหม่', data: after),
-        ]),
+        LayoutBuilder(builder: (context, constraints) {
+          final width =
+              constraints.maxWidth >= 744 ? 360.0 : constraints.maxWidth;
+          return Wrap(spacing: 12, runSpacing: 12, children: [
+            _EvidenceSide(label: 'ก่อนปรับ', data: before, width: width),
+            _EvidenceSide(label: 'ฉบับใหม่', data: after, width: width),
+          ]);
+        }),
         const Divider(height: 28),
       ]),
     );
@@ -126,9 +134,11 @@ class _TopicComparison extends StatelessWidget {
 }
 
 class _EvidenceSide extends StatelessWidget {
-  const _EvidenceSide({required this.label, required this.data});
+  const _EvidenceSide(
+      {required this.label, required this.data, required this.width});
   final String label;
   final Map<String, dynamic> data;
+  final double width;
 
   String _status(String value) => switch (value) {
         'detected' => 'ตรวจพบหัวข้อ',
@@ -149,7 +159,7 @@ class _EvidenceSide extends StatelessWidget {
     final occurrences =
         (data['occurrences'] as List? ?? const []).whereType<Map>().toList();
     return Container(
-      width: 360,
+      width: width,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -162,6 +172,60 @@ class _EvidenceSide extends StatelessWidget {
         for (final raw in occurrences.take(2)) _Quote(data: raw),
       ]),
     );
+  }
+}
+
+class _OutcomeRevisionComparison extends StatelessWidget {
+  const _OutcomeRevisionComparison({required this.data});
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = data['status']?.toString() ?? 'not_comparable';
+    final before = (data['probability_before'] as num?)?.toDouble();
+    final after = (data['probability_after'] as num?)?.toDouble();
+    final delta = (data['delta_percentage_points'] as num?)?.toDouble();
+    final comparable = status == 'comparable' &&
+        before != null &&
+        after != null &&
+        delta != null;
+    final reasons = outcomeStrings(data['reason_codes']).toSet();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.query_stats_outlined),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text('การเปลี่ยนแปลงค่าประเมินผลตอบรับ',
+              style: Theme.of(context).textTheme.titleMedium),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      if (!comparable) ...[
+        const Text('เทียบค่าประเมินโดยตรงไม่ได้'),
+        if (reasons.isNotEmpty)
+          for (final reason in reasons)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('• ${outcomeReasonMessage(reason)}'),
+            ),
+      ] else ...[
+        Text(
+          'ฉบับต้นฉบับ ${(before * 100).toStringAsFixed(1)}% · '
+          'ฉบับใหม่ ${(after * 100).toStringAsFixed(1)}%',
+        ),
+        Text(
+          'ส่วนต่างค่าประเมิน ${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} จุดเปอร์เซ็นต์',
+          key: const ValueKey('revision-outcome-delta'),
+        ),
+      ],
+      const SizedBox(height: 6),
+      Text(
+        data['limitation']?.toString().isNotEmpty == true
+            ? data['limitation'].toString()
+            : 'เป็นการเปลี่ยนแปลงค่าประเมิน ไม่ใช่หลักฐานว่ายอดวิวจะเพิ่มหรือลด',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    ]);
   }
 }
 

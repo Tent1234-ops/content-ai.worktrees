@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/content_history.dart';
+import '../models/outcome_prediction.dart';
 import '../repositories/content_repository.dart';
 import '../state/auth_scope.dart';
 import '../widgets/app_shell.dart';
@@ -229,6 +230,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   Text(
                                     'คำแนะนำ: $keywordPreview',
                                     maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    outcomeStatusMessage(
+                                        item.outcomeAssessmentStatus),
+                                    maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                     style:
                                         Theme.of(context).textTheme.bodySmall,

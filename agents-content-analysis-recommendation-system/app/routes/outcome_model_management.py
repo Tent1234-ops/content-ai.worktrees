@@ -22,6 +22,19 @@ class OutcomeTrainRequest(BaseModel):
     manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class OutcomeActivateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_active_model_id: int | None = Field(..., gt=0)
+
+
+@router.get("")
+def overview(db: Session = Depends(get_db)):
+    try:
+        return service.training_overview(db)
+    except service.OutcomeTrainingConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
 @router.get("/preflight")
 def preflight(manifest_sha256: str | None = Query(default=None, pattern=r"^[a-f0-9]{64}$")):
     return service.outcome_preflight(manifest_sha256)
@@ -73,3 +86,28 @@ def detail(model_id: int, db: Session = Depends(get_db)):
     if result is None:
         raise HTTPException(404, "Outcome model not found")
     return result
+
+
+@router.post("/models/{model_id}/activate")
+def activate(
+    model_id: int,
+    payload: OutcomeActivateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin")),
+):
+    try:
+        return service.activate_model(
+            db,
+            model_id,
+            expected_active_model_id=payload.expected_active_model_id,
+            user_id=user.user_id,
+        )
+    except service.OutcomeTrainingConflict as exc:
+        db.rollback()
+        raise HTTPException(409, str(exc)) from exc
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(404, str(exc)) from exc
+    except (ValueError, OSError, RuntimeError) as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc)) from exc

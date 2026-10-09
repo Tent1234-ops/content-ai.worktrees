@@ -1,0 +1,94 @@
+{
+  "schema_version": "outcome-prediction-utility-study-v1",
+  "frozen_on": "2026-10-09",
+  "status": "protocol_frozen_study_not_started",
+  "human_ratings_collected": false,
+  "minimum_real_reviewers": 3,
+  "case_manifest": {
+    "status": "not_created",
+    "in_scope": {
+      "phone": 4,
+      "camera": 4,
+      "laptop": 4
+    },
+    "refusal_or_out_of_scope": 3,
+    "requirements": [
+      "case_identity_is_frozen_before_ratings",
+      "no_case_used_to_train_tune_calibrate_or_fix_copy",
+      "rights_to_show_clip_and_transcript_are_confirmed",
+      "ground_truth_category_and_expected_refusal_are_recorded"
+    ]
+  },
+  "variants": {
+    "A": "รายการ Keyword เดิม",
+    "B": "คำแนะนำที่ลงมือทำได้พร้อมหลักฐาน",
+    "C": "แบบ B พร้อม Outcome assessment ที่ผ่าน Independent Test และข้อจำกัด"
+  },
+  "variant_c_gate": {
+    "requires_prediction_qualified": true,
+    "synthetic_fixture_is_forbidden": true,
+    "when_unavailable": "record_variant_not_available_do_not_substitute_a_number"
+  },
+  "blinding_and_order": {
+    "display_labels": ["แบบที่ 1", "แบบที่ 2", "แบบที่ 3"],
+    "reviewer_variant_orders": ["ABC", "BCA", "CAB"],
+    "assignment": "reviewer_index_modulo_three",
+    "case_order": "seeded_permutation",
+    "seed": 261009,
+    "variant_identity_revealed_after_submission": true
+  },
+  "rating_scale": {
+    "minimum": 1,
+    "maximum": 5,
+    "anchors_th": {
+      "1": "ไม่เห็นด้วยอย่างยิ่งหรือใช้งานไม่ได้",
+      "2": "ค่อนข้างไม่เห็นด้วย",
+      "3": "ปานกลางหรือยังไม่แน่ใจ",
+      "4": "ค่อนข้างเห็นด้วย",
+      "5": "เห็นด้วยอย่างยิ่งและนำไปใช้ได้ชัดเจน"
+    }
+  },
+  "questions_th": [
+    {
+      "field": "relevance",
+      "text": "คำแนะนำเกี่ยวข้องกับเนื้อหาและสินค้าที่ปรากฏในคลิปนี้เพียงใด"
+    },
+    {
+      "field": "non_redundancy",
+      "text": "คำแนะนำหลีกเลี่ยงการเสนอสิ่งที่คลิปพูดไว้อย่างเพียงพอแล้วเพียงใด"
+    },
+    {
+      "field": "evidence_correctness",
+      "text": "หลักฐาน จำนวนตัวอย่าง และข้อจำกัดที่แสดงสอดคล้องกับข้อมูลต้นทางเพียงใด"
+    },
+    {
+      "field": "clarity",
+      "text": "ข้อความอธิบายเข้าใจง่ายและแยกข้อเท็จจริงออกจากค่าประเมินเพียงใด"
+    },
+    {
+      "field": "actionability",
+      "text": "ผู้สร้างคอนเทนต์สามารถนำคำแนะนำนี้ไปแก้บทพูดหรือวางแผนถ่ายทำได้เพียงใด"
+    }
+  ],
+  "interpretation_check": {
+    "statement_th": "ผลนี้รับประกันว่าหากทำตามคำแนะนำแล้วคลิปจะมียอดวิวสูงขึ้น",
+    "correct_answer": false
+  },
+  "evidence_audit": {
+    "reviewer_must_flag_fabricated_or_untraceable_claim": true,
+    "free_text_required_when_score_is_1_or_2": true
+  },
+  "pass_criteria_frozen_before_ratings": {
+    "median_clarity_at_least": 4,
+    "median_actionability_at_least": 4,
+    "correct_non_guarantee_interpretation_ratio_at_least": 0.8,
+    "fabricated_evidence_count": 0
+  },
+  "reporting": {
+    "report_each_variant_separately": true,
+    "report_refusal_cases_separately": true,
+    "report_missing_ratings_as_missing_not_zero": true,
+    "ai_rater_counts_as_human": false,
+    "utility_pass_implies_engagement_uplift": false
+  }
+}

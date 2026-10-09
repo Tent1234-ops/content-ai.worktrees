@@ -12,6 +12,7 @@ import '../widgets/current_trend_ideas_panel.dart';
 import '../widgets/recommendation_evidence_panel.dart';
 import '../widgets/actionable_advice_panel.dart';
 import '../widgets/clip_revision_planner.dart';
+import '../widgets/outcome_assessment_panel.dart';
 import '../widgets/state_widgets.dart';
 
 class ResultScreenArgs {
@@ -226,6 +227,11 @@ class AnalysisReport extends StatelessWidget {
         if (actionTopics[advice.evidenceTopicId]?['canonical_topic'] is String)
           actionTopics[advice.evidenceTopicId]!['canonical_topic'].toString():
               advice.title,
+    };
+    final outcomeTopicLabels = {
+      for (final advice in actions?.items ?? <ActionableAdvice>[])
+        if (advice.evidenceTopicId.isNotEmpty)
+          advice.evidenceTopicId: advice.title,
     };
     final openingKeywords = recommendation.hookKeywords
         .where(
@@ -444,6 +450,15 @@ class AnalysisReport extends StatelessWidget {
           title: '3. เพราะอะไรจึงแนะนำ',
           icon: Icons.manage_search_outlined,
           children: [
+            OutcomeAssessmentPanel(
+              assessment: data.outcomeAssessment,
+              repository: repository ?? ContentRepository(),
+              contentId: data.contentId,
+              analysisId: (data.raw['analysis_id'] as num?)?.toInt(),
+              assessmentFingerprint: data.outcomeAssessmentFingerprint,
+              topicLabels: outcomeTopicLabels,
+            ),
+            const Divider(height: 36),
             ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 title: const Text('เปิดดูหลักฐานและเวอร์ชัน'),

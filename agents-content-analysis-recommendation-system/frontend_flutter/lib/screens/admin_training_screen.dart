@@ -7,6 +7,7 @@ import '../repositories/admin_repository.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/training_collection_panel.dart';
+import '../widgets/outcome_training_panel.dart';
 
 class AdminTrainingScreen extends StatefulWidget {
   const AdminTrainingScreen({super.key, this.repository});
@@ -24,6 +25,7 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
   TrainingRun? _run;
   List<TrainedModel> _models = [];
   bool _loading = true, _busy = false, _polling = false, _moreLoading = false;
+  bool _outcomeMode = false;
   String? _error;
 
   @override
@@ -191,10 +193,11 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
       currentRoute: '/admin-training',
       isAdmin: true,
       actions: [
-        IconButton(
-            tooltip: 'โหลดข้อมูลล่าสุด',
-            onPressed: _busy || _loading ? null : _load,
-            icon: const Icon(Icons.refresh))
+        if (!_outcomeMode)
+          IconButton(
+              tooltip: 'โหลดข้อมูลล่าสุด',
+              onPressed: _busy || _loading ? null : _load,
+              icon: const Icon(Icons.refresh))
       ],
       child: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -209,42 +212,65 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text('โมเดลที่ใช้งานอยู่',
-                              style: Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(height: 8),
-                          Text(
-                              active == null
-                                  ? 'ยังไม่มีโมเดลที่เปิดใช้งาน'
-                                  : '#${active.id} ${trainingModelName(active.key)}',
-                              style: Theme.of(context).textTheme.titleLarge),
-                          if (active != null)
-                            Text(
-                                'รุ่น ${active.version} · เกณฑ์ Unknown ${trainingPercent(active.unknownThreshold)}'),
-                          if (active != null)
-                            ClassificationReadinessPanel(
-                                readiness: active.readiness),
-                          const SizedBox(height: 16),
-                          if (_error != null)
-                            Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: Text(_error!,
-                                    style: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .error))),
-                          TabBar(
-                              controller: _tabs,
-                              onTap: (_) => setState(() {}),
-                              tabs: const [
-                                Tab(text: 'ข้อมูลและรอบเทรน'),
-                                Tab(text: 'เปรียบเทียบโมเดล')
-                              ]),
+                          SegmentedButton<bool>(
+                            showSelectedIcon: false,
+                            segments: const [
+                              ButtonSegment(
+                                value: false,
+                                icon: Icon(Icons.category_outlined),
+                                label: Text('จำแนกหมวด'),
+                              ),
+                              ButtonSegment(
+                                value: true,
+                                icon: Icon(Icons.query_stats_outlined),
+                                label: Text('ประเมินผลตอบรับ'),
+                              ),
+                            ],
+                            selected: {_outcomeMode},
+                            onSelectionChanged: (value) =>
+                                setState(() => _outcomeMode = value.first),
+                          ),
                           const SizedBox(height: 24),
-                          AnimatedBuilder(
-                              animation: _tabs,
-                              builder: (context, _) => _tabs.index == 0
-                                  ? _dataAndRuns(data)
-                                  : _modelList(data)),
+                          if (_outcomeMode)
+                            OutcomeTrainingPanel(repository: _repository)
+                          else ...[
+                            Text('โมเดลจำแนกหมวดที่ใช้งานอยู่',
+                                style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 8),
+                            Text(
+                                active == null
+                                    ? 'ยังไม่มีโมเดลที่เปิดใช้งาน'
+                                    : '#${active.id} ${trainingModelName(active.key)}',
+                                style: Theme.of(context).textTheme.titleLarge),
+                            if (active != null)
+                              Text(
+                                  'รุ่น ${active.version} · เกณฑ์ Unknown ${trainingPercent(active.unknownThreshold)}'),
+                            if (active != null)
+                              ClassificationReadinessPanel(
+                                  readiness: active.readiness),
+                            const SizedBox(height: 16),
+                            if (_error != null)
+                              Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: Text(_error!,
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error))),
+                            TabBar(
+                                controller: _tabs,
+                                onTap: (_) => setState(() {}),
+                                tabs: const [
+                                  Tab(text: 'ข้อมูลและรอบเทรน'),
+                                  Tab(text: 'เปรียบเทียบโมเดล')
+                                ]),
+                            const SizedBox(height: 24),
+                            AnimatedBuilder(
+                                animation: _tabs,
+                                builder: (context, _) => _tabs.index == 0
+                                    ? _dataAndRuns(data)
+                                    : _modelList(data)),
+                          ],
                         ]),
                   ))),
     );

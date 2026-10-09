@@ -396,6 +396,17 @@ class _AdminDatasetsScreenState extends State<AdminDatasetsScreen> {
                                                 Text(
                                                     'ชุดข้อมูล: ${item.dataSplit.isEmpty ? "ยังไม่กำหนด" : item.dataSplit} · '
                                                     'ความยาว ${item.durationSeconds == null ? "ยังไม่มีข้อมูล" : "${item.durationSeconds} วินาที"}'),
+                                                Text(
+                                                  item.dataSplit ==
+                                                              'validation' ||
+                                                          item.dataSplit ==
+                                                              'test'
+                                                      ? 'Protected split: กันไว้ประเมิน ห้ามเปลี่ยนชุดจากหน้านี้'
+                                                      : 'Outcome role: ตรวจความพร้อมรวมจาก Manifest ในหน้าเทรนโมเดล',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall,
+                                                ),
                                                 const SizedBox(height: 6),
                                                 Text(
                                                     _tab == 3

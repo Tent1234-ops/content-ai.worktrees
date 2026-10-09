@@ -1,6 +1,7 @@
 import '../models/admin_report.dart';
 import '../models/analysis_settings.dart';
 import '../models/model_training.dart';
+import '../models/outcome_model_training.dart';
 import '../models/managed_user.dart';
 import '../models/common_models.dart';
 import '../models/dataset_item.dart';
@@ -139,6 +140,29 @@ class AdminRepository {
   Future<void> activateTrainingModel(int id, int? activeId) async {
     await _client.post('/admin/training/models/$id/activate',
         {'expected_active_model_id': activeId});
+  }
+
+  Future<OutcomeTrainingOverview> outcomeTrainingOverview() async =>
+      OutcomeTrainingOverview.fromJson(
+          await _client.get('/admin/outcome-training'));
+
+  Future<OutcomeTrainingRun> startOutcomeTraining(
+          String manifestSha256) async =>
+      OutcomeTrainingRun.fromJson(await _client.post(
+          '/admin/outcome-training/runs', {'manifest_sha256': manifestSha256}));
+
+  Future<OutcomeTrainingRun> outcomeTrainingRun(String id) async =>
+      OutcomeTrainingRun.fromJson(
+          await _client.get('/admin/outcome-training/runs/$id'));
+
+  Future<OutcomeModelSummary> outcomeModel(int id) async =>
+      OutcomeModelSummary.fromJson(
+          await _client.get('/admin/outcome-training/models/$id'));
+
+  Future<void> activateOutcomeModel(int id, int? activeId) async {
+    await _client.post('/admin/outcome-training/models/$id/activate', {
+      'expected_active_model_id': activeId,
+    });
   }
 
   Future<AnalysisSettings> getAnalysisSettings() async =>

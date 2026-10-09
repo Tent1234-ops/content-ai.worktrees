@@ -2,7 +2,11 @@ import 'package:content_ai_web/widgets/revision_comparison_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Map<String, dynamic> comparisonFixture({String status = 'ready'}) => {
+Map<String, dynamic> comparisonFixture(
+        {String status = 'ready',
+        String outcomeStatus = 'comparable',
+        double outcomeDelta = -2.5}) =>
+    {
       'status': status,
       'method_status': 'derived_same_matcher',
       'parent': {
@@ -58,21 +62,39 @@ Map<String, dynamic> comparisonFixture({String status = 'ready'}) => {
       'limitations': [
         'ผลนี้ตรวจเฉพาะการเปลี่ยนแปลงของข้อความ ไม่ใช่คะแนนคุณภาพ',
       ],
+      'outcome_comparison': {
+        'status': outcomeStatus,
+        'reason_codes': outcomeStatus == 'comparable'
+            ? []
+            : ['outcome_model_version_mismatch'],
+        'probability_before': outcomeStatus == 'comparable' ? 0.63 : null,
+        'probability_after':
+            outcomeStatus == 'comparable' ? 0.63 + outcomeDelta / 100 : null,
+        'delta_percentage_points':
+            outcomeStatus == 'comparable' ? outcomeDelta : null,
+        'limitation':
+            'เป็นส่วนต่างค่าประเมิน ไม่ใช่ผลเพิ่มยอดวิวหรือคะแนนคุณภาพคลิป',
+      },
     };
 
 Future<void> mount(WidgetTester tester, double width,
-    {String status = 'ready'}) async {
+    {String status = 'ready',
+    String outcomeStatus = 'comparable',
+    double outcomeDelta = -2.5}) async {
   await tester.binding.setSurfaceSize(Size(width, 900));
   await tester.pumpWidget(MaterialApp(
       home: Scaffold(
           body: SingleChildScrollView(
               child: RevisionComparisonPanel(
-                  data: comparisonFixture(status: status))))));
+                  data: comparisonFixture(
+                      status: status,
+                      outcomeStatus: outcomeStatus,
+                      outcomeDelta: outcomeDelta))))));
   await tester.pumpAndSettle();
 }
 
 void main() {
-  for (final width in [1000.0, 1440.0]) {
+  for (final width in [390.0, 1000.0, 1440.0]) {
     testWidgets('shows before after evidence without a success score at $width',
         (tester) async {
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -83,6 +105,7 @@ void main() {
       expect(find.textContaining('74.5 วินาที'), findsOneWidget);
       expect(find.textContaining('100%'), findsNothing);
       expect(find.textContaining('ปรับสำเร็จ'), findsNothing);
+      expect(find.textContaining('-2.5 จุดเปอร์เซ็นต์'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
@@ -100,5 +123,22 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await mount(tester, 1000, status: 'no_topics_selected');
     expect(find.textContaining('แผนนี้มีเฉพาะบันทึก'), findsOneWidget);
+  });
+
+  testWidgets('model or context mismatch never draws an improvement arrow',
+      (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await mount(tester, 390, outcomeStatus: 'not_comparable');
+    expect(find.text('เทียบค่าประเมินโดยตรงไม่ได้'), findsOneWidget);
+    expect(find.textContaining('รุ่นโมเดล วิธีวิเคราะห์'), findsOneWidget);
+    expect(find.byKey(const ValueKey('revision-outcome-delta')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('zero outcome difference remains zero', (tester) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await mount(tester, 1000, outcomeDelta: 0);
+    expect(find.textContaining('0.0 จุดเปอร์เซ็นต์'), findsOneWidget);
+    expect(find.textContaining('+0.0'), findsNothing);
   });
 }

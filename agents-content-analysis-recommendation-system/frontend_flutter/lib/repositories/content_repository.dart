@@ -2,6 +2,7 @@ import '../models/common_models.dart';
 import '../models/content_history.dart';
 import '../models/clip_revision_plan.dart';
 import '../models/recommendation_result.dart';
+import '../models/outcome_prediction.dart';
 import '../services/api_client.dart';
 
 class ContentRepository {
@@ -24,6 +25,21 @@ class ContentRepository {
       Map<String, dynamic>.from(response as Map),
     );
   }
+
+  Future<OutcomeScenario> simulateOutcomeScenario({
+    required int contentId,
+    required int analysisId,
+    required String assessmentFingerprint,
+    required List<String> selectedTopicIds,
+  }) async =>
+      OutcomeScenario.fromJson(await _client.post(
+        '/contents/$contentId/outcome-scenario',
+        {
+          'analysis_id': analysisId,
+          'assessment_fingerprint': assessmentFingerprint,
+          'selected_topic_ids': selectedTopicIds,
+        },
+      ));
 
   Future<PaginatedResult<ContentHistoryItem>> listMyContents({
     int limit = 20,

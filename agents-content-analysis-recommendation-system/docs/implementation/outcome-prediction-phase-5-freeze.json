@@ -1,0 +1,30 @@
+{
+  "schema_version": "outcome-prediction-phase-5-freeze-v1",
+  "frozen_on": "2026-10-09",
+  "protocol_version": "reference-relative-views-protocol-v1",
+  "protocol_sha256": "ef3a7475e2a005b5dda4f9311eec6740570277b82204847a32114d6bdae6e12b",
+  "ui_contract": "outcome-prediction-ui-contract-v1.json",
+  "utility_study_protocol": "outcome-prediction-utility-study-v1.json",
+  "candidate": {
+    "status": "blocked_no_real_candidate",
+    "model_id": null,
+    "model_version": null,
+    "reason_codes": [
+      "phase2_frozen_manifest_missing",
+      "confirmation_evidence_missing",
+      "data_use_unverified",
+      "structurally_eligible_rows_zero"
+    ]
+  },
+  "real_data_snapshot": {
+    "active_source_rows": 308,
+    "structurally_eligible_rows": 0,
+    "training_allowed_rows": 0,
+    "registered_outcome_models": 0,
+    "active_outcome_models": 0
+  },
+  "independent_test_opened": false,
+  "prediction_qualified": false,
+  "production_activation_performed": false,
+  "human_utility_study_started": false
+}

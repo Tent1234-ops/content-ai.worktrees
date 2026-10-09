@@ -187,13 +187,90 @@ class OutcomeModelManagementTests(unittest.TestCase):
         self.assertEqual(self.db.query(OutcomeModel).count(), 0)
         self.assertTrue(self.db.get(ClassificationModel, classifier.model_id).is_active)
 
-    def test_admin_authorization_validation_and_no_activation_route(self):
+    def test_activation_rejects_unqualified_model_and_supports_guarded_rollback(self):
+        artifact = self.temp_path / "artifacts" / "qualified" / "model.joblib"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_bytes(b"qualified")
+        first = OutcomeModel(
+            model_version="qualified-v1", target_version="reference_relative_views_v1",
+            protocol_sha256="b" * 64, feature_schema_sha256="d" * 64,
+            manifest_sha256="a" * 64,
+            split_hashes_json=json.dumps({
+                "fit": "1", "tuning": "2", "calibration": "3",
+                "independent_test": "4",
+            }),
+            calibration_version="weighted-sigmoid-v1", source_kind="real",
+            status="qualified", is_active=False, artifact_path=str(artifact),
+            artifact_sha256="c" * 64, metrics_json="{}",
+            evaluated_scopes_json=json.dumps([
+                "overall", "category", "confirmed_format", "age_context",
+            ]), library_versions_json="{}",
+            independent_test_passed=True, production_eligible=True,
+        )
+        blocked = OutcomeModel(
+            model_version="validation-only-v1", target_version="reference_relative_views_v1",
+            protocol_sha256="b" * 64, feature_schema_sha256="d" * 64,
+            manifest_sha256="a" * 64,
+            split_hashes_json=json.dumps({
+                "fit": "1", "tuning": "2", "calibration": "3",
+                "independent_test": "4",
+            }),
+            calibration_version="weighted-sigmoid-v1", source_kind="real",
+            status="validation_passed", is_active=False, artifact_path=str(artifact),
+            artifact_sha256="c" * 64, metrics_json="{}",
+            evaluated_scopes_json=json.dumps([
+                "overall", "category", "confirmed_format", "age_context",
+            ]), library_versions_json="{}",
+            independent_test_passed=False, production_eligible=False,
+        )
+        self.db.add_all([first, blocked])
+        self.db.commit()
+        with self.assertRaises(ValueError):
+            service.activate_model(
+                self.db, blocked.model_id,
+                expected_active_model_id=None, user_id=self.admin.user_id,
+            )
+        self.assertIsNone(service.active_model(self.db))
+
+        allowed = {"can_activate": True, "reason_codes": [], "force_override_supported": False}
+        with patch.object(service, "activation_validation", return_value=allowed), \
+             patch.object(service, "load_outcome_artifact", return_value={}):
+            activated = service.activate_model(
+                self.db, first.model_id,
+                expected_active_model_id=None, user_id=self.admin.user_id,
+            )
+            self.assertTrue(activated["is_active"])
+            with self.assertRaises(service.OutcomeTrainingConflict):
+                service.activate_model(
+                    self.db, blocked.model_id,
+                    expected_active_model_id=None, user_id=self.admin.user_id,
+                )
+            self.db.rollback()
+            blocked.status = "qualified"
+            blocked.independent_test_passed = True
+            blocked.production_eligible = True
+            self.db.commit()
+            service.activate_model(
+                self.db, blocked.model_id,
+                expected_active_model_id=first.model_id, user_id=self.admin.user_id,
+            )
+            rolled_back = service.activate_model(
+                self.db, first.model_id,
+                expected_active_model_id=blocked.model_id, user_id=self.admin.user_id,
+            )
+            self.assertEqual(rolled_back["model_id"], first.model_id)
+            self.assertEqual(
+                self.db.query(OutcomeModel).filter_by(is_active=True).count(), 1
+            )
+
+    def test_admin_authorization_validation_and_activation_route(self):
         app = FastAPI()
         app.include_router(router)
         app.dependency_overrides[get_db] = lambda: self.db
         with TestClient(app) as client:
             paths = [
                 ("GET", "/admin/outcome-training/preflight"),
+                ("GET", "/admin/outcome-training"),
                 ("GET", "/admin/outcome-training/runs"),
                 ("POST", "/admin/outcome-training/runs"),
                 ("GET", "/admin/outcome-training/models"),
@@ -212,9 +289,15 @@ class OutcomeModelManagementTests(unittest.TestCase):
                 "artifact_path": "C:/untrusted/model.joblib",
             })
             self.assertEqual(injected.status_code, 422)
-            self.assertIn(
+            self.assertEqual(
                 client.post("/admin/outcome-training/models/1/activate", json={"force": True}).status_code,
-                {404, 405},
+                422,
+            )
+            self.assertEqual(
+                client.post("/admin/outcome-training/models/999/activate", json={
+                    "expected_active_model_id": None,
+                }).status_code,
+                404,
             )
 
 

@@ -27,6 +27,7 @@ from app.database.migrations import (
 )
 from app.routes import admin, admin_scanner, analyze, auth, classification, clustering, contents, dashboard, dataset_review, datasets, nlp, recommendation, trends, notifications, follows
 from app.routes import model_management
+from app.routes import outcome_model_management
 from app.routes import user_management
 from app.routes import trend_topics
 from app.services.trending_fetcher import start_trending_fetcher, stop_trending_fetcher
@@ -42,6 +43,7 @@ from models.speech_to_text import check_model_readiness
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 app.include_router(model_management.router)
+app.include_router(outcome_model_management.router)
 app.include_router(user_management.router)
 app.include_router(trend_topics.router)
 asr_model_status = check_model_readiness()

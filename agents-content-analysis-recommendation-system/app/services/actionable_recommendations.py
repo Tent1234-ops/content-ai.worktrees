@@ -121,7 +121,7 @@ def build_actionable_recommendations(result: dict) -> dict:
             "found_topics": found_topics, "proposal": template["proposal"],
             "condition": template["condition"], "steps": template["steps"], "example": template["example"],
             "example_status": "suggested_script_not_observed_result",
-            "reason": f"พบหัวข้อนี้ใน {len(supports)} จาก {len(documents)} คลิปอ้างอิงหมวดเดียวกัน จาก {len(channels)} ช่อง ซึ่งผ่านเกณฑ์คัดเลือกผลตอบรับของระบบ",
+            "reason": f"พบหัวข้อนี้ใน {len(supports)} จาก {len(documents)} คลิปอ้างอิงหมวดเดียวกัน จาก {len(channels)} ช่อง",
             "relevance_reason": "มีข้อความเกี่ยวกับการใช้งานที่เชื่อมกับหัวข้อนี้" if relevance_level == 2 else "เป็นประเด็นพื้นฐานของหมวดที่เชื่อมกับบริบทการรีวิวและสิ่งที่ตรวจพบ",
             "ranking": ranking, "support_count": len(supports), "channel_count": len(channels),
             "sample_size": len(documents), "supporting_dataset_row_ids": topic["supporting_dataset_row_ids"],

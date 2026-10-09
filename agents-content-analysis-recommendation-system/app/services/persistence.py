@@ -436,6 +436,7 @@ def save_video_analysis_result(
                     "ai_analysis": analysis_payload,
                     "nlp_result": nlp_result,
                     "recommendation": recommendation_payload,
+                    "outcome_assessment": recommendation_payload.get("outcome_assessment"),
                 },
                 ensure_ascii=False,
             ),

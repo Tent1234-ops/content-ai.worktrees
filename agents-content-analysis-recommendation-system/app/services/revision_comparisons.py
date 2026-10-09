@@ -31,6 +31,7 @@ from app.services.recommendation_evidence import (
     text_hash,
 )
 from app.services.saved_recommendations import stored_recommendation
+from app.services.outcome_inference import legacy_outcome_assessment
 
 
 SCHEMA_VERSION = "clip-revision-comparison-v1"
@@ -93,6 +94,87 @@ def _accepted_classification(recommendation: dict) -> tuple[bool, str]:
         or "unknown"
     )
     return accepted and domain in {"phone", "camera", "laptop"}, domain
+
+
+def _saved_outcome(recommendation: dict) -> dict:
+    value = recommendation.get("outcome_assessment")
+    return value if isinstance(value, dict) else legacy_outcome_assessment()
+
+
+def _outcome_revision_comparison(
+    parent: dict, child: dict, *, parent_context: dict, child_context: dict,
+) -> dict:
+    result = {
+        "schema_version": "outcome-revision-comparison-v1",
+        "status": "not_comparable",
+        "reason_codes": [],
+        "unit": "percentage_points",
+        "probability_before": None,
+        "probability_after": None,
+        "delta_percentage_points": None,
+        "causal_or_quality_claim": False,
+        "limitation": "เป็นส่วนต่างค่าประเมินของเนื้อหาสองฉบับ ไม่ใช่ผลเพิ่มยอดวิวหรือคะแนนคุณภาพคลิป",
+    }
+    if (parent_context.get("availability") != "available"
+            or child_context.get("availability") != "available"):
+        result["reason_codes"] = ["asr_or_transcript_unassessable"]
+        return result
+    if parent.get("status") != "available" or child.get("status") != "available":
+        result["reason_codes"] = sorted(set([
+            f"parent:{parent.get('status') or 'missing'}",
+            f"child:{child.get('status') or 'missing'}",
+        ]))
+        return result
+    input_hash_mismatches = []
+    for side, assessment, context in (
+        ("parent", parent, parent_context), ("child", child, child_context),
+    ):
+        transcript = str(context.get("raw_transcript") or "")
+        if (not transcript
+                or text_hash(transcript) != assessment.get("input_transcript_sha256")):
+            input_hash_mismatches.append(f"{side}_input_transcript_hash_mismatch")
+    if input_hash_mismatches:
+        result["reason_codes"] = input_hash_mismatches
+        return result
+    keys = (
+        "target_version", "feature_version", "model_id", "model_version",
+        "artifact_sha256", "calibration_version", "protocol_sha256",
+    )
+    mismatches = [key for key in keys if parent.get(key) != child.get(key)]
+    context_fields = (
+        "accepted_category", "confirmed_format", "frozen_age_context",
+        "view_metric_version", "benchmark_sha256",
+    )
+    parent_reference_context = {
+        key: (parent.get("context") or {}).get(key) for key in context_fields
+    }
+    child_reference_context = {
+        key: (child.get("context") or {}).get(key) for key in context_fields
+    }
+    if parent_reference_context != child_reference_context:
+        mismatches.append("context")
+    if mismatches:
+        result["reason_codes"] = [f"outcome_{key}_mismatch" for key in mismatches]
+        return result
+    try:
+        before = float(parent["probability"])
+        after = float(child["probability"])
+    except (KeyError, TypeError, ValueError):
+        result["reason_codes"] = ["outcome_probability_missing"]
+        return result
+    result.update(
+        status="comparable",
+        reason_codes=[],
+        probability_before=before,
+        probability_after=after,
+        delta_percentage_points=round((after - before) * 100, 6),
+        model_id=parent.get("model_id"),
+        artifact_sha256=parent.get("artifact_sha256"),
+        target_version=parent.get("target_version"),
+        feature_version=parent.get("feature_version"),
+        context=parent_reference_context,
+    )
+    return result
 
 
 def _topic_snapshot(recommendation: dict, selected_ids: list[str]) -> list[dict]:
@@ -213,6 +295,7 @@ def capture_plan_snapshot(
         "parent_analysis_settings": parent_context.get("analysis_settings")
         or (_json(analysis.summary).get("ai_analysis") or {}).get("analysis_settings")
         or {},
+        "parent_outcome_assessment": _saved_outcome(recommendation),
         "versions": {
             "topic_matcher": TOPIC_MATCHER_VERSION,
             "context_template_version": template_catalog().get("version"),
@@ -359,6 +442,10 @@ def _pair_message(before: str, after: str) -> str:
 def build_revision_comparison(plan_snapshot: dict, child_recommendation: dict) -> dict:
     parent_context = plan_snapshot.get("parent_context") or {}
     child_context = (child_recommendation.get("evidence_bundle") or {}).get("input") or {}
+    parent_outcome = plan_snapshot.get("parent_outcome_assessment")
+    if not isinstance(parent_outcome, dict):
+        parent_outcome = legacy_outcome_assessment()
+    child_outcome = _saved_outcome(child_recommendation)
     child_accepted, child_domain = _accepted_classification(child_recommendation)
     parent_accepted = bool(plan_snapshot.get("parent_category_accepted"))
     parent_domain = str(plan_snapshot.get("parent_domain") or "unknown")
@@ -459,6 +546,10 @@ def build_revision_comparison(plan_snapshot: dict, child_recommendation: dict) -
             "asr_method_changed": parent_asr != child_asr,
         },
         "topics": rows,
+        "outcome_comparison": _outcome_revision_comparison(
+            parent_outcome, child_outcome,
+            parent_context=parent_context, child_context=child_context,
+        ),
         "limitations": limitations,
         "causal_or_quality_claim": False,
     }

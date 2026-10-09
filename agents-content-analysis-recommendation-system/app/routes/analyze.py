@@ -20,6 +20,7 @@ from app.services.classification import classify_text_domain
 from app.services.jobs import enqueue, update_current_job
 from app.services.media_validation import (
     MediaValidationError,
+    probe_media_duration_seconds,
     validate_user_upload_duration,
 )
 from app.services.nlp import normalize_text_for_nlp
@@ -30,6 +31,8 @@ from app.services.recommendation import (
 )
 from app.services.taxonomy import normalize_taxonomy_leaf
 from app.services.recommendation_evidence import fingerprint, user_context
+from app.services.outcome_evidence import attach_outcome_evidence_explanations
+from app.services.outcome_inference import assess_outcome
 from app.services.revision_comparisons import (
     build_revision_comparison,
     create_revision_job,
@@ -68,6 +71,56 @@ def _file_sha256(file_path: str) -> str:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _verified_outcome_input_metadata(
+    file_path: str, *, confirmed_format: str | None, reference_age_context: str | None,
+) -> dict:
+    confirmed_format = str(confirmed_format or "").strip()
+    reference_age_context = str(reference_age_context or "").strip()
+    if not confirmed_format and not reference_age_context:
+        return {}
+    if confirmed_format not in {"short_form", "long_form"}:
+        raise HTTPException(422, "confirmed_format must be short_form or long_form")
+    if not re.fullmatch(r"[a-z0-9_]{3,40}", reference_age_context):
+        raise HTTPException(422, "reference_age_context is required and invalid")
+    try:
+        duration = probe_media_duration_seconds(file_path)
+    except MediaValidationError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {
+        "confirmed_format": confirmed_format,
+        "confirmed_format_provenance": "creator_upload_declaration",
+        "duration_seconds": duration,
+        "reference_age_context": reference_age_context,
+        "reference_age_context_provenance": "explicit_requested_reference_context",
+    }
+
+
+def _outcome_evidence_links(recommendation: dict) -> tuple[list[str], list[dict]]:
+    actions = (recommendation.get("actionable_recommendations") or {}).get("items", [])
+    topic_ids = [
+        str(item.get("evidence_topic_id")) for item in actions
+        if isinstance(item, dict) and item.get("evidence_topic_id")
+    ]
+    comparisons = {
+        str(item.get("evidence_topic_id")): item
+        for item in ((recommendation.get("evidence_bundle") or {})
+                     .get("topic_comparisons") or {}).get("items", [])
+        if isinstance(item, dict) and item.get("evidence_topic_id")
+    }
+    pointers = []
+    for item in actions:
+        if not isinstance(item, dict) or not item.get("evidence_topic_id"):
+            continue
+        topic_id = str(item["evidence_topic_id"])
+        pointers.append({
+            "evidence_topic_id": topic_id,
+            "canonical_topic": item.get("template_key"),
+            "supporting_dataset_row_ids": list(item.get("supporting_dataset_row_ids") or []),
+            "comparison_data_fingerprint": (comparisons.get(topic_id) or {}).get("data_fingerprint"),
+        })
+    return list(dict.fromkeys(topic_ids)), pointers
 
 
 def _build_recommendation(db, *, filename: str, result: dict, settings_snapshot: dict | None = None,
@@ -192,10 +245,27 @@ def _build_recommendation(db, *, filename: str, result: dict, settings_snapshot:
         recommendation["evidence"]["hook_seconds_analyzed"] = stt_meta.get("hook_seconds_analyzed")
         recommendation["evidence"]["stt_fallback_reason"] = stt_meta.get("fallback_reason")
         recommendation["evidence"]["warning"] = stt_meta.get("warning")
+    evidence_topic_ids, evidence_pointers = _outcome_evidence_links(recommendation)
+    evidence_input = (recommendation.get("evidence_bundle") or {}).get("input") or {}
+    outcome_assessment = assess_outcome(
+        db,
+        category=selected_domain,
+        classification=classification,
+        evidence_context=evidence_input,
+        # This context must come from verified upload metadata.  Duration alone
+        # is deliberately not used to infer Shorts/long-form format.
+        input_metadata=result.get("outcome_context") if isinstance(result.get("outcome_context"), dict) else {},
+        evidence_topic_ids=evidence_topic_ids,
+        evidence_pointers=evidence_pointers,
+    )
+    attach_outcome_evidence_explanations(recommendation, outcome_assessment)
+    result["outcome_assessment"] = outcome_assessment
     return recommendation, nlp_result
 
 
-def analyze_video_job(file_path: str, filename: str, user_id: int | None = None, *, settings_snapshot: dict | None = None) -> dict:
+def analyze_video_job(file_path: str, filename: str, user_id: int | None = None, *,
+                      settings_snapshot: dict | None = None,
+                      outcome_input_metadata: dict | None = None) -> dict:
     db = SessionLocal()
     try:
         settings_snapshot = settings_snapshot or capture_analysis_settings(db)
@@ -207,6 +277,7 @@ def analyze_video_job(file_path: str, filename: str, user_id: int | None = None,
             asr_model_size=settings_snapshot["asr_model"],
         )
         result["analysis_settings"] = settings_snapshot
+        result["outcome_context"] = dict(outcome_input_metadata or {})
         update_current_job(stage="classifying", progress=62, message="Classifying clip type")
         recommendation, _nlp_result = _build_recommendation(db, filename=filename, result=result, settings_snapshot=settings_snapshot)
         result["recommendation"] = recommendation
@@ -215,7 +286,9 @@ def analyze_video_job(file_path: str, filename: str, user_id: int | None = None,
         db.close()
 
 
-def analyze_and_save_video_job(file_path: str, filename: str, user_id: int, *, settings_snapshot: dict | None = None) -> dict:
+def analyze_and_save_video_job(file_path: str, filename: str, user_id: int, *,
+                               settings_snapshot: dict | None = None,
+                               outcome_input_metadata: dict | None = None) -> dict:
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.user_id == user_id).first()
@@ -231,6 +304,7 @@ def analyze_and_save_video_job(file_path: str, filename: str, user_id: int, *, s
             asr_model_size=settings_snapshot["asr_model"],
         )
         result["analysis_settings"] = settings_snapshot
+        result["outcome_context"] = dict(outcome_input_metadata or {})
         transcript = str(result.get("transcript") or "")
         raw_transcript = str(result.get("raw_transcript") or transcript)
         cleaned_transcript = str(
@@ -299,6 +373,21 @@ def analyze_revision_video_job(comparison_id: int, *, expected_job_id: str | Non
             asr_model_size=settings_snapshot["asr_model"],
         )
         result["analysis_settings"] = settings_snapshot
+        parent_outcome = plan_snapshot.get("parent_outcome_assessment") or {}
+        parent_outcome_context = parent_outcome.get("context") or {}
+        if parent_outcome.get("status") == "available" and parent_outcome_context:
+            try:
+                revised_duration = probe_media_duration_seconds(row.file_path)
+            except MediaValidationError:
+                revised_duration = None
+            if revised_duration is not None:
+                result["outcome_context"] = {
+                    "confirmed_format": parent_outcome_context.get("confirmed_format"),
+                    "confirmed_format_provenance": "frozen_parent_revision_context",
+                    "duration_seconds": revised_duration,
+                    "reference_age_context": parent_outcome_context.get("frozen_age_context"),
+                    "reference_age_context_provenance": "frozen_parent_revision_context",
+                }
         transcript = str(result.get("transcript") or "")
         raw_transcript = str(result.get("raw_transcript") or transcript)
         cleaned_transcript = str(
@@ -399,6 +488,8 @@ def _capture_upload_settings(db: Session) -> dict:
 @router.post("/analyze")
 async def analyze(
     file: UploadFile = File(...),
+    confirmed_format: str | None = Form(default=None),
+    reference_age_context: str | None = Form(default=None),
     current_user: User = Depends(require_roles("admin", "user")),
     db: Session = Depends(get_db),
 ):
@@ -406,14 +497,26 @@ async def analyze(
     settings_snapshot = _capture_upload_settings(db)
     file_path = _save_validated_upload(file, max_duration_seconds=settings_snapshot["upload_max_duration_seconds"])
     filename = Path(file.filename or file_path).name
+    try:
+        outcome_input_metadata = _verified_outcome_input_metadata(
+            file_path, confirmed_format=confirmed_format,
+            reference_age_context=reference_age_context,
+        )
+    except HTTPException:
+        Path(file_path).unlink(missing_ok=True)
+        raise
     job_id = enqueue(analyze_video_job, file_path, filename, current_user.user_id,
-                     settings_snapshot=settings_snapshot, _owner_user_id=current_user.user_id)
+                     settings_snapshot=settings_snapshot,
+                     outcome_input_metadata=outcome_input_metadata,
+                     _owner_user_id=current_user.user_id)
     return {"job_id": job_id}
 
 
 @router.post("/analyze/save")
 async def analyze_and_save(
     file: UploadFile = File(...),
+    confirmed_format: str | None = Form(default=None),
+    reference_age_context: str | None = Form(default=None),
     current_user: User = Depends(require_roles("admin", "user")),
     db: Session = Depends(get_db),
 ):
@@ -421,9 +524,19 @@ async def analyze_and_save(
     settings_snapshot = _capture_upload_settings(db)
     file_path = _save_validated_upload(file, max_duration_seconds=settings_snapshot["upload_max_duration_seconds"])
     filename = Path(file.filename or file_path).name
+    try:
+        outcome_input_metadata = _verified_outcome_input_metadata(
+            file_path, confirmed_format=confirmed_format,
+            reference_age_context=reference_age_context,
+        )
+    except HTTPException:
+        Path(file_path).unlink(missing_ok=True)
+        raise
     print(f"[analyze/save] saved file to {file_path}, enqueueing analysis+save job", flush=True)
     job_id = enqueue(analyze_and_save_video_job, file_path, filename, current_user.user_id,
-                     settings_snapshot=settings_snapshot, _owner_user_id=current_user.user_id)
+                     settings_snapshot=settings_snapshot,
+                     outcome_input_metadata=outcome_input_metadata,
+                     _owner_user_id=current_user.user_id)
     return {"job_id": job_id}
 
 

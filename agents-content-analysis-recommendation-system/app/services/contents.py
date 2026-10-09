@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database.models import AnalysisResult, ClipRevisionComparison, Recommendation, UserContent
 from app.services.saved_recommendations import stored_recommendation
 from app.services.recommendation_evidence import fingerprint
+from app.services.outcome_inference import legacy_outcome_assessment
 
 
 def _latest_analysis(content: UserContent) -> AnalysisResult | None:
@@ -41,6 +42,10 @@ def serialize_content_history_item(content: UserContent) -> dict[str, Any]:
     analysis_summary = _parse_json_text(analysis_row.summary if analysis_row else None)
     recommendation_summary = _parse_json_text(recommendation_row.recommended_keywords if recommendation_row else None)
     recommendation_payload = analysis_summary.get("recommendation", {})
+    outcome_assessment = analysis_summary.get("outcome_assessment")
+    if not isinstance(outcome_assessment, dict):
+        embedded = recommendation_payload.get("outcome_assessment") if isinstance(recommendation_payload, dict) else None
+        outcome_assessment = embedded if isinstance(embedded, dict) else legacy_outcome_assessment()
 
     missing_keywords = recommendation_summary.get("missing_keywords", [])
     hook_keywords = recommendation_summary.get("hook_keywords", [])
@@ -65,6 +70,7 @@ def serialize_content_history_item(content: UserContent) -> dict[str, Any]:
             item["keyword"] if isinstance(item, dict) else str(item)
             for item in hook_keywords[:5]
         ],
+        "outcome_assessment_status": outcome_assessment.get("status"),
     }
 
 
@@ -87,6 +93,10 @@ def get_user_content_detail(db: Session, *, user_id: int, content_id: int) -> di
     analysis_row = _latest_analysis(content)
     analysis_summary = _parse_json_text(analysis_row.summary if analysis_row else None)
     recommendation_payload = stored_recommendation(content, analysis_row)
+    outcome_assessment = analysis_summary.get("outcome_assessment")
+    if not isinstance(outcome_assessment, dict):
+        embedded = recommendation_payload.get("outcome_assessment") if isinstance(recommendation_payload, dict) else None
+        outcome_assessment = embedded if isinstance(embedded, dict) else legacy_outcome_assessment()
     revision_row = (
         db.query(ClipRevisionComparison)
         .filter_by(user_id=user_id, child_content_id=content_id, status="completed")
@@ -103,6 +113,7 @@ def get_user_content_detail(db: Session, *, user_id: int, content_id: int) -> di
         "content_id": content.content_id,
         "analysis_id": analysis_row.result_id if analysis_row else None,
         "recommendation_fingerprint": fingerprint(recommendation_payload),
+        "outcome_assessment_fingerprint": fingerprint(outcome_assessment),
         "title": content.title,
         "created_at": content.created_at,
         "video_url": content.video_url,
@@ -112,5 +123,6 @@ def get_user_content_detail(db: Session, *, user_id: int, content_id: int) -> di
         "analysis": analysis_summary.get("ai_analysis", {}),
         "nlp_result": analysis_summary.get("nlp_result", {}),
         "recommendation": recommendation_payload,
+        "outcome_assessment": outcome_assessment,
         "revision_comparison": revision_comparison,
     }

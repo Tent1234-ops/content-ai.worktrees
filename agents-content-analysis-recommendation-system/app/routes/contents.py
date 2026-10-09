@@ -9,12 +9,32 @@ from app.schemas.contents import (
     UserContentHistoryResponse,
     ClipRevisionPlanRequest,
     ClipRevisionPlanResponse,
+    OutcomeScenarioRequest,
+    OutcomeScenarioResponse,
 )
 from app.services.contents import get_user_content_detail, list_user_contents
 from app.services.usage_statistics import usage_statistics
 from app.services.clip_revision_plans import get_revision_plan, save_revision_plan
+from app.services.outcome_scenarios import simulate_outcome_scenario
 
 router = APIRouter(prefix="/contents", tags=["contents"])
+
+
+@router.post("/{content_id}/outcome-scenario", response_model=OutcomeScenarioResponse)
+def outcome_scenario(
+    content_id: int,
+    payload: OutcomeScenarioRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return simulate_outcome_scenario(
+        db,
+        user_id=current_user.user_id,
+        content_id=content_id,
+        analysis_id=payload.analysis_id,
+        assessment_digest=payload.assessment_fingerprint,
+        selected_topic_ids=payload.selected_topic_ids,
+    )
 
 
 @router.get("/{content_id}/revision-plan", response_model=ClipRevisionPlanResponse)

@@ -382,6 +382,89 @@ class ModelEvaluationMetric(Base):
     model = relationship("ClassificationModel", back_populates="evaluation_metrics")
 
 
+class OutcomeTrainingRun(Base):
+    __tablename__ = "outcome_training_runs"
+
+    run_id = Column(String(36), primary_key=True)
+    requested_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    status = Column(String(30), nullable=False, default="queued", index=True)
+    # Separate slot from classification training: one Outcome job may run at a time.
+    active_slot = Column(Integer, nullable=True, unique=True)
+    stage = Column(String(40), nullable=False, default="queued")
+    progress = Column(Float, nullable=False, default=0.0)
+    parameters_json = Column(Text, nullable=False)
+    manifest_sha256 = Column(String(64), nullable=False, index=True)
+    protocol_sha256 = Column(String(64), nullable=False)
+    result_json = Column(AnalysisPayloadText)
+    artifact_path = Column(String(1024))
+    error = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at = Column(DateTime)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    finished_at = Column(DateTime)
+
+
+class OutcomeModel(Base):
+    __tablename__ = "outcome_models"
+    __table_args__ = (
+        Index("ix_outcome_models_active", "is_active", "status"),
+    )
+
+    model_id = Column(Integer, primary_key=True)
+    run_id = Column(
+        String(36), ForeignKey("outcome_training_runs.run_id", ondelete="SET NULL"),
+        nullable=True, unique=True,
+    )
+    model_version = Column(String(100), nullable=False, unique=True)
+    target_version = Column(String(100), nullable=False)
+    protocol_sha256 = Column(String(64), nullable=False)
+    feature_schema_sha256 = Column(String(64), nullable=False)
+    manifest_sha256 = Column(String(64), nullable=False)
+    split_hashes_json = Column(Text, nullable=False)
+    calibration_version = Column(String(100), nullable=False)
+    source_kind = Column(String(30), nullable=False, default="real")
+    status = Column(String(40), nullable=False, default="trained", index=True)
+    is_active = Column(Boolean, nullable=False, default=False)
+    artifact_path = Column(String(1024), nullable=False)
+    artifact_sha256 = Column(String(64), nullable=False)
+    metrics_json = Column(AnalysisPayloadText, nullable=False)
+    evaluated_scopes_json = Column(Text, nullable=False)
+    library_versions_json = Column(Text, nullable=False)
+    training_sample_count = Column(Integer, nullable=False, default=0)
+    independent_test_passed = Column(Boolean, nullable=False, default=False)
+    production_eligible = Column(Boolean, nullable=False, default=False)
+    trained_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class OutcomeModelMetric(Base):
+    __tablename__ = "outcome_model_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "model_id", "dataset_split", "phase", "scope_type", "scope_value",
+            "weighting", "metric_name", name="uq_outcome_model_metric",
+        ),
+    )
+
+    metric_id = Column(Integer, primary_key=True)
+    model_id = Column(
+        Integer, ForeignKey("outcome_models.model_id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    dataset_split = Column(String(30), nullable=False)
+    phase = Column(String(30), nullable=False)
+    scope_type = Column(String(50), nullable=False, default="overall")
+    scope_value = Column(String(100), nullable=False, default="__overall__")
+    weighting = Column(String(30), nullable=False)
+    metric_name = Column(String(50), nullable=False)
+    metric_value = Column(Float)
+    metric_status = Column(String(30), nullable=False)
+    sample_size = Column(Integer, nullable=False, default=0)
+    details = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class TrendingItem(Base):
     __tablename__ = "trending_items"
 

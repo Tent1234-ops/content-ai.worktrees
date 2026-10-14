@@ -180,6 +180,29 @@ Future<void> openOutcome(WidgetTester tester, OutcomeAdminRepository repository,
 }
 
 void main() {
+  test('qualified scope contract accepts legacy and actual context records',
+      () {
+    final old = OutcomeModelSummary.fromJson(outcomeModelJson());
+    expect(old.evaluatedScopes, ['overall', 'category']);
+    final current = OutcomeModelSummary.fromJson({
+      ...outcomeModelJson(),
+      'evaluated_scopes': {
+        'schema_version': 'outcome-qualified-scopes-v1',
+        'contexts': [
+          {
+            'accepted_category': 'phone',
+            'confirmed_format': 'long_form',
+            'frozen_age_context': 'age_30_90d',
+            'view_metric_version': 'youtube_play_start_view_v2',
+            'qualified': true
+          },
+          {'accepted_category': 'camera', 'qualified': false},
+        ]
+      },
+    });
+    expect(current.evaluatedScopes, hasLength(1));
+    expect(current.evaluatedScopes.single, contains('phone'));
+  });
   testWidgets('blocked readiness uses API facts and disables training',
       (tester) async {
     final repository = OutcomeAdminRepository();

@@ -40,6 +40,8 @@ class _UploadScreenState extends State<UploadScreen> {
   String? _revisionClientRequestId;
   String? _revisionJobId;
   bool _revisionCanRetry = false;
+  String _confirmedFormat = '';
+  String _referenceAgeContext = '';
 
   @override
   void initState() {
@@ -182,6 +184,15 @@ class _UploadScreenState extends State<UploadScreen> {
         return;
       }
       final revision = _revisionContext;
+      if (revision == null &&
+          _confirmedFormat.isNotEmpty &&
+          !_settings!.outcomeContexts.any((item) =>
+              item['confirmed_format'] == _confirmedFormat &&
+              item['frozen_age_context'] == _referenceAgeContext)) {
+        setState(() => _error =
+            'กรุณาเลือกบริบทอ้างอิงที่พร้อมใช้งาน หรือเลือกไม่ประเมินผลตอบรับ');
+        return;
+      }
       final jobId = revision == null
           ? await _repository.startAnalyzeAndSaveVideo(
               fileName: _selectedFileName!,
@@ -189,6 +200,8 @@ class _UploadScreenState extends State<UploadScreen> {
               fileBytes: _selectedFileBytes,
               fileStream: _selectedFileStream,
               fileSize: _selectedFileSize,
+              confirmedFormat: _confirmedFormat,
+              referenceAgeContext: _referenceAgeContext,
             )
           : await _repository.startRevisionVideo(
               fileName: _selectedFileName!,
@@ -522,6 +535,13 @@ class _UploadScreenState extends State<UploadScreen> {
                 _RevisionUploadContext(data: _revisionContext!),
                 const SizedBox(height: 16),
               ],
+              if (_revisionContext == null && _settings != null) ...[
+                const Text('บริบทประเมินผลตอบรับ',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                _outcomeContextFields(),
+                const SizedBox(height: 24),
+              ],
 
               // Upload Section
               if (!hasFile) ...[
@@ -634,6 +654,69 @@ class _UploadScreenState extends State<UploadScreen> {
         ),
       ),
     );
+  }
+
+  Widget _outcomeContextFields() {
+    final contexts = _settings!.outcomeContexts;
+    if (contexts.isEmpty && _confirmedFormat.isEmpty) {
+      return const Text('ยังไม่มีโมเดลประเมินผลตอบรับที่ผ่านการตรวจรับ');
+    }
+    final formats =
+        contexts.map((item) => item['confirmed_format'].toString()).toSet();
+    final ages = contexts
+        .where((item) => item['confirmed_format'] == _confirmedFormat)
+        .map((item) => item['frozen_age_context'].toString())
+        .toSet();
+    const ageLabels = {
+      'age_0_7d': 'น้อยกว่า 7 วัน',
+      'age_7_30d': '7 ถึงน้อยกว่า 30 วัน',
+      'age_30_90d': '30 ถึงน้อยกว่า 90 วัน',
+      'age_90_365d': '90 ถึงน้อยกว่า 365 วัน',
+      'age_365d_plus': '365 วันขึ้นไป',
+    };
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      DropdownButtonFormField<String>(
+        key: ValueKey('outcome-format-$_confirmedFormat'),
+        initialValue:
+            formats.contains(_confirmedFormat) ? _confirmedFormat : '',
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'รูปแบบคลิปที่ยืนยัน'),
+        items: [
+          const DropdownMenuItem(value: '', child: Text('ไม่ประเมินผลตอบรับ')),
+          for (final format in formats)
+            DropdownMenuItem(
+                value: format,
+                child: Text(
+                    format == 'short_form' ? 'YouTube Shorts' : 'วิดีโอปกติ')),
+        ],
+        onChanged: _loading
+            ? null
+            : (value) => setState(() {
+                  _confirmedFormat = value ?? '';
+                  _referenceAgeContext = '';
+                }),
+      ),
+      if (_confirmedFormat.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          key: ValueKey('outcome-age-$_confirmedFormat-$_referenceAgeContext'),
+          initialValue:
+              ages.contains(_referenceAgeContext) ? _referenceAgeContext : '',
+          isExpanded: true,
+          decoration: const InputDecoration(
+              labelText: 'อายุคลิปอ้างอิง ณ เวลาเก็บยอดวิว'),
+          items: [
+            const DropdownMenuItem(
+                value: '', child: Text('เลือกช่วงอายุคลิปอ้างอิง')),
+            for (final age in ages)
+              DropdownMenuItem(value: age, child: Text(ageLabels[age] ?? age)),
+          ],
+          onChanged: _loading
+              ? null
+              : (value) => setState(() => _referenceAgeContext = value ?? ''),
+        ),
+      ],
+    ]);
   }
 }
 

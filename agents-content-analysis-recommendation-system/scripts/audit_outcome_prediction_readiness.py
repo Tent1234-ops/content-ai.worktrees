@@ -112,6 +112,7 @@ def main() -> int:
     parser.add_argument("--cutoff", required=True, type=parse_cutoff,
                         help="Frozen UTC cutoff, for example 2026-10-08T12:00:00Z")
     parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument("--manifest", type=Path, help="Sealed frozen Outcome manifest; never a Test outcomes file")
     parser.add_argument("--protocol", type=Path,
                         default=ROOT / "docs/implementation/outcome-prediction-protocol-v1.json")
     parser.add_argument("--data-use", type=Path,
@@ -131,6 +132,7 @@ def main() -> int:
             audit = audit_outcome_readiness(
                 db, cutoff=args.cutoff, repo_root=ROOT, data_use_record=data_use,
                 latest_observation_hours=int(protocol["cutoff_policy"]["latest_successful_observation_max_age_hours"]),
+                frozen_manifest=json.loads(args.manifest.read_text(encoding="utf-8")) if args.manifest else None,
             )
             after = database_identity(db)
             db.rollback()

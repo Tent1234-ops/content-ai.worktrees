@@ -1,0 +1,25 @@
+{
+  "schema_version": "outcome-format-owner-confirmation-v1",
+  "confirmation_date": "2026-10-13",
+  "confirmation_timezone": "Asia/Bangkok",
+  "evidence_source": "owner_statement_in_conversation",
+  "statement_summary": "The owner confirms that all nine unresolved clips in the previous format audit are Shorts.",
+  "audit_report": "artifacts/outcome-prediction/format-coverage/20261012T161912Z/coverage-v2/report.json",
+  "audit_report_sha256": "447ce7e1cf7cd861f2058cbd0bae51109239ac8b19890d5cb4f40fe5298379e2",
+  "confirmed_format": "short_form",
+  "records": [
+    {"dataset_id": 204, "video_id": "vi4uy6yjGXg"},
+    {"dataset_id": 206, "video_id": "85zf2ZUwQAE"},
+    {"dataset_id": 210, "video_id": "RoKt0bynSJY"},
+    {"dataset_id": 222, "video_id": "W7lkc2Sw4Ig"},
+    {"dataset_id": 224, "video_id": "Wga67pznHYc"},
+    {"dataset_id": 262, "video_id": "-tljIpc7VY0"},
+    {"dataset_id": 269, "video_id": "T69bHRJ4Uac"},
+    {"dataset_id": 272, "video_id": "yIPyaK4425A"},
+    {"dataset_id": 278, "video_id": "2M5k4OWSN3c"}
+  ],
+  "independent_live_player_verification": false,
+  "database_updated": false,
+  "split_assignments_updated": false,
+  "sampling_or_rights_confirmed_by_this_statement": false
+}

@@ -34,7 +34,8 @@ def data_use(status="unverified", evidence=None):
         "owner": "project_owner",
         "intended_uses": ["audit", "training", "serving"],
         "confirmation_evidence": list(evidence or []),
-        "decision": {"audit_allowed": True},
+        "decision": {"audit_allowed": True, "real_training_allowed": status == "confirmed",
+                     "real_serving_allowed": status == "confirmed"},
     }
 
 

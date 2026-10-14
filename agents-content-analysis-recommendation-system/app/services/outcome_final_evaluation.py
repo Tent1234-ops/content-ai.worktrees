@@ -183,6 +183,7 @@ def build_phase6_reports(
     browser_evidence: dict[str, Any] | None,
     software_evidence: dict[str, Any],
     generated_at: str | None = None,
+    independent_evaluation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     generated_at = generated_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     utility_check = validate_utility_protocol(utility_protocol)
@@ -195,9 +196,10 @@ def build_phase6_reports(
         })
         gate["blocker_codes"].append("utility_protocol_valid")
         gate["can_open_independent_test"] = False
-    if gate["can_open_independent_test"]:
+    if gate["can_open_independent_test"] and independent_evaluation is None:
         raise ValueError(
-            "All gates are open. Use the explicit one-shot independent evaluator; "
+            "All gates are open. Use the explicit one-shot independent evaluator "
+            "scripts/evaluate_outcome_candidate.py with a frozen candidate; "
             "this fail-closed report builder never opens Test data."
         )
 
@@ -363,7 +365,7 @@ def build_phase6_reports(
     }
     model_card = _model_card(generated_at, readiness, phase5_freeze, gate)
     summary = _summary_markdown(release, readiness, independent, utility_summary)
-    return {
+    reports = {
         "independent-evaluation-report.json": independent,
         "qualification-decision.json": qualification,
         "utility-raw-ratings.json": utility_raw,
@@ -376,6 +378,45 @@ def build_phase6_reports(
         "model-card.md": model_card,
         "summary.md": summary,
     }
+    if independent_evaluation is not None:
+        actual = independent_evaluation
+        if (actual.get("schema_version") != "outcome-independent-evaluation-report-v2"
+                or actual.get("model_id") != candidate.get("model_id")
+                or actual.get("freeze_sha256") != phase5_freeze.get("freeze_sha256")
+                or actual.get("independent_test_opened") is not True):
+            raise ValueError("Independent report does not match the frozen candidate")
+        qualified = (actual.get("status") == "qualified" and actual.get("source_kind") == "real"
+                     and actual.get("production_eligible") is True)
+        evaluation = actual.get("evaluation") or {}
+        reasons = [key for key, passed in (evaluation.get("checks") or {}).items() if passed is not True]
+        reports["independent-evaluation-report.json"] = actual
+        qualification.update(
+            decision="qualified" if qualified else "not_qualified", prediction_qualified=qualified,
+            activation_authorized=False, independent_evaluation_status=actual.get("status"),
+            reason_codes=reasons, scopes=evaluation.get("evaluated_scopes"),
+        )
+        for item in matrix:
+            if item["area"] == "Data independence/readiness":
+                item["status"] = "PASS" if actual.get("source_kind") == "real" else "NOT RUN"
+            elif item["area"] == "Prediction qualification":
+                item["status"] = "PASS" if qualified else "FAIL"
+        release.update(qualification="qualified" if qualified else "not_qualified",
+                       blocker_codes=[*reasons, "human_utility_pending", "live_acceptance_pending"])
+        reports["model-card.md"] = (
+            f"# Outcome model {actual['model_id']}: {actual['status']}\n\n"
+            f"Freeze: `{actual['freeze_sha256']}`\n\n"
+            "Independent evaluation is recorded; activation requires separate approval.\n"
+            "Target: reference-relative above-Fit-median views, not causal engagement uplift.\n"
+            "See independent-evaluation-report.json for frozen hashes, contexts, baselines, "
+            "coverage, calibration, channel-bootstrap intervals and limitations.\n"
+            "Human utility and live acceptance remain separate, uncompleted gates.\n"
+        )
+        reports["summary.md"] = (
+            f"# Outcome release: NO_GO\n\nPrediction: {'qualified' if qualified else 'not qualified'}.\n"
+            "Independent evaluation completed; human utility and live acceptance have not been supplied.\n"
+            "No model was activated by this report.\n"
+        )
+    return reports
 
 
 def _model_card(

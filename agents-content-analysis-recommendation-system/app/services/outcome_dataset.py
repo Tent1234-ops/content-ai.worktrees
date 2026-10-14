@@ -26,6 +26,7 @@ from app.services.outcome_prediction_readiness import (
     _age_bucket,
     _confirmed_format,
     _latest_observation,
+    _normalized_text_hash,
     data_use_gate,
     scan_prior_artifact_use,
     sha256_json,
@@ -116,19 +117,34 @@ def _prior_roles(row: DatasetContent, prior_use: dict[str, Any]) -> list[str]:
 
 def _identity_issues(records: list[dict[str, Any]]) -> None:
     """Mutate issue lists only; never repair or rewrite source split metadata."""
-    role_groups: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
     sample_groups: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
-    for record in records:
-        for key in ("source_channel_id", "creator_group_key"):
-            value = record.get(key)
-            if value:
-                role_groups[f"{key}:{value}"].append(record)
-        for key in ("source_youtube_id", "transcript_sha256"):
+    parents = list(range(len(records)))
+    owners = {}
+
+    def root(index):
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    for index, record in enumerate(records):
+        if record.get("transcript"):
+            record["normalized_transcript_sha256"] = _normalized_text_hash(record["transcript"])
+        for token in identity_keys(record):
+            if token in owners:
+                parents[root(index)] = root(owners[token])
+            else:
+                owners[token] = index
+        for key in ("source_youtube_id", "transcript_sha256", "normalized_transcript_sha256",
+                    "near_duplicate_group_key"):
             value = record.get(key)
             if value:
                 sample_groups[f"{key}:{value}"].append(record)
 
-    for members in role_groups.values():
+    components = defaultdict(list)
+    for index, record in enumerate(records):
+        components[root(index)].append(record)
+    for members in components.values():
         roles = {item.get("outcome_role") for item in members if item.get("outcome_role")}
         if len(roles) > 1:
             for item in members:
@@ -146,6 +162,13 @@ def _identity_issues(records: list[dict[str, Any]]) -> None:
 
     for record in records:
         record["exclusion_reasons"] = sorted(set(record["exclusion_reasons"]))
+
+
+def identity_keys(record: dict[str, Any]) -> list[str]:
+    return [f"{key}:{record[key]}" for key in (
+        "source_channel_id", "creator_group_key", "source_youtube_id",
+        "transcript_sha256", "normalized_transcript_sha256", "near_duplicate_group_key",
+    ) if record.get(key)]
 
 
 def database_source_records(
@@ -250,6 +273,9 @@ def database_source_records(
             "age_days_at_observation": round(age_days, 8) if age_days is not None else None,
             "transcript": transcript,
             "transcript_sha256": str(row.transcript_sha256 or ""),
+            "near_duplicate_group_key": metadata.get("outcome_near_duplicate_group_key"),
+            "outcome_holdout_status": metadata.get("outcome_holdout_status"),
+            "outcome_prior_use_reviewed": metadata.get("outcome_prior_use_reviewed") is True,
             "transcript_scope": str(row.transcript_scope or ""),
             "transcript_source": str(row.transcript_source or ""),
             "transcript_timestamps_available": bool(row.transcript_timestamps_available),
@@ -405,6 +431,10 @@ def _record_core(record: dict[str, Any]) -> dict[str, Any]:
         "published_at": record["published_at"],
         "frozen_age_context": record["frozen_age_context"],
         "transcript_sha256": record["transcript_sha256"],
+        "normalized_transcript_sha256": record.get("normalized_transcript_sha256"),
+        "near_duplicate_group_key": record.get("near_duplicate_group_key"),
+        "outcome_holdout_status": record.get("outcome_holdout_status"),
+        "outcome_prior_use_reviewed": record.get("outcome_prior_use_reviewed") is True,
         "transcript_scope": record["transcript_scope"],
         "transcript_source": record["transcript_source"],
         "metadata_provenance": record["metadata_provenance"],
@@ -427,11 +457,12 @@ def freeze_manifest(
     cutoff: datetime,
     protocol: dict[str, Any],
     data_use_record: dict[str, Any],
+    allow_synthetic_fixture: bool = False,
 ) -> dict[str, Any]:
     validation = validate_protocol(protocol)
     if not validation["valid"]:
         return {"status": "blocked", "reason_codes": validation["errors"], "manifest": None}
-    rights = data_use_gate(data_use_record, "training")
+    rights = data_use_gate(data_use_record, "training", allow_synthetic_fixture=allow_synthetic_fixture)
     source = [dict(item, exclusion_reasons=list(item.get("exclusion_reasons") or [])) for item in records]
     _identity_issues(source)
     excluded = [

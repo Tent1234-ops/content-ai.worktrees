@@ -174,14 +174,24 @@ def validate_protocol(protocol: dict[str, Any]) -> dict[str, Any]:
     return {"valid": not errors, "errors": errors, "protocol_sha256": digest}
 
 
-def data_use_gate(record: dict[str, Any], purpose: str) -> dict[str, Any]:
+def data_use_gate(
+    record: dict[str, Any], purpose: str, *, allow_synthetic_fixture: bool = False,
+) -> dict[str, Any]:
     reasons: list[str] = []
+    if record.get("status") == "withdrawn":
+        reasons.append("data_use_withdrawn")
     if record.get("schema_version") != DATA_USE_SCHEMA_VERSION:
         reasons.append("data_use_schema_invalid")
     if purpose not in set(record.get("intended_uses") or []):
         reasons.append("purpose_not_registered")
     if not str(record.get("owner") or "").strip():
         reasons.append("decision_owner_missing")
+    decision = record.get("decision") or {}
+    permission = {"audit": "audit_allowed", "training": "real_training_allowed",
+                  "serving": "real_serving_allowed"}.get(purpose)
+    synthetic = allow_synthetic_fixture and decision.get("synthetic_software_test_allowed") is True
+    if permission is None or (decision.get(permission) is not True and not synthetic):
+        reasons.append(f"data_use_{purpose}_not_authorized")
     audit_only_allowed = purpose == "audit" and (record.get("decision") or {}).get("audit_allowed") is True
     if not audit_only_allowed:
         if record.get("status") != "confirmed":
@@ -288,6 +298,14 @@ def scan_prior_artifact_use(repo_root: Path) -> dict[str, Any]:
             scanned.append(str(path.relative_to(repo_root)))
         except (OSError, ValueError, TypeError) as exc:
             errors.append({"path": str(path.relative_to(repo_root)), "error": exc.__class__.__name__})
+    for path in sorted((artifacts / "outcome-prediction" / "phase-3" / "registry").glob("**/test-access.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            for dataset_id in payload.get("dataset_ids") or []:
+                by_dataset[int(dataset_id)].add("outcome_independent_test_accessed")
+            scanned.append(str(path.relative_to(repo_root)))
+        except (OSError, ValueError, TypeError) as exc:
+            errors.append({"path": str(path.relative_to(repo_root)), "error": exc.__class__.__name__})
     return {
         "by_dataset_id": {str(key): sorted(value) for key, value in sorted(by_dataset.items())},
         "by_video_id": {key: sorted(value) for key, value in sorted(by_video.items())},
@@ -361,6 +379,7 @@ def _gap(
 def audit_outcome_readiness(
     db: Session, *, cutoff: datetime, repo_root: Path,
     data_use_record: dict[str, Any], latest_observation_hours: int = 24,
+    frozen_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cutoff = _as_naive_utc(cutoff)
     if cutoff is None:
@@ -393,6 +412,11 @@ def audit_outcome_readiness(
     reference_rows = reference_transcript_rows(db, now=cutoff)
     reference_ids = {row.dataset_id for row in reference_rows}
     reference_channels = {row.source_channel_id for row in reference_rows if row.source_channel_id}
+    from app.services.outcome_independence import sealed_holdout_check
+    holdout_check = sealed_holdout_check(
+        frozen_manifest, current_rows={row.dataset_id: row for row in rows},
+        prior_use=prior_use, reference_rows=reference_rows,
+    )
 
     records: list[dict[str, Any]] = []
     gaps: list[dict[str, Any]] = []
@@ -491,7 +515,8 @@ def audit_outcome_readiness(
             "classification_production_contract": row.dataset_id in production_ids,
             "reference_eligible": row.dataset_id in reference_ids,
             "prior_explicit_roles": prior_roles,
-            "fresh_outcome_test_status": "not_demonstrated" if protected else "not_applicable",
+            "fresh_outcome_test_status": ("demonstrated" if row.dataset_id in holdout_check["dataset_ids"]
+                                          else "not_demonstrated" if protected else "not_applicable"),
             "structurally_ready_without_rights_or_outcome_split": structural_ready,
             "training_allowed": structural_ready and data_use["training"]["allowed"],
             "issues": sorted(set(issues)),
@@ -545,6 +570,9 @@ def audit_outcome_readiness(
         suggested_action="กันข้อมูล Outcome holdout ใหม่ก่อนตรวจผล และบันทึก independence/prior-use; แถว Test เดิมที่มี artifact role ให้คงเป็น protected regression/development",
         owner="evaluation_owner", deadline="2026-10-10",
     ))
+    if holdout_check["valid"]:
+        gaps = [gap for gap in gaps if gap["reason_code"] not in {
+            "outcome_partition_not_frozen", "fresh_outcome_test_not_demonstrated"}]
     gaps.append(_gap(
         gap_id="global-sampling-frame", reason_code="general_video_sampling_not_demonstrated",
         missing_field="outcome_sampling_frame",
@@ -634,8 +662,9 @@ def audit_outcome_readiness(
                 not record["structurally_ready_without_rights_or_outcome_split"] for record in holdouts
             ),
             "with_explicit_prior_artifact_roles": sum(bool(record["prior_explicit_roles"]) for record in holdouts),
-            "fresh_outcome_test_count": 0,
-            "freshness_conclusion": "not_demonstrated",
+            "fresh_outcome_test_count": holdout_check["fresh_count"],
+            "freshness_conclusion": "demonstrated" if holdout_check["valid"] else "not_demonstrated",
+            "sealed_manifest_check": holdout_check,
             "reference_channel_overlap_count": len({
                 row.source_channel_id for row in rows
                 if row.data_split in PROTECTED_SPLITS and row.source_channel_id in reference_channels

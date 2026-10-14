@@ -6,11 +6,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import joblib
-from fastapi import HTTPException
+from fastapi import HTTPException, FastAPI
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database.db import Base
+from app.database.db import get_db
+from app.api.deps import get_current_user
+from app.routes import analyze
 from app.database.models import AnalysisResult, OutcomeModel, User, UserContent
 from app.services import outcome_inference as inference
 from app.services.outcome_evidence import attach_outcome_evidence_explanations
@@ -48,6 +52,12 @@ class OutcomeInferenceTests(unittest.TestCase):
         payload = joblib.load(cls.artifact_path)
         payload["qualification"] = {"status": "qualified", "qualified": True}
         payload["production_eligible"] = True
+        payload["evaluated_scopes"] = {
+            "schema_version": "outcome-qualified-scopes-v1",
+            "contexts": [dict(zip(("accepted_category", "confirmed_format", "frozen_age_context",
+                                    "view_metric_version"), cell), qualified=True)
+                         for cell in payload["frozen_evaluation_contexts"]],
+        }
         joblib.dump(payload, cls.artifact_path)
         cls.artifact_sha = file_sha256(cls.artifact_path)
         cls.payload = payload
@@ -175,6 +185,66 @@ class OutcomeInferenceTests(unittest.TestCase):
             second = self.assess(evidence_context=repeated)
             self.assertEqual(second["status"], "available", second)
             self.assertEqual(second["probability"], result["probability"])
+
+    def test_upload_multipart_context_reaches_assessment_and_saved_history(self):
+        jobs = {}
+        settings = {"hook_duration_seconds": 60, "asr_model": "small", "upload_max_duration_seconds": 300}
+
+        def recommend(db, *, result, **kwargs):
+            assessment = inference.assess_outcome(
+                db, category=self.record["accepted_category"], classification=self.classification(),
+                evidence_context=self.context(), input_metadata=result["outcome_context"],
+                allow_synthetic_fixture=True,
+            )
+            return {"domain": self.record["accepted_category"], "classification": self.classification(),
+                    "outcome_assessment": assessment, "missing_keywords": [], "hook_keywords": [],
+                    "recommended_duration": {}}, {}
+
+        def queue(function, *args, **kwargs):
+            kwargs.pop("_owner_user_id", None)
+            jobs["result"] = function(*args, **kwargs)
+            return "synthetic-upload-job"
+
+        app = FastAPI()
+        app.include_router(analyze.router)
+        with self.sessions() as db:
+            user = db.query(User).filter_by(username="outcome-owner").one()
+            app.dependency_overrides[get_db] = lambda: db
+            app.dependency_overrides[get_current_user] = lambda: user
+            with TestClient(app) as client, \
+                 patch.object(analyze, "_capture_upload_settings", return_value=settings), \
+                 patch.object(analyze, "_save_validated_upload", return_value=str(self.root / "fixture-upload.mp4")), \
+                 patch.object(analyze, "probe_media_duration_seconds", return_value=self.record["duration_seconds"]), \
+                 patch.object(analyze, "enqueue", side_effect=queue), \
+                 patch.object(analyze, "SessionLocal", self.sessions), \
+                 patch.object(analyze, "pipeline_analyze", return_value={"transcript": self.record["transcript"], "analysis": {}}), \
+                 patch.object(analyze, "_build_recommendation", side_effect=recommend):
+                response = client.post("/analyze/save", files={"file": ("test.mp4", b"synthetic", "video/mp4")},
+                                       data={"confirmed_format": self.record["confirmed_format"],
+                                             "reference_age_context": self.record["frozen_age_context"]})
+                self.assertEqual(response.status_code, 200, response.text)
+                result = jobs["result"]
+                self.assertEqual(result["recommendation"]["outcome_assessment"]["status"], "available")
+                saved = get_user_content_detail(db, user_id=user.user_id, content_id=result["content_id"])
+                self.assertEqual(saved["outcome_assessment"], result["recommendation"]["outcome_assessment"])
+                self.assertEqual(saved["outcome_assessment"]["context"]["duration_seconds"], self.record["duration_seconds"])
+
+    def test_scope_and_calibration_mismatches_refuse_assessment(self):
+        with self.sessions() as db:
+            snapshot, _ = inference._active_model_snapshot(db)
+        changed = copy.deepcopy(self.payload)
+        changed["calibration_version"] = "wrong-version"
+        self.assertIn("calibration_version_mismatch", inference._qualification_reasons(
+            snapshot, changed, allow_synthetic_fixture=True))
+        changed = copy.deepcopy(self.payload)
+        for context in changed["evaluated_scopes"]["contexts"]:
+            context["qualified"] = context["accepted_category"] != self.record["accepted_category"]
+        snapshot["evaluated_scopes"] = changed["evaluated_scopes"]
+        with patch.object(inference, "_active_model_snapshot", return_value=(snapshot, [])), \
+             patch.object(inference, "_load_cached_artifact", return_value=changed):
+            result = self.assess()
+        self.assertEqual(result["status"], "unsupported_context")
+        self.assertIsNone(result["probability"])
 
     def test_unknown_asr_context_rights_and_artifact_errors_fail_closed(self):
         unknown = self.assess(classification={

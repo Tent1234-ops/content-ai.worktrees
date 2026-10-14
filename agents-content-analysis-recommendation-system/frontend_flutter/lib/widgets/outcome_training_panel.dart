@@ -500,6 +500,10 @@ class _OutcomeMetrics extends StatelessWidget {
             'metadata_topics_logistic_regression'])['after'])['calibration']);
     final partitionCounts = outcomeMap(model.metrics['partition_counts']);
     final test = outcomeMap(model.metrics['independent_test']);
+    final testEvaluation = outcomeMap(test['evaluation']);
+    final testMetrics = outcomeMap(testEvaluation['metrics']);
+    final testCoverage = outcomeMap(outcomeMap(
+        testMetrics['metadata_topics_logistic_regression'])['coverage']);
     return SingleChildScrollView(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(model.version, style: Theme.of(context).textTheme.titleMedium),
@@ -534,6 +538,22 @@ class _OutcomeMetrics extends StatelessWidget {
                     test.isEmpty
                 ? 'ยังไม่เปิดผล Independent Test'
                 : 'Independent Test ยังไม่ผ่าน'),
+        if (testMetrics.isNotEmpty) ...[
+          for (final entry in const {
+            'constant_prior': 'Test · Constant baseline',
+            'metadata_logistic_regression': 'Test · Metadata baseline',
+            'metadata_topics_logistic_regression': 'Test · Metadata + topics',
+          }.entries)
+            _MetricLine(
+                label: entry.value,
+                value: _score(outcomeMap(
+                    outcomeMap(outcomeMap(testMetrics[entry.key])['overall'])[
+                        'channel_balanced'])['brier_score'])),
+          Text(
+              'ประเมินได้ ${testCoverage['assessed'] ?? '-'} / ${testCoverage['eligible'] ?? '-'} คลิป · '
+              'งดประเมิน ${testCoverage['abstained'] ?? '-'} คลิป'),
+          for (final scope in model.evaluatedScopes) Text(scope),
+        ],
         if (partitionCounts.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text('จำนวนข้อมูลต่อชุด',

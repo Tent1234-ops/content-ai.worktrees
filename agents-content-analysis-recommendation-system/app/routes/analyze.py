@@ -475,7 +475,8 @@ def read_upload_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("admin", "user")),
 ):
-    return get_analysis_settings(db)
+    from app.services.outcome_inference import outcome_upload_options
+    return {**get_analysis_settings(db), "outcome_upload": outcome_upload_options(db)}
 
 
 def _capture_upload_settings(db: Session) -> dict:

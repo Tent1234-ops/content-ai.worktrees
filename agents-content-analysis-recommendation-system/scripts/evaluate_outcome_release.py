@@ -18,6 +18,8 @@ from app.services.outcome_final_evaluation import (  # noqa: E402
     write_phase6_bundle,
 )
 from app.services.outcome_model_management import training_overview  # noqa: E402
+from app.services.outcome_model_management import ARTIFACT_ROOT
+from app.services.outcome_independent_evaluation import registered_evaluation_report
 from app.services.outcome_prediction_readiness import reject_database_writes  # noqa: E402
 
 
@@ -30,6 +32,8 @@ def main() -> int:
     parser.add_argument("--readiness", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--browser-evidence", type=Path)
+    parser.add_argument("--evaluated-model-id", type=int,
+                        help="Use a verified, already completed independent evaluation; never opens Test")
     parser.add_argument("--backend-test-count", required=True, type=int)
     parser.add_argument("--flutter-test-count", required=True, type=int)
     parser.add_argument("--flutter-analyze-passed", action="store_true")
@@ -61,6 +65,9 @@ def main() -> int:
     with reject_database_writes(engine):
         with SessionLocal() as db:
             overview = training_overview(db)
+            independent = registered_evaluation_report(
+                db, model_id=args.evaluated_model_id, freeze=freeze, trusted_root=ARTIFACT_ROOT,
+            ) if args.evaluated_model_id is not None else None
             db.rollback()
 
     browser_passed = bool(browser and browser.get("passed") is True)
@@ -100,6 +107,7 @@ def main() -> int:
         outcome_overview=overview,
         browser_evidence=browser,
         software_evidence=software_evidence,
+        independent_evaluation=independent,
     )
     result = write_phase6_bundle(args.output_dir, reports)
     print(json.dumps({

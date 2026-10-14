@@ -19,6 +19,8 @@ class AnalysisRepository {
     Stream<List<int>>? fileStream,
     int? fileSize,
     required String fileName,
+    String? confirmedFormat,
+    String? referenceAgeContext,
   }) async {
     final response = await _client.postMultipart(
       '/analyze/save',
@@ -27,6 +29,12 @@ class AnalysisRepository {
       fileBytes: fileBytes,
       fileStream: fileStream,
       fileSize: fileSize,
+      fields: {
+        if (confirmedFormat != null && confirmedFormat.isNotEmpty)
+          'confirmed_format': confirmedFormat,
+        if (referenceAgeContext != null && referenceAgeContext.isNotEmpty)
+          'reference_age_context': referenceAgeContext,
+      },
     );
     final payload = Map<String, dynamic>.from(response as Map);
     final jobId = payload['job_id']?.toString();

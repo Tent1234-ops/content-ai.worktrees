@@ -1,0 +1,502 @@
+{
+  "schema_version": "notebooklm-laptop-prompt-batches-v2",
+  "created_date": "2026-10-14",
+  "packaged_at": "2026-10-14T15:16:30.095746+00:00",
+  "input_url_count": 45,
+  "database_rows_checked": 536,
+  "duplicate_inputs": [],
+  "database_duplicates_excluded": [
+    {
+      "video_id": "8aDiCPpMKRc",
+      "dataset_id": 225,
+      "title": "5 โน้ตบุ๊ก งบ 20,000 บาท สเปกดี ตัดต่อกราฟิกได้ มีน้ำหนักเบา!",
+      "split": "test",
+      "deleted_at": null
+    },
+    {
+      "video_id": "TTs49a2hbgg",
+      "dataset_id": 236,
+      "title": "เกมมิ่งโน้ตบุ๊ค RAM 32GB แค่ 20,XXX คุ้มที่สุดในปี 2026?",
+      "split": "train",
+      "deleted_at": null
+    },
+    {
+      "video_id": "Nr74nlUJUU4",
+      "dataset_id": 366,
+      "title": "รีวิว LENOVO LOQ 15ARP9 โน๊ตบุ๊กสเปกครบเครื่อง คุ้มเกินราคา | iHAVECPU",
+      "split": "test",
+      "deleted_at": null
+    }
+  ],
+  "invalid_ids_held": [
+    "gLNNkdwjXg",
+    "0ph2fe8ENw"
+  ],
+  "input_urls": [
+    "https://www.youtube.com/watch?v=-FCHXNFxOH0",
+    "https://www.youtube.com/watch?v=yUZDCktp6gY",
+    "https://www.youtube.com/watch?v=ZPX_8YQuAv8",
+    "https://www.youtube.com/watch?v=gLNNkdwjXg",
+    "https://www.youtube.com/watch?v=kkAElKajzyI",
+    "https://www.youtube.com/watch?v=2W1mJuhLv_w",
+    "https://www.youtube.com/watch?v=TTs49a2hbgg",
+    "https://www.youtube.com/watch?v=M-dOyG9xeCQ",
+    "https://www.youtube.com/watch?v=jb9bnsUmulA",
+    "https://www.youtube.com/watch?v=8WMFnnm6Q4c",
+    "https://www.youtube.com/watch?v=o7O455oX6QM",
+    "https://www.youtube.com/watch?v=Nr74nlUJUU4",
+    "https://www.youtube.com/watch?v=xHwRHrLpQDI",
+    "https://www.youtube.com/watch?v=k9WlzqOVbuA",
+    "https://www.youtube.com/watch?v=THCCJlK-zFs",
+    "https://www.youtube.com/watch?v=ihNaCl_cVeo",
+    "https://www.youtube.com/watch?v=Lrh4hWuiJoA",
+    "https://www.youtube.com/watch?v=VoLimCXdgxo",
+    "https://www.youtube.com/watch?v=Ks0ZZHChTC4",
+    "https://www.youtube.com/watch?v=pDW8rLIwAbw",
+    "https://www.youtube.com/watch?v=Ko7-AJ3dl7c",
+    "https://www.youtube.com/watch?v=YB1rAnuqEPI",
+    "https://www.youtube.com/watch?v=Gs-vE7AurJE",
+    "https://www.youtube.com/watch?v=YZNoJry9mqI",
+    "https://www.youtube.com/watch?v=aEl4jc-JqZ0",
+    "https://www.youtube.com/watch?v=q0j05jff7cY",
+    "https://www.youtube.com/watch?v=1gJX6Dwb0dM",
+    "https://www.youtube.com/watch?v=8CWbmdNx-O4",
+    "https://www.youtube.com/watch?v=Z39JdiGLHdQ",
+    "https://www.youtube.com/watch?v=o_AYQ5a68Ho",
+    "https://www.youtube.com/watch?v=NHDGmjO3gBw",
+    "https://www.youtube.com/watch?v=0ph2fe8ENw",
+    "https://www.youtube.com/watch?v=8aDiCPpMKRc",
+    "https://www.youtube.com/watch?v=616j2o4njbo",
+    "https://www.youtube.com/watch?v=t07UlkoT3FA",
+    "https://www.youtube.com/watch?v=VueGpbuyxq0",
+    "https://www.youtube.com/watch?v=P0Vfwf9uKRE",
+    "https://www.youtube.com/watch?v=_hoNg6d8MTk",
+    "https://www.youtube.com/watch?v=nSuInI4_iRk",
+    "https://www.youtube.com/watch?v=yMT4NvlXXdo",
+    "https://www.youtube.com/watch?v=5yBeI980GPg",
+    "https://www.youtube.com/watch?v=nLvbaaI_8oc",
+    "https://www.youtube.com/watch?v=g6UMDp6_cco",
+    "https://www.youtube.com/watch?v=XmXluljJu1Q",
+    "https://www.youtube.com/watch?v=eALvYvY2Sbs"
+  ],
+  "total_videos": 40,
+  "batch_size": 3,
+  "batch_count": 14,
+  "input_order_preserved": true,
+  "metadata_source": "Live YouTube videos.list snippet/contentDetails response in this conversation, 2026-10-14; manually projected exact IDs, titles and channel names",
+  "metadata_verified_count": 40,
+  "outcome_holdout_approved": false,
+  "database_modified": false,
+  "caption_fullness_verified": false,
+  "channel_overlap_review_completed": false,
+  "character_budget_note": "Each file below 2000 UTF-16 units including CRLF; internal target, not an account limit guarantee",
+  "previous_files_backup": "Z:\\content-ai.worktrees\\agents-content-analysis-recommendation-system\\artifacts\\transcript-prompts\\laptop-new45-20261014\\previous-laptop-prompts.zip",
+  "batches": [
+    {
+      "batch": 1,
+      "file": "laptop-batch-01.txt",
+      "count": 3,
+      "utf16_units_crlf": 1837,
+      "sha256": "3905773660d86fded54f2ef975f0caab7f1bc9666d8118f2a8d7254030ba5b6a",
+      "videos": [
+        {
+          "video_id": "-FCHXNFxOH0",
+          "title": "โน้ตบุ๊คทำงานครบที่สุดในงบ 32,990 บาท ? | รีวิว Lenovo IdeaPad Slim 5",
+          "channel": "NotebookSPEC",
+          "url": "https://www.youtube.com/watch?v=-FCHXNFxOH0",
+          "output_filename": "transcript_-FCHXNFxOH0.md"
+        },
+        {
+          "video_id": "yUZDCktp6gY",
+          "title": "โน้ตบุ๊คเกมมิ่ง RTX 5050 ยังไหวมั้ยในปี 2026?",
+          "channel": "NotebookSPEC",
+          "url": "https://www.youtube.com/watch?v=yUZDCktp6gY",
+          "output_filename": "transcript_yUZDCktp6gY.md"
+        },
+        {
+          "video_id": "ZPX_8YQuAv8",
+          "title": "ถ้ามืออาชีพต้องเลือกโน้ตบุ๊คไว้ใช้ ยังไงเครื่องนี้ก็เข้าวิน! | รีวิว MacBook Pro ชิป M5 Pro",
+          "channel": "NotebookSPEC",
+          "url": "https://www.youtube.com/watch?v=ZPX_8YQuAv8",
+          "output_filename": "transcript_ZPX_8YQuAv8.md"
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "file": "laptop-batch-02.txt",
+      "count": 3,
+      "utf16_units_crlf": 1815,
+      "sha256": "57dc58dc209a92c3f8008cb41fd008cfaad2ceb1512b740ddaf2c6c43f5e0489",
+      "videos": [
+        {
+          "video_id": "kkAElKajzyI",
+          "title": "โน้ตบุ๊คมือ 1 ราคาถูกที่สุดแค่ 3,000 บาท ใช้จริงไหวมั้ย!?",
+          "channel": "คอมคร้าบ",
+          "url": "https://www.youtube.com/watch?v=kkAElKajzyI",
+          "output_filename": "transcript_kkAElKajzyI.md"
+        },
+        {
+          "video_id": "2W1mJuhLv_w",
+          "title": "เทียบโน้ตบุ๊คทำงาน 3 รุ่น 3 ยี่ห้อ งบหมื่นกลาง ต่างกันขนาดไหน ทั้งภายนอกและภายใน?",
+          "channel": "คอมคร้าบ",
+          "url": "https://www.youtube.com/watch?v=2W1mJuhLv_w",
+          "output_filename": "transcript_2W1mJuhLv_w.md"
+        },
+        {
+          "video_id": "M-dOyG9xeCQ",
+          "title": "แรง เย็น เงียบ ใส่มาสุด เพื่อชาวเกมเมอร์ | HyperX OMEN 16",
+          "channel": "คอมคร้าบ",
+          "url": "https://www.youtube.com/watch?v=M-dOyG9xeCQ",
+          "output_filename": "transcript_M-dOyG9xeCQ.md"
+        }
+      ]
+    },
+    {
+      "batch": 3,
+      "file": "laptop-batch-03.txt",
+      "count": 3,
+      "utf16_units_crlf": 1847,
+      "sha256": "fcb9ed9b53d470d5e8bbfc3f6abfa0516c0f60f0f541f8ae1dfe183bde1f250c",
+      "videos": [
+        {
+          "video_id": "jb9bnsUmulA",
+          "title": "รีวิว HP VICTUS 15-FA2387TX โน๊ตบุ๊กสเปกเด็ด แรงคุ้มเกินราคา | iHAVECPU",
+          "channel": "iHAVECPU",
+          "url": "https://www.youtube.com/watch?v=jb9bnsUmulA",
+          "output_filename": "transcript_jb9bnsUmulA.md"
+        },
+        {
+          "video_id": "8WMFnnm6Q4c",
+          "title": "รีวิว ACER NITRO V 15 ANV15-52-73BK  โน๊ตบุ๊คเกมมิ่ง สเปกโคตรคุ้ม ในงบ 31,990.- | iHAVECPU",
+          "channel": "iHAVECPU",
+          "url": "https://www.youtube.com/watch?v=8WMFnnm6Q4c",
+          "output_filename": "transcript_8WMFnnm6Q4c.md"
+        },
+        {
+          "video_id": "o7O455oX6QM",
+          "title": "รีวิว HP VICTUS 15-FB3086AX คุ้มเกินราคา พร้อมลุยทุกงาน | iHAVECPU",
+          "channel": "iHAVECPU",
+          "url": "https://www.youtube.com/watch?v=o7O455oX6QM",
+          "output_filename": "transcript_o7O455oX6QM.md"
+        }
+      ]
+    },
+    {
+      "batch": 4,
+      "file": "laptop-batch-04.txt",
+      "count": 3,
+      "utf16_units_crlf": 1919,
+      "sha256": "e303601ba65c730fcf7a4599b6dc9e740ccbb4b568c66309a992d404d2845353",
+      "videos": [
+        {
+          "video_id": "xHwRHrLpQDI",
+          "title": "รีวิว ASUS ExpertBook Ultra โน้ตบุ๊กธุรกิจพรีเมียมตัวจบแห่งปี สเปคสุดทุกทาง!",
+          "channel": "TechOffside “ล้ำหน้าโชว์”",
+          "url": "https://www.youtube.com/watch?v=xHwRHrLpQDI",
+          "output_filename": "transcript_xHwRHrLpQDI.md"
+        },
+        {
+          "video_id": "k9WlzqOVbuA",
+          "title": "รีวิว HyperX OMEN 15 ไฮเอนด์เกมมิ่งแล็ปท็อป ขุมพลัง AMD Ryzen 9-8940HX แรงทะลุมิติ เย็นสะใจ!",
+          "channel": "TechOffside “ล้ำหน้าโชว์”",
+          "url": "https://www.youtube.com/watch?v=k9WlzqOVbuA",
+          "output_filename": "transcript_k9WlzqOVbuA.md"
+        },
+        {
+          "video_id": "THCCJlK-zFs",
+          "title": "รีวิว MacBook Air M4 สำหรับช่างภาพ & Content Creator | Lightroom, Davinci, Premiere พอไหม?",
+          "channel": "iLoveToGoDotCOM",
+          "url": "https://www.youtube.com/watch?v=THCCJlK-zFs",
+          "output_filename": "transcript_THCCJlK-zFs.md"
+        }
+      ]
+    },
+    {
+      "batch": 5,
+      "file": "laptop-batch-05.txt",
+      "count": 3,
+      "utf16_units_crlf": 1804,
+      "sha256": "01b84effb171580c1266cdbdeb815ce120d4229cc7034ae63056526a79cc2931",
+      "videos": [
+        {
+          "video_id": "ihNaCl_cVeo",
+          "title": "รีวิว ASUS Zenbook Duo 2026 — โน้ตบุ๊กจอคู่สำหรับสายทำงานและครีเอเตอร์",
+          "channel": "9tum",
+          "url": "https://www.youtube.com/watch?v=ihNaCl_cVeo",
+          "output_filename": "transcript_ihNaCl_cVeo.md"
+        },
+        {
+          "video_id": "Lrh4hWuiJoA",
+          "title": "Review Notebook สำหรับตัดต่อ เล่นเกมนิดหน่อย งบ 25K หลังใช้งานจริงมา 4 เดือน",
+          "channel": "Captain Naphat",
+          "url": "https://www.youtube.com/watch?v=Lrh4hWuiJoA",
+          "output_filename": "transcript_Lrh4hWuiJoA.md"
+        },
+        {
+          "video_id": "VoLimCXdgxo",
+          "title": "MacBook Air M4 ยังน่าชื้อไหม?",
+          "channel": "ThePeak Channel",
+          "url": "https://www.youtube.com/watch?v=VoLimCXdgxo",
+          "output_filename": "transcript_VoLimCXdgxo.md"
+        }
+      ]
+    },
+    {
+      "batch": 6,
+      "file": "laptop-batch-06.txt",
+      "count": 3,
+      "utf16_units_crlf": 1808,
+      "sha256": "a66cad6ace0f507aa941661d319595f1cc06ab12b8e539a5365b18af549ce7a1",
+      "videos": [
+        {
+          "video_id": "Ks0ZZHChTC4",
+          "title": "รีวิว Macbook Pro M5 | ทำไมน่าซื้อ?",
+          "channel": "JRKT",
+          "url": "https://www.youtube.com/watch?v=Ks0ZZHChTC4",
+          "output_filename": "transcript_Ks0ZZHChTC4.md"
+        },
+        {
+          "video_id": "pDW8rLIwAbw",
+          "title": "รีวิว Macbook Pro M5 ใช้ครบ 3 เดือน ฉบับคนใช้จริง ทำไมต้องรุ่นนี้?",
+          "channel": "Benz Inthanon",
+          "url": "https://www.youtube.com/watch?v=pDW8rLIwAbw",
+          "output_filename": "transcript_pDW8rLIwAbw.md"
+        },
+        {
+          "video_id": "Ko7-AJ3dl7c",
+          "title": "พรีมาแล้ว! รีวิว MacBook Air M5 ราคานักศึกษา 33,xxx บาท คุ้มไหมที่จะอัปเกรด?",
+          "channel": "Unbox&Go With Joey",
+          "url": "https://www.youtube.com/watch?v=Ko7-AJ3dl7c",
+          "output_filename": "transcript_Ko7-AJ3dl7c.md"
+        }
+      ]
+    },
+    {
+      "batch": 7,
+      "file": "laptop-batch-07.txt",
+      "count": 3,
+      "utf16_units_crlf": 1906,
+      "sha256": "643f89201477a4bc47901ff492647c3b574ca1bd999d8feb484e5f38eb782c2c",
+      "videos": [
+        {
+          "video_id": "YB1rAnuqEPI",
+          "title": "เลือกซื้อ Gaming Notebook ตัวคุ้ม ต้องรู้ต้องดูอะไรบ้าง เป็นของขวัญช่วงเทศกาลปีใหม่ x MSI Cyborg 15",
+          "channel": "AdminPong (แอดมินโป้ง)",
+          "url": "https://www.youtube.com/watch?v=YB1rAnuqEPI",
+          "output_filename": "transcript_YB1rAnuqEPI.md"
+        },
+        {
+          "video_id": "Gs-vE7AurJE",
+          "title": "\"โน๊ตบุ๊คหมื่นกลาง\" แบรนด์ไหนให้สุด!? (ASUS P1 vs Lenovo vs HP) | อาตี๋รีวิว EP.2115",
+          "channel": "อาตี๋ รีวิว",
+          "url": "https://www.youtube.com/watch?v=Gs-vE7AurJE",
+          "output_filename": "transcript_Gs-vE7AurJE.md"
+        },
+        {
+          "video_id": "YZNoJry9mqI",
+          "title": "พี่นัดตี้ รีวิว Dell Pro 14 PC14250 | AI PC เบา แรง ปลอดภัย ตอบโจทย์องค์กรยุคใหม่",
+          "channel": "TechTalk Thai",
+          "url": "https://www.youtube.com/watch?v=YZNoJry9mqI",
+          "output_filename": "transcript_YZNoJry9mqI.md"
+        }
+      ]
+    },
+    {
+      "batch": 8,
+      "file": "laptop-batch-08.txt",
+      "count": 3,
+      "utf16_units_crlf": 1873,
+      "sha256": "e5b13df51bbbf715cd596dbe2c6af7c86be99058fa6f46483210a892516be9a6",
+      "videos": [
+        {
+          "video_id": "aEl4jc-JqZ0",
+          "title": "รีวิว Dell Pro Max 16 MC16250 | Core Ultra 9 285H แรงระดับโปร พร้อมลุยงานหนัก",
+          "channel": "TechTalk Thai",
+          "url": "https://www.youtube.com/watch?v=aEl4jc-JqZ0",
+          "output_filename": "transcript_aEl4jc-JqZ0.md"
+        },
+        {
+          "video_id": "q0j05jff7cY",
+          "title": "รีวิว Acer Nitro V 15 AI (ANV15-42-R1D1) - เล่นเกมลื่นในงบ 3 หมื่นมีทอน",
+          "channel": "GamingDose",
+          "url": "https://www.youtube.com/watch?v=q0j05jff7cY",
+          "output_filename": "transcript_q0j05jff7cY.md"
+        },
+        {
+          "video_id": "1gJX6Dwb0dM",
+          "title": "รีวิวพร้อมลองเล่น NOTEBOOK NITRO V 15 ANV15-52-501P ( ในราคางบ3หมื่นผมว่าดีที่สุดแล้วตอนนี้ )",
+          "channel": "เหน่งคุงชาแนล",
+          "url": "https://www.youtube.com/watch?v=1gJX6Dwb0dM",
+          "output_filename": "transcript_1gJX6Dwb0dM.md"
+        }
+      ]
+    },
+    {
+      "batch": 9,
+      "file": "laptop-batch-09.txt",
+      "count": 3,
+      "utf16_units_crlf": 1834,
+      "sha256": "05cc5471002dff4b5a6c2ec7ff10400e819737cc5632dca73ddbcb0d30452473",
+      "videos": [
+        {
+          "video_id": "8CWbmdNx-O4",
+          "title": "รีวิว Acer NITRO V 15 ANV15-52-501P - พร้อมเล่น พร้อมลุย ในราคาไม่แรง",
+          "channel": "GamingDose",
+          "url": "https://www.youtube.com/watch?v=8CWbmdNx-O4",
+          "output_filename": "transcript_8CWbmdNx-O4.md"
+        },
+        {
+          "video_id": "Z39JdiGLHdQ",
+          "title": "รีวิว ROG X Kojima กับ Flow Z13 สเปคสุดโหด Ram 128GB",
+          "channel": "Extreme IT",
+          "url": "https://www.youtube.com/watch?v=Z39JdiGLHdQ",
+          "output_filename": "transcript_Z39JdiGLHdQ.md"
+        },
+        {
+          "video_id": "o_AYQ5a68Ho",
+          "title": "รีวิว Lenovo YOGA 7 2-IN-1 พับ 360° จอ OLED 14\", Ryzen AI 7 350, D5 24GB แรงระดับ Copilot+PC",
+          "channel": "ADBIG",
+          "url": "https://www.youtube.com/watch?v=o_AYQ5a68Ho",
+          "output_filename": "transcript_o_AYQ5a68Ho.md"
+        }
+      ]
+    },
+    {
+      "batch": 10,
+      "file": "laptop-batch-10.txt",
+      "count": 3,
+      "utf16_units_crlf": 1860,
+      "sha256": "9c4f2db3de5a25e2e7829bfc6226180adea901e46877e1b5030bf07984c64ed2",
+      "videos": [
+        {
+          "video_id": "NHDGmjO3gBw",
+          "title": "พาเดินทัวร์ดูโน๊ตบุ๊ค ACER น่าซื้อน่าใช้งบเริ่มต้นที่ 13,990 บาท เอาใจสายทำงาน! ช่วง เมษายน 2026",
+          "channel": "S-DIMENSION",
+          "url": "https://www.youtube.com/watch?v=NHDGmjO3gBw",
+          "output_filename": "transcript_NHDGmjO3gBw.md"
+        },
+        {
+          "video_id": "616j2o4njbo",
+          "title": "รีวิว ASUS ExpertBook Ultra — ตัวท็อปสุดสาย PC กิโลเดียว อึดทน สเปคจัดเต็ม",
+          "channel": "spin9",
+          "url": "https://www.youtube.com/watch?v=616j2o4njbo",
+          "output_filename": "transcript_616j2o4njbo.md"
+        },
+        {
+          "video_id": "t07UlkoT3FA",
+          "title": "รีวิว ASUS ExpertBook Ultra กับภารกิจที่โน้ตบุ๊กส่วนใหญ่ไม่อยากเจอ 😱 !?",
+          "channel": "GU ZAP",
+          "url": "https://www.youtube.com/watch?v=t07UlkoT3FA",
+          "output_filename": "transcript_t07UlkoT3FA.md"
+        }
+      ]
+    },
+    {
+      "batch": 11,
+      "file": "laptop-batch-11.txt",
+      "count": 3,
+      "utf16_units_crlf": 1829,
+      "sha256": "4442ba6fe6524a97a3443cdbe502f6ce9f11201aa66d5e1cdf876afeedb35fe8",
+      "videos": [
+        {
+          "video_id": "VueGpbuyxq0",
+          "title": "โน้ตบุ๊คสเปกโหด...โคตรอึด โคตรทึก โคตรทน‼️ ASUS ExpertBook Ultra",
+          "channel": "JIB Channel",
+          "url": "https://www.youtube.com/watch?v=VueGpbuyxq0",
+          "output_filename": "transcript_VueGpbuyxq0.md"
+        },
+        {
+          "video_id": "P0Vfwf9uKRE",
+          "title": "รีวิว HP EliteBook X Flip G1i | โน้ตบุ๊กผู้บริหาร จอพับ 2in1 สำหรับคนทำงานยุค AI",
+          "channel": "Add In Business",
+          "url": "https://www.youtube.com/watch?v=P0Vfwf9uKRE",
+          "output_filename": "transcript_P0Vfwf9uKRE.md"
+        },
+        {
+          "video_id": "_hoNg6d8MTk",
+          "title": "รีวิว ASUS ExpertBook Ultra เบา อึด ถึก รองรับ Local AI ",
+          "channel": "iT24Hrs",
+          "url": "https://www.youtube.com/watch?v=_hoNg6d8MTk",
+          "output_filename": "transcript__hoNg6d8MTk.md"
+        }
+      ]
+    },
+    {
+      "batch": 12,
+      "file": "laptop-batch-12.txt",
+      "count": 3,
+      "utf16_units_crlf": 1903,
+      "sha256": "96888a62df41a57a24a2730b9c8392cf937bb8a0284a0e68eb7227c5e891a9ea",
+      "videos": [
+        {
+          "video_id": "nSuInI4_iRk",
+          "title": "Notebook สเปกโหด 128GB RAM สาย Content creator ProArt PX13 x GoPro:  ในร่าง 13 นิ้ว",
+          "channel": "เที่ยวสุดตัว",
+          "url": "https://www.youtube.com/watch?v=nSuInI4_iRk",
+          "output_filename": "transcript_nSuInI4_iRk.md"
+        },
+        {
+          "video_id": "yMT4NvlXXdo",
+          "title": "รีวิว ASUS Zenbook A14 สเปก Snapdragon X2 Elite เบา 980 กรัม เทียบ MacBook Air 13 M5 อะไรดี อะไรเด่น",
+          "channel": "AdminPong (แอดมินโป้ง)",
+          "url": "https://www.youtube.com/watch?v=yMT4NvlXXdo",
+          "output_filename": "transcript_yMT4NvlXXdo.md"
+        },
+        {
+          "video_id": "5yBeI980GPg",
+          "title": "รีวิว ASUS Zenbook S16 UM5606 จอใหญ่ บาง แบตอึด สายทำงานเน้นพกพาถูกใจสิ่งนี้ !!",
+          "channel": "TechHangout",
+          "url": "https://www.youtube.com/watch?v=5yBeI980GPg",
+          "output_filename": "transcript_5yBeI980GPg.md"
+        }
+      ]
+    },
+    {
+      "batch": 13,
+      "file": "laptop-batch-13.txt",
+      "count": 3,
+      "utf16_units_crlf": 1810,
+      "sha256": "238709146ff0f5c71e8d8c79da9b0f33928884d5f3080a1b2b9073c6020bfda6",
+      "videos": [
+        {
+          "video_id": "nLvbaaI_8oc",
+          "title": "ASUS Zenbook S16 UM5606GA-SR927WA บางเบาแต่ตัดงานได้นะ | IT Review",
+          "channel": "Bigglive blog",
+          "url": "https://www.youtube.com/watch?v=nLvbaaI_8oc",
+          "output_filename": "transcript_nLvbaaI_8oc.md"
+        },
+        {
+          "video_id": "g6UMDp6_cco",
+          "title": "รีวิว Asus ProArt P16 | Notebook ตัวจบสำหรับ Creator !!!",
+          "channel": "KOEY WITH MIEW",
+          "url": "https://www.youtube.com/watch?v=g6UMDp6_cco",
+          "output_filename": "transcript_g6UMDp6_cco.md"
+        },
+        {
+          "video_id": "XmXluljJu1Q",
+          "title": "นี่คือ Laptop ที่เกิดมาเพื่อครีเอเตอร์ | ASUS ProArt PZ14",
+          "channel": "withcapt",
+          "url": "https://www.youtube.com/watch?v=XmXluljJu1Q",
+          "output_filename": "transcript_XmXluljJu1Q.md"
+        }
+      ]
+    },
+    {
+      "batch": 14,
+      "file": "laptop-batch-14.txt",
+      "count": 1,
+      "utf16_units_crlf": 1560,
+      "sha256": "085468682c05b7d055a04a10c32407672af57bdb01b378d88c7cd3e200e0bc3b",
+      "videos": [
+        {
+          "video_id": "eALvYvY2Sbs",
+          "title": "5 โน้ตบุ๊กเกมมิ่งสุดคุ้มปลายปี 2025 ราคาไม่เกิน 40,990 บาท!",
+          "channel": "S-DIMENSION",
+          "url": "https://www.youtube.com/watch?v=eALvYvY2Sbs",
+          "output_filename": "transcript_eALvYvY2Sbs.md"
+        }
+      ]
+    }
+  ]
+}

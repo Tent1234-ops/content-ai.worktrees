@@ -1,5 +1,17 @@
 import 'outcome_prediction.dart';
 
+List<String> _evaluatedScopeLabels(dynamic value) {
+  if (value is List) return outcomeStrings(value);
+  final contexts = outcomeMap(value)['contexts'] as List? ?? const [];
+  return contexts
+      .map(outcomeMap)
+      .where((item) => item['qualified'] == true)
+      .map((item) =>
+          '${item['accepted_category']} · ${item['confirmed_format']} · '
+          '${item['frozen_age_context']} · ${item['view_metric_version']}')
+      .toList();
+}
+
 class OutcomeTrainingRun {
   OutcomeTrainingRun.fromJson(dynamic value)
       : raw = outcomeMap(value),
@@ -51,7 +63,8 @@ class OutcomeModelSummary {
         metricRows = (outcomeMap(value)['metric_rows'] as List? ?? const [])
             .map(outcomeMap)
             .toList(),
-        evaluatedScopes = outcomeStrings(outcomeMap(value)['evaluated_scopes']),
+        evaluatedScopes =
+            _evaluatedScopeLabels(outcomeMap(value)['evaluated_scopes']),
         artifactAvailable = outcomeMap(value)['artifact_available'] == true;
 
   final int id;
@@ -129,6 +142,12 @@ String outcomeAdminReason(String reason) => switch (reason) {
       'model_not_independent_test_qualified' =>
         'โมเดลยังไม่ผ่าน Independent Test',
       'independent_test_not_passed' => 'Independent Test ยังไม่ผ่าน',
+      'qualified_scopes_missing' => 'ยังไม่มีขอบเขตที่ผ่านการประเมินอิสระ',
+      'qualified_context_missing' => 'ยังไม่มีบริบทที่ผ่านการตรวจรับ',
+      'data_use_training_not_authorized' =>
+        'ยังไม่ได้รับอนุญาตให้ใช้ข้อมูลฝึกโมเดล',
+      'data_use_serving_not_authorized' =>
+        'ยังไม่ได้รับอนุญาตให้ใช้โมเดลประเมินผู้ใช้',
       'production_eligibility_false' => 'ยังไม่ผ่านเกณฑ์ใช้งานจริง',
       'synthetic_fixture_not_activatable' =>
         'โมเดลจากข้อมูลทดสอบเปิดใช้จริงไม่ได้',

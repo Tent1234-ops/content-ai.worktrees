@@ -21,6 +21,14 @@ from app.database.models import (
 )
 from app.routes.outcome_model_management import router
 from app.services import outcome_model_management as service
+from app.services.outcome_training import CALIBRATION_VERSION
+
+
+QUALIFIED_SCOPES = {"schema_version": "outcome-qualified-scopes-v1", "contexts": [{
+    "accepted_category": "phone", "confirmed_format": "long_form",
+    "frozen_age_context": "age_30_90d", "view_metric_version": "youtube_play_start_view_v2",
+    "qualified": True,
+}]}
 
 
 READY = {
@@ -58,6 +66,7 @@ def fake_report(tmp: Path):
         "artifact_created": True,
         "artifact_path": str(artifact), "artifact_sha256": "c" * 64,
         "target_version": "reference_relative_views_v1",
+        "calibration_version": CALIBRATION_VERSION,
         "protocol_sha256": "b" * 64,
         "feature_schema_sha256": "d" * 64,
         "manifest_sha256": "a" * 64,
@@ -155,7 +164,8 @@ class OutcomeModelManagementTests(unittest.TestCase):
         started = self.start()
         report = fake_report(self.temp_path / "worker-artifact")
         with patch.object(service, "_find_manifest", return_value=(Path("manifest"), Path("features"))), \
-             patch.object(service, "train_and_validate_outcome_model", return_value=report):
+             patch.object(service, "train_and_validate_outcome_model", return_value=report), \
+             patch.object(service, "load_outcome_artifact", return_value={"calibration_version": CALIBRATION_VERSION}):
             service.execute_training_run(started["run_id"], session_factory=self.sessions)
         self.db.expire_all()
         result = service.get_training_run(self.db, started["run_id"])
@@ -165,6 +175,7 @@ class OutcomeModelManagementTests(unittest.TestCase):
         self.assertFalse(model.is_active)
         self.assertFalse(model.independent_test_passed)
         self.assertFalse(model.production_eligible)
+        self.assertEqual(model.calibration_version, CALIBRATION_VERSION)
         self.assertTrue(self.db.get(ClassificationModel, classifier.model_id).is_active)
         detail = service.model_detail(self.db, model.model_id)
         self.assertFalse(detail["can_activate"])
@@ -202,9 +213,7 @@ class OutcomeModelManagementTests(unittest.TestCase):
             calibration_version="weighted-sigmoid-v1", source_kind="real",
             status="qualified", is_active=False, artifact_path=str(artifact),
             artifact_sha256="c" * 64, metrics_json="{}",
-            evaluated_scopes_json=json.dumps([
-                "overall", "category", "confirmed_format", "age_context",
-            ]), library_versions_json="{}",
+            evaluated_scopes_json=json.dumps(QUALIFIED_SCOPES), library_versions_json="{}",
             independent_test_passed=True, production_eligible=True,
         )
         blocked = OutcomeModel(
@@ -234,7 +243,11 @@ class OutcomeModelManagementTests(unittest.TestCase):
 
         allowed = {"can_activate": True, "reason_codes": [], "force_override_supported": False}
         with patch.object(service, "activation_validation", return_value=allowed), \
-             patch.object(service, "load_outcome_artifact", return_value={}):
+             patch.object(service, "load_outcome_artifact", return_value={
+                 "qualification": {"status": "qualified", "qualified": True},
+                 "production_eligible": True, "evaluated_scopes": QUALIFIED_SCOPES,
+                 "calibration_version": first.calibration_version,
+             }):
             activated = service.activate_model(
                 self.db, first.model_id,
                 expected_active_model_id=None, user_id=self.admin.user_id,
@@ -249,6 +262,7 @@ class OutcomeModelManagementTests(unittest.TestCase):
             blocked.status = "qualified"
             blocked.independent_test_passed = True
             blocked.production_eligible = True
+            blocked.evaluated_scopes_json = json.dumps(QUALIFIED_SCOPES)
             self.db.commit()
             service.activate_model(
                 self.db, blocked.model_id,

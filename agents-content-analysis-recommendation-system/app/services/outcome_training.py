@@ -32,6 +32,7 @@ from app.services.outcome_dataset import (
     FEATURE_SCHEMA_VERSION,
     feature_schema as build_feature_schema,
     fit_benchmarks,
+    identity_keys,
     label_records,
     validate_feature_vector,
     verify_manifest,
@@ -40,13 +41,16 @@ from app.services.outcome_prediction_readiness import (
     data_use_gate,
     validate_protocol,
 )
+from app.services.outcome_support import (
+    TRAINING_SUPPORT_VERSION, QUALIFIED_SCOPES_VERSION, topic_signature,
+    training_support as check_training_support,
+)
 
 
-ARTIFACT_SCHEMA_VERSION = "outcome-model-artifact-v1"
+ARTIFACT_SCHEMA_VERSION = "outcome-model-artifact-v2"
 CALIBRATION_VERSION = "weighted-platt-sigmoid-v1"
-TRAINING_REPORT_VERSION = "outcome-validation-report-v1"
+TRAINING_REPORT_VERSION = "outcome-validation-report-v2"
 MODEL_VERSION_PREFIX = "outcome-reference-relative-views"
-TRAINING_SUPPORT_VERSION = "outcome-training-support-v1"
 
 
 def _canonical_json(value: Any) -> str:
@@ -213,12 +217,26 @@ def _calibration_bins(
 
 def _evaluation(
     rows: list[dict[str, Any]], probabilities, protocol: dict[str, Any],
+    *, support: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    all_rows = rows
+    decisions = [check_training_support({"training_support": support}, row["model_input"])[1]
+                 if support is not None else [] for row in rows]
+    indexes = [index for index, reasons in enumerate(decisions) if not reasons]
+    rows = [all_rows[index] for index in indexes]
+    probabilities = np.asarray(probabilities)[indexes]
     labels = [row["label"] for row in rows]
     channel_weights = _channel_weights(rows)
     video_weights = np.ones(len(rows), dtype=float)
     result: dict[str, Any] = {
-        "coverage": {"eligible": len(rows), "abstained": 0, "rate": 1.0 if rows else 0.0},
+        "coverage": {
+            "eligible": len(all_rows), "assessed": len(rows),
+            "abstained": len(all_rows) - len(rows),
+            "rate": len(rows) / len(all_rows) if all_rows else 0.0,
+            "reason_counts": dict(Counter(reason for reasons in decisions for reason in reasons)),
+            "abstentions": [{"dataset_id": row["dataset_id"], "reason_codes": reasons}
+                            for row, reasons in zip(all_rows, decisions) if reasons],
+        },
         "overall": {
             "channel_balanced": _metric_values(labels, probabilities, channel_weights),
             "video_weighted": _metric_values(labels, probabilities, video_weights),
@@ -230,10 +248,15 @@ def _evaluation(
     }
     for field in ("accepted_category", "confirmed_format", "frozen_age_context"):
         scopes = {}
-        for value in sorted({str(row[field]) for row in rows}):
+        for value in sorted({str(row[field]) for row in all_rows}):
             indexes = [index for index, row in enumerate(rows) if str(row[field]) == value]
             subset = [rows[index] for index in indexes]
             scopes[value] = {
+                "coverage": {
+                    "eligible": sum(str(row[field]) == value for row in all_rows),
+                    "assessed": len(subset),
+                    "abstained": sum(str(row[field]) == value for row in all_rows) - len(subset),
+                },
                 "channel_balanced": _metric_values(
                     [row["label"] for row in subset],
                     np.asarray(probabilities)[indexes], _channel_weights(subset),
@@ -306,8 +329,7 @@ def _feature_layout(feature_schema: dict[str, Any], *, include_topics: bool) -> 
 
 
 def _topic_signature(model_input: dict[str, Any]) -> list[str]:
-    topics = model_input.get("canonical_topic_presence") or {}
-    return sorted(str(key) for key, value in topics.items() if value is True)
+    return topic_signature(model_input)
 
 
 def _training_support(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -397,6 +419,7 @@ def _feature_record_sha256(feature: dict[str, Any]) -> str:
 def load_training_inputs(
     *, manifest_path: Path, features_path: Path, protocol: dict[str, Any],
     data_use_record: dict[str, Any], trusted_root: Path,
+    allow_synthetic_fixture: bool = False,
 ) -> dict[str, Any]:
     trusted = trusted_root.resolve()
     manifest_path = manifest_path.resolve()
@@ -408,7 +431,7 @@ def load_training_inputs(
     reasons = []
     validation = validate_protocol(protocol)
     expected_feature_schema = build_feature_schema(protocol)
-    rights = data_use_gate(data_use_record, "training")
+    rights = data_use_gate(data_use_record, "training", allow_synthetic_fixture=allow_synthetic_fixture)
     if not validation["valid"]:
         reasons.extend(validation["errors"])
     if not rights["allowed"]:
@@ -458,9 +481,10 @@ def load_training_inputs(
     for record in records:
         role = str(record.get("outcome_role") or "")
         roles[role].append(record)
-        for field in ("source_channel_id", "creator_group_key", "source_youtube_id", "transcript_sha256"):
-            if record.get(field):
-                identity_roles[f"{field}:{record[field]}"].add(role)
+        for key in identity_keys(record):
+            identity_roles[key].add(role)
+        if not record.get("normalized_transcript_sha256"):
+            reasons.append("normalized_transcript_identity_missing")
         if role == "independent_test" and "views" in (record.get("observation") or {}):
             test_outcome_open = True
         feature = by_feature.get(int(record.get("dataset_id", -1)))
@@ -541,7 +565,13 @@ def _fit_models(preflight: dict[str, Any], protocol: dict[str, Any]) -> dict[str
     metadata_layout = _feature_layout(schema, include_topics=False)
     topic_layout = _feature_layout(schema, include_topics=True)
     fit_weight = _channel_weights(fit_rows)
-    tuning_weight = _channel_weights(tuning_rows)
+    support = _training_support(fit_rows)
+    supported_indexes = [index for index, row in enumerate(tuning_rows)
+                         if not check_training_support({"training_support": support}, row["model_input"])[1]]
+    supported_tuning = [tuning_rows[index] for index in supported_indexes]
+    if not supported_tuning:
+        raise ValueError("No tuning rows supported by serving policy")
+    tuning_weight = _channel_weights(supported_tuning)
 
     fit_y = np.asarray([row["label"] for row in fit_rows], dtype=int)
     constant = ConstantProbabilityModel(float(np.average(fit_y, weights=fit_weight)))
@@ -560,7 +590,7 @@ def _fit_models(preflight: dict[str, Any], protocol: dict[str, Any]) -> dict[str
                       classifier__sample_weight=fit_weight)
         probabilities = _positive_probability(estimator, _matrix(tuning_rows, topic_layout))
         metrics = _metric_values(
-            [row["label"] for row in tuning_rows], probabilities, tuning_weight
+            [row["label"] for row in supported_tuning], probabilities[supported_indexes], tuning_weight
         )
         candidates.append({"C": float(c_value), "estimator": estimator,
                            "probabilities": probabilities, "metrics": metrics})
@@ -584,9 +614,16 @@ def _fit_models(preflight: dict[str, Any], protocol: dict[str, Any]) -> dict[str
             estimator,
             calibration_rows if layout is None else _matrix(calibration_rows, layout),
         )
+        calibration_indexes = [index for index, row in enumerate(calibration_rows)
+                               if not check_training_support({"training_support": support}, row["model_input"])[1]]
+        supported_calibration = [calibration_rows[index] for index in calibration_indexes]
+        minimum_per_label = int(protocol["split_policy"]["calibration_and_test_minimum_per_label"])
+        counts = Counter(row["label"] for row in supported_calibration)
+        if any(counts[label] < minimum_per_label for label in (0, 1)):
+            raise ValueError("Supported Calibration rows do not meet frozen per-label minimums")
         calibrator = WeightedSigmoidCalibrator(seed).fit(
-            raw_calibration, [row["label"] for row in calibration_rows],
-            _channel_weights(calibration_rows),
+            raw_calibration[calibration_indexes], [row["label"] for row in supported_calibration],
+            _channel_weights(supported_calibration),
         )
         item.update(
             raw_calibration_probabilities=raw_calibration,
@@ -625,6 +662,10 @@ def _qualification(
         evaluations[name]["overall"]["channel_balanced"]
         for name in ("constant_prior", "metadata_logistic_regression")
     ]
+    if any(item.get("status") != "evaluated" for item in [candidate, *baselines]):
+        return {"status": "experimental", "qualified": False,
+                "checks": {"supported_two_label_evaluation": False},
+                "independent_test_required_for_qualification": True}
     margin = float(policy.get("validation_brier_improvement_over_each_baseline", 0.01))
     max_log_regression = float(policy.get("maximum_log_loss_regression_from_best_baseline", 0.02))
     max_category_regression = float(policy.get("maximum_category_brier_regression_from_metadata_baseline", 0.02))
@@ -641,6 +682,11 @@ def _qualification(
     }
     candidate_categories = evaluations["metadata_topics_logistic_regression"]["by_scope"]["accepted_category"]
     metadata_categories = evaluations["metadata_logistic_regression"]["by_scope"]["accepted_category"]
+    checks["category_evaluation_complete"] = all(
+        candidate_categories.get(category, {}).get("channel_balanced", {}).get("status") == "evaluated"
+        and metadata_categories.get(category, {}).get("channel_balanced", {}).get("status") == "evaluated"
+        for category in protocol["sampling"]["target_categories"]
+    )
     regressions = []
     for category in sorted(set(candidate_categories) & set(metadata_categories)):
         left = candidate_categories[category]["channel_balanced"]
@@ -680,6 +726,7 @@ def train_and_validate_outcome_model(
         manifest_path=manifest_path, features_path=features_path,
         protocol=protocol, data_use_record=data_use,
         trusted_root=trusted_phase2_root,
+        allow_synthetic_fixture=source_kind == "synthetic_fixture",
     )
     if not preflight["ready"]:
         return {"status": "blocked", "preflight": preflight,
@@ -692,11 +739,12 @@ def train_and_validate_outcome_model(
     models = fit_result["models"]
     tuning_rows = preflight["rows"]["tuning"]
     calibration_rows = preflight["rows"]["calibration"]
+    support = _training_support(preflight["rows"]["fit"])
     tuning_evaluations = {
         name: {
-            "before": _evaluation(tuning_rows, item["tuning_probabilities"], protocol),
+            "before": _evaluation(tuning_rows, item["tuning_probabilities"], protocol, support=support),
             "after": _evaluation(
-                tuning_rows, item["calibrated_tuning_probabilities"], protocol
+                tuning_rows, item["calibrated_tuning_probabilities"], protocol, support=support
             ),
             "interpretation": "tuning_selected_candidate_not_independent_test",
         }
@@ -704,17 +752,19 @@ def train_and_validate_outcome_model(
     }
     calibration_evaluations = {
         name: {
-            "before": _evaluation(calibration_rows, item["raw_calibration_probabilities"], protocol),
-            "after": _evaluation(calibration_rows, item["calibrated_probabilities"], protocol),
+            "before": _evaluation(calibration_rows, item["raw_calibration_probabilities"], protocol, support=support),
+            "after": _evaluation(calibration_rows, item["calibrated_probabilities"], protocol, support=support),
             "interpretation": "calibrator_fit_partition_diagnostic_not_independent_test",
         }
         for name, item in models.items()
     }
     bootstrap_policy = (protocol.get("evaluation") or {}).get("bootstrap") or {}
+    supported_indexes = [index for index, row in enumerate(tuning_rows)
+                         if not check_training_support({"training_support": support}, row["model_input"])[1]]
     bootstrap = paired_channel_bootstrap(
-        tuning_rows,
-        models["metadata_topics_logistic_regression"]["tuning_probabilities"],
-        models["metadata_logistic_regression"]["tuning_probabilities"],
+        [tuning_rows[index] for index in supported_indexes],
+        models["metadata_topics_logistic_regression"]["tuning_probabilities"][supported_indexes],
+        models["metadata_logistic_regression"]["tuning_probabilities"][supported_indexes],
         resamples=int(bootstrap_policy.get("resamples", 2000)),
         confidence=float(bootstrap_policy.get("confidence", 0.95)),
         seed=int(bootstrap_policy.get("seed", 261008)),
@@ -752,7 +802,7 @@ def train_and_validate_outcome_model(
         "calibration_version": CALIBRATION_VERSION,
         "random_seed": int((protocol.get("model_policy") or {}).get("random_seed", 261008)),
         "feature_layout": fit_result["feature_schema"],
-        "training_support": _training_support(preflight["rows"]["fit"]),
+        "training_support": support,
         "category_vocabulary": sorted({row["accepted_category"] for row in preflight["rows"]["fit"]}),
         "format_vocabulary": sorted({row["confirmed_format"] for row in preflight["rows"]["fit"]}),
         "models": {
@@ -762,7 +812,9 @@ def train_and_validate_outcome_model(
         },
         "selected_model": "metadata_topics_logistic_regression",
         "qualification": qualification,
-        "evaluated_scopes": ["overall", "category", "confirmed_format", "frozen_age_context"],
+        "evaluated_scopes": {"schema_version": QUALIFIED_SCOPES_VERSION, "contexts": []},
+        "frozen_evaluation_contexts": [cell["cell"] for cell in preflight["benchmarks"]["cells"]
+                                       if cell["status"] == "supported"],
         "intended_population": (protocol.get("sampling") or {}).get("probability_population"),
         "limitations": [
             "observational_association_not_causal_uplift",
@@ -782,6 +834,7 @@ def train_and_validate_outcome_model(
         "artifact_sha256": artifact_sha,
         "artifact_path": str(artifact_path),
         "target_version": payload["target_version"],
+        "calibration_version": payload["calibration_version"],
         "protocol_sha256": payload["protocol_sha256"],
         "feature_schema_sha256": payload["feature_schema_sha256"],
         "manifest_sha256": payload["manifest_sha256"],
@@ -874,6 +927,8 @@ def load_outcome_artifact(
         raise ValueError("Outcome artifact protocol mismatch")
     if payload.get("feature_schema_sha256") != expected_feature_schema_sha256:
         raise ValueError("Outcome artifact feature schema mismatch")
+    if payload.get("calibration_version") != CALIBRATION_VERSION:
+        raise ValueError("Outcome artifact calibration version unsupported")
     candidate = (payload.get("models") or {}).get("metadata_topics_logistic_regression") or {}
     if not isinstance(candidate.get("layout"), dict) or not candidate["layout"].get("columns"):
         raise ValueError("Outcome artifact feature order missing")

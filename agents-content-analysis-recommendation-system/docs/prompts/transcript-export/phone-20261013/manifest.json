@@ -1,0 +1,521 @@
+{
+  "schema_version": "notebooklm-phone-prompt-batches-v2",
+  "updated_date": "2026-10-14",
+  "input_urls": [
+    "https://www.youtube.com/watch?v=bx490gcO1ZM",
+    "https://www.youtube.com/watch?v=hmfIaP3zNmY",
+    "https://www.youtube.com/watch?v=YmRONlsIY8k",
+    "https://www.youtube.com/watch?v=QUuu8X660v4",
+    "https://www.youtube.com/watch?v=2a2azMYwEXM",
+    "https://www.youtube.com/watch?v=43GPhmf2VYE",
+    "https://www.youtube.com/watch?v=gTt0vMqK_-g",
+    "https://www.youtube.com/watch?v=RI-eexrCkpA",
+    "https://www.youtube.com/watch?v=pGP5bpvDePo",
+    "https://www.youtube.com/watch?v=1gjuHDTgL7o",
+    "https://www.youtube.com/watch?v=JH8lkVWklAg",
+    "https://www.youtube.com/watch?v=JDhejr2BtB0",
+    "https://www.youtube.com/watch?v=4jaJ4M4wM6M",
+    "https://www.youtube.com/watch?v=V3FGRbG9GrY",
+    "https://www.youtube.com/watch?v=e0J22S0f9yw",
+    "https://www.youtube.com/watch?v=e1-1QxXIzro",
+    "https://www.youtube.com/watch?v=bEDiPjP3z4o",
+    "https://www.youtube.com/watch?v=1pu88nlEfQU",
+    "https://www.youtube.com/watch?v=atqL7yAf0DA",
+    "https://www.youtube.com/watch?v=bJfeg80Uo-g",
+    "https://www.youtube.com/watch?v=ZrqwO1VWG3M",
+    "https://www.youtube.com/watch?v=utukEXyBhT0",
+    "https://www.youtube.com/watch?v=cwys7iE_Zyc",
+    "https://www.youtube.com/watch?v=8XiHd_9u984",
+    "https://www.youtube.com/watch?v=CYMprQq0tJQ",
+    "https://www.youtube.com/watch?v=Y7BMTy19Q5U",
+    "https://www.youtube.com/watch?v=WioKXrIEDs0",
+    "https://www.youtube.com/watch?v=Gd9lKGI35dA",
+    "https://www.youtube.com/watch?v=7j8b_XDLTBo",
+    "https://www.youtube.com/watch?v=wjZlz9XzHLg",
+    "https://www.youtube.com/watch?v=AX88CcKixFc",
+    "https://www.youtube.com/watch?v=3pZQwGlDMkM",
+    "https://www.youtube.com/watch?v=IGUYSNNF9-Y",
+    "https://www.youtube.com/watch?v=15QaoTc4TWc",
+    "https://www.youtube.com/watch?v=lltS62SjtVM",
+    "https://www.youtube.com/watch?v=nRi3Hyf1YUQ",
+    "https://www.youtube.com/watch?v=CRMcHu6FjkE",
+    "https://www.youtube.com/watch?v=NBjekhiA8bg",
+    "https://www.youtube.com/watch?v=DyxT-bcqVDo",
+    "https://www.youtube.com/watch?v=mWeZEEUXrok",
+    "https://www.youtube.com/watch?v=tIQc4cHji68",
+    "https://www.youtube.com/watch?v=Mt-1d6I5SCM",
+    "https://www.youtube.com/watch?v=4X8M8BPuRLo",
+    "https://www.youtube.com/watch?v=D3VWBk19Jjw",
+    "https://www.youtube.com/watch?v=oeyfg5G5Fxc"
+  ],
+  "input_count": 45,
+  "database_rows_checked": 536,
+  "database_duplicates_excluded": [
+    {
+      "video_id": "bEDiPjP3z4o",
+      "matches": [
+        {
+          "dataset_id": 527,
+          "title": "จ่ายเฉียดครึ่งแสนคุ้มไหม? iPhone 17 Pro Max รีวิวใช้งานจริง 6 เดือนเต็ม!",
+          "split": "validation",
+          "category": "phone",
+          "deleted_at": null
+        }
+      ]
+    }
+  ],
+  "duplicate_inputs": {},
+  "invalid_ids_held": [],
+  "metadata_unavailable_ids_held": [
+    "e0J22S0f9yw"
+  ],
+  "total_videos": 43,
+  "batch_size": 3,
+  "batch_count": 15,
+  "batches": [
+    {
+      "batch": 1,
+      "file": "phone-batch-01.txt",
+      "count": 3,
+      "utf16_units_crlf": 1804,
+      "sha256": "73fd33d50c4a5f044d8dc8d84d213d82c5787213842324d37aacb5107cab954e",
+      "videos": [
+        {
+          "video_id": "bx490gcO1ZM",
+          "title": "รีวิว OPPO Find X9 Ultra | กล้องเทพ Hasselblad",
+          "channel": "Q TAYMEE",
+          "url": "https://www.youtube.com/watch?v=bx490gcO1ZM",
+          "output_filename": "transcript_bx490gcO1ZM.md"
+        },
+        {
+          "video_id": "hmfIaP3zNmY",
+          "title": "เกือบจะ รีวิว OPPO Find N6 | ท๊อปฟอร์มที่สุด หยุดไม่ได้แล้ว",
+          "channel": "iaumreview",
+          "url": "https://www.youtube.com/watch?v=hmfIaP3zNmY",
+          "output_filename": "transcript_hmfIaP3zNmY.md"
+        },
+        {
+          "video_id": "YmRONlsIY8k",
+          "title": "รีวิว OPPO Find N6 จอเรียบ กล้องเทพ 200MP รองรับปากกา AI Pen ตัวจบของคนชอบพับ",
+          "channel": "DroidSans",
+          "url": "https://www.youtube.com/watch?v=YmRONlsIY8k",
+          "output_filename": "transcript_YmRONlsIY8k.md"
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "file": "phone-batch-02.txt",
+      "count": 3,
+      "utf16_units_crlf": 1866,
+      "sha256": "4b95d186c4763142a606109aafeebbcc9a69375cb5ec3ff7b6ab1acf2429f1cb",
+      "videos": [
+        {
+          "video_id": "QUuu8X660v4",
+          "title": "รีวิว OPPO Find N6 จอพับที่ \"ไร้รอย\" ที่สุด! บางกว่าเดิม กล้อง Hasselblad 200MP โหดเกินเบอร์",
+          "channel": "SPECPHONE",
+          "url": "https://www.youtube.com/watch?v=QUuu8X660v4",
+          "output_filename": "transcript_QUuu8X660v4.md"
+        },
+        {
+          "video_id": "2a2azMYwEXM",
+          "title": "รีวิว OPPO Find N6 จอพับไร้ขีด ? | Ceemeagain",
+          "channel": "Ceemeagain",
+          "url": "https://www.youtube.com/watch?v=2a2azMYwEXM",
+          "output_filename": "transcript_2a2azMYwEXM.md"
+        },
+        {
+          "video_id": "43GPhmf2VYE",
+          "title": "รีวิว iPhone 17 หลังใช้งาน 6 เดือน  ข้อดี? ข้อเสีย? เป็นยังไงบ้าง จัดเต็มทุกจุด ต้องดู ก่อนตัดสินใจ!",
+          "channel": "ZZT I ZIXZESTER",
+          "url": "https://www.youtube.com/watch?v=43GPhmf2VYE",
+          "output_filename": "transcript_43GPhmf2VYE.md"
+        }
+      ]
+    },
+    {
+      "batch": 3,
+      "file": "phone-batch-03.txt",
+      "count": 3,
+      "utf16_units_crlf": 1819,
+      "sha256": "9f5cd97a9ca41ffd8f7fd3db26839b748801598705a9fb7e58e83130b489bd72",
+      "videos": [
+        {
+          "video_id": "gTt0vMqK_-g",
+          "title": "รีวิว iPhone 17 ในปี 2026 อัปเดตใหม่ล่าสุด พร้อมบอกข้อดี ข้อเสีย",
+          "channel": "Yai Review",
+          "url": "https://www.youtube.com/watch?v=gTt0vMqK_-g",
+          "output_filename": "transcript_gTt0vMqK_-g.md"
+        },
+        {
+          "video_id": "RI-eexrCkpA",
+          "title": " iPhone 17 🖤 เกินไปไหมพี่ ที่สุดของ iPhone รุ่นธรรมดา ",
+          "channel": "TON THANAWAT ",
+          "url": "https://www.youtube.com/watch?v=RI-eexrCkpA",
+          "output_filename": "transcript_RI-eexrCkpA.md"
+        },
+        {
+          "video_id": "pGP5bpvDePo",
+          "title": "รีวิว Redmi 15 4G จอมหึมา แบต 7000 mAh ความจุเยอะ วิ่งไรเดอร์งบ 4 พัน",
+          "channel": "papayatop.com",
+          "url": "https://www.youtube.com/watch?v=pGP5bpvDePo",
+          "output_filename": "transcript_pGP5bpvDePo.md"
+        }
+      ]
+    },
+    {
+      "batch": 4,
+      "file": "phone-batch-04.txt",
+      "count": 3,
+      "utf16_units_crlf": 1850,
+      "sha256": "991f4b2b8bf01d1505501fb4fc6dc27b93b9bf6d6b6753cae4ef16b471aa6a92",
+      "videos": [
+        {
+          "video_id": "1gjuHDTgL7o",
+          "title": "รีวิว REDMI 15 บน Hyper OS 3 จ่าย 3,890 โคตรคุ้ม ชิปแรง จอ144Hz กล้องดีมาก แบตอึด7000nAh ดีไซน์สวย",
+          "channel": "PrePlay",
+          "url": "https://www.youtube.com/watch?v=1gjuHDTgL7o",
+          "output_filename": "transcript_1gjuHDTgL7o.md"
+        },
+        {
+          "video_id": "JH8lkVWklAg",
+          "title": "รีวิว HONOR Magic 8 Pro หลังลองมาพักหนึ่ง ดีกว่าเดิมจริงไหม? | IT Review",
+          "channel": "Bigglive blog",
+          "url": "https://www.youtube.com/watch?v=JH8lkVWklAg",
+          "output_filename": "transcript_JH8lkVWklAg.md"
+        },
+        {
+          "video_id": "JDhejr2BtB0",
+          "title": "รีวิว Honor Magic 8 Pro มือถือเรือธงที่มาเรียบๆ แต่แรงมาก",
+          "channel": "CyberBIZ",
+          "url": "https://www.youtube.com/watch?v=JDhejr2BtB0",
+          "output_filename": "transcript_JDhejr2BtB0.md"
+        }
+      ]
+    },
+    {
+      "batch": 5,
+      "file": "phone-batch-05.txt",
+      "count": 3,
+      "utf16_units_crlf": 1821,
+      "sha256": "14b9db98d5830e9976742fd65323ae96de30bc3b632cd6e33c4271e4290c520e",
+      "videos": [
+        {
+          "video_id": "4jaJ4M4wM6M",
+          "title": "คุยหลังใช้ HUAWEI Pura 90s Series - ใช้ 5G ได้แล้ว! กล้องซูมโครตเทพ รอบนี้ไม่ธรรมดา",
+          "channel": "Tump Yung",
+          "url": "https://www.youtube.com/watch?v=4jaJ4M4wM6M",
+          "output_filename": "transcript_4jaJ4M4wM6M.md"
+        },
+        {
+          "video_id": "V3FGRbG9GrY",
+          "title": "Xiaomi 15 รีวิว 2026 ยังน่าเล่นไหม",
+          "channel": "noomhaha2",
+          "url": "https://www.youtube.com/watch?v=V3FGRbG9GrY",
+          "output_filename": "transcript_V3FGRbG9GrY.md"
+        },
+        {
+          "video_id": "e1-1QxXIzro",
+          "title": "รีวิวหลังใช้ vivo X300 Pro มา 1 เดือน - ชอบอะไร ไม่ชอบอะไร คิดถูกไหมที่ซื้อรุ่นนี้",
+          "channel": "Tump Yung",
+          "url": "https://www.youtube.com/watch?v=e1-1QxXIzro",
+          "output_filename": "transcript_e1-1QxXIzro.md"
+        }
+      ]
+    },
+    {
+      "batch": 6,
+      "file": "phone-batch-06.txt",
+      "count": 3,
+      "utf16_units_crlf": 1836,
+      "sha256": "f3c06edfdcbe071133cedff08d97fd7c7664d75b049c872b4effdc4cc3c086eb",
+      "videos": [
+        {
+          "video_id": "1pu88nlEfQU",
+          "title": "รีวิว iPhone 17 Pro Max ใช้งานจริงคุ้มค่ามั้ย ?",
+          "channel": "Moov Thailand",
+          "url": "https://www.youtube.com/watch?v=1pu88nlEfQU",
+          "output_filename": "transcript_1pu88nlEfQU.md"
+        },
+        {
+          "video_id": "atqL7yAf0DA",
+          "title": "รีวิวมือถือเล่นเกม POCO X8 Pro สเปคเรือธงบ้าตัวเลขทะลุ2ล้าน กับงบไม่ถึงหมื่น",
+          "channel": "iNewch",
+          "url": "https://www.youtube.com/watch?v=atqL7yAf0DA",
+          "output_filename": "transcript_atqL7yAf0DA.md"
+        },
+        {
+          "video_id": "bJfeg80Uo-g",
+          "title": "แนะนำมือถือเล่นเกมช่วงสงกรานต์งบ 10,000-20,000.- คัดมาเฉพาะรุ่นที่เล่นเกมดีจริง ๆ !!",
+          "channel": "Game Jaa เกมจ๋า",
+          "url": "https://www.youtube.com/watch?v=bJfeg80Uo-g",
+          "output_filename": "transcript_bJfeg80Uo-g.md"
+        }
+      ]
+    },
+    {
+      "batch": 7,
+      "file": "phone-batch-07.txt",
+      "count": 3,
+      "utf16_units_crlf": 1832,
+      "sha256": "a7c4278d2220758598811d436508070839a4611a8c315ba0010b4acbd1c6f156",
+      "videos": [
+        {
+          "video_id": "ZrqwO1VWG3M",
+          "title": "5 อันดับ มือถือใหม่สเปคแรง.!! เดือน เมษายน 2569 น่าซื้อน่าใช้มาก ราคาถูก ~ Sorial Studio",
+          "channel": "SORIAL STUDIO",
+          "url": "https://www.youtube.com/watch?v=ZrqwO1VWG3M",
+          "output_filename": "transcript_ZrqwO1VWG3M.md"
+        },
+        {
+          "video_id": "utukEXyBhT0",
+          "title": "5 มือถือราคาไม่เกิน 5000 โทรศัพท์งบ5000 รุ่นใหม่ปี 2569",
+          "channel": "แฟนโฟน ชาแนล",
+          "url": "https://www.youtube.com/watch?v=utukEXyBhT0",
+          "output_filename": "transcript_utukEXyBhT0.md"
+        },
+        {
+          "video_id": "cwys7iE_Zyc",
+          "title": "vivo X300 FE เป็นอย่างไรหลังใช้งาน 3สัปดาห์ จุดเด่น-จุดด้อย",
+          "channel": "Thamtamjai",
+          "url": "https://www.youtube.com/watch?v=cwys7iE_Zyc",
+          "output_filename": "transcript_cwys7iE_Zyc.md"
+        }
+      ]
+    },
+    {
+      "batch": 8,
+      "file": "phone-batch-08.txt",
+      "count": 3,
+      "utf16_units_crlf": 1826,
+      "sha256": "51239308152b8757e45fd733801d40d8a7fe14686df09c5a8cad4baefefbca47",
+      "videos": [
+        {
+          "video_id": "8XiHd_9u984",
+          "title": "รีวิว vivo X300 FE | น้องเล็กสุดในซีรีย์ ที่ไม่ได้มีดีแค่พกพาสะดวก",
+          "channel": "Mobile Photographer",
+          "url": "https://www.youtube.com/watch?v=8XiHd_9u984",
+          "output_filename": "transcript_8XiHd_9u984.md"
+        },
+        {
+          "video_id": "CYMprQq0tJQ",
+          "title": "รีวิว vivo X300 กับความรู้สึกหลังไปลองถ่ายภาพ",
+          "channel": "Biztalk News",
+          "url": "https://www.youtube.com/watch?v=CYMprQq0tJQ",
+          "output_filename": "transcript_CYMprQq0tJQ.md"
+        },
+        {
+          "video_id": "Y7BMTy19Q5U",
+          "title": "รีวิว Samsung Galaxy A56 5G ดันสุดกราฟ! ทำไมเครื่องนี้ถึงคุ้มกว่าเรือธง? | POLYPIG",
+          "channel": "POLYPIG",
+          "url": "https://www.youtube.com/watch?v=Y7BMTy19Q5U",
+          "output_filename": "transcript_Y7BMTy19Q5U.md"
+        }
+      ]
+    },
+    {
+      "batch": 9,
+      "file": "phone-batch-09.txt",
+      "count": 3,
+      "utf16_units_crlf": 1845,
+      "sha256": "acebe1362ba0781fcd51ced5d0db651344c2612bf841a7b9730cd297ee5cf8af",
+      "videos": [
+        {
+          "video_id": "WioKXrIEDs0",
+          "title": "รีวิว Samsung Galaxy A56 5G ซื้อให้แม่ด้วยเงินดาวน์ 800 บาท เน้นกล้อง",
+          "channel": "NAYTIVE",
+          "url": "https://www.youtube.com/watch?v=WioKXrIEDs0",
+          "output_filename": "transcript_WioKXrIEDs0.md"
+        },
+        {
+          "video_id": "Gd9lKGI35dA",
+          "title": "ทำไมผมถึงใช้? iPhone Air หลังจากใช้งานมา 7 วัน เจออะไรบ้าง #ช่างนัดร้านเรด",
+          "channel": "ตามมาพี่พาไป",
+          "url": "https://www.youtube.com/watch?v=Gd9lKGI35dA",
+          "output_filename": "transcript_Gd9lKGI35dA.md"
+        },
+        {
+          "video_id": "7j8b_XDLTBo",
+          "title": "Galaxy S25 FE (Exynos 2400) ปี 2026 ยังน่าใช้ไหม? ฟีเจอร์เรือธง ราคาประหยัดจริงหรือ?",
+          "channel": "9tum",
+          "url": "https://www.youtube.com/watch?v=7j8b_XDLTBo",
+          "output_filename": "transcript_7j8b_XDLTBo.md"
+        }
+      ]
+    },
+    {
+      "batch": 10,
+      "file": "phone-batch-10.txt",
+      "count": 3,
+      "utf16_units_crlf": 1812,
+      "sha256": "d91b253759ca49c4b9edef34bf40405ebdecc47c22cc4e65d83ef5fc34700d63",
+      "videos": [
+        {
+          "video_id": "wjZlz9XzHLg",
+          "title": "S25 ที่ใกล้จะตกรุ่น แต่ราคาน่าซื้อหามาใช้ยาวๆ",
+          "channel": "orenari",
+          "url": "https://www.youtube.com/watch?v=wjZlz9XzHLg",
+          "output_filename": "transcript_wjZlz9XzHLg.md"
+        },
+        {
+          "video_id": "AX88CcKixFc",
+          "title": "หลังใช้ SAMSUNG S25 Ultra 1ปี ใช้ดีไหม ตอนนี้น่าซื้อหรือไม่ | EP.214 Review",
+          "channel": "Mr.P Mk",
+          "url": "https://www.youtube.com/watch?v=AX88CcKixFc",
+          "output_filename": "transcript_AX88CcKixFc.md"
+        },
+        {
+          "video_id": "3pZQwGlDMkM",
+          "title": "รีวิว Samsung Galaxy S26 Ultra กับเกมที่ผมเล่น! แพงเบอร์นี้ คุ้มเบอร์ไหน?",
+          "channel": "Justinated",
+          "url": "https://www.youtube.com/watch?v=3pZQwGlDMkM",
+          "output_filename": "transcript_3pZQwGlDMkM.md"
+        }
+      ]
+    },
+    {
+      "batch": 11,
+      "file": "phone-batch-11.txt",
+      "count": 3,
+      "utf16_units_crlf": 1846,
+      "sha256": "b396eb04f6bef33e4a93001e95f5078521781aef0e5326a0c6bff126970a6cd5",
+      "videos": [
+        {
+          "video_id": "IGUYSNNF9-Y",
+          "title": "vivo X300 Pro หลังใช้งาน 3 เดือน",
+          "channel": "ReNew",
+          "url": "https://www.youtube.com/watch?v=IGUYSNNF9-Y",
+          "output_filename": "transcript_IGUYSNNF9-Y.md"
+        },
+        {
+          "video_id": "15QaoTc4TWc",
+          "title": "รีวิว OPPO Find X9 Ultra x Hasselblad มาพร้อม 10x Telephoto และ OPPO Find X9s ย่อมเยามาด้วย",
+          "channel": "StepGeekTV Online",
+          "url": "https://www.youtube.com/watch?v=15QaoTc4TWc",
+          "output_filename": "transcript_15QaoTc4TWc.md"
+        },
+        {
+          "video_id": "lltS62SjtVM",
+          "title": "[Vlog] รีวิว iPhone 17 Pro แบบใช้งานจริงๆ ในชีวิตประจำวัน แบตจะอึดเท่า 16 Pro ไหม มาดูกัน",
+          "channel": "Rule Of TAN's (旦)",
+          "url": "https://www.youtube.com/watch?v=lltS62SjtVM",
+          "output_filename": "transcript_lltS62SjtVM.md"
+        }
+      ]
+    },
+    {
+      "batch": 12,
+      "file": "phone-batch-12.txt",
+      "count": 3,
+      "utf16_units_crlf": 1835,
+      "sha256": "7aff75cce301b617039093fc08c9f8898e88478bf808c1a31f2012e8e136d949",
+      "videos": [
+        {
+          "video_id": "nRi3Hyf1YUQ",
+          "title": "iPhone 17 Pro ติ่ง Android อยากเล่าเฉย ๆ เปิดฟังอย่างเดียวได้",
+          "channel": "CAD รีวิวฉีกแนว",
+          "url": "https://www.youtube.com/watch?v=nRi3Hyf1YUQ",
+          "output_filename": "transcript_nRi3Hyf1YUQ.md"
+        },
+        {
+          "video_id": "CRMcHu6FjkE",
+          "title": "รีวิวจัดเต็มที่ไม่มีใครบอก: iPhone 17 ธรรมดา หรือ 17 Pro(Max) ดี?",
+          "channel": "Akponential",
+          "url": "https://www.youtube.com/watch?v=CRMcHu6FjkE",
+          "output_filename": "transcript_CRMcHu6FjkE.md"
+        },
+        {
+          "video_id": "NBjekhiA8bg",
+          "title": "รีวิว Tecno Spark 50 5G งบ 5,000 จอ 120Hz บอดี้อลูมิเนียม ส่งไฟล์หา iPhone ได้",
+          "channel": "Extreme IT",
+          "url": "https://www.youtube.com/watch?v=NBjekhiA8bg",
+          "output_filename": "transcript_NBjekhiA8bg.md"
+        }
+      ]
+    },
+    {
+      "batch": 13,
+      "file": "phone-batch-13.txt",
+      "count": 3,
+      "utf16_units_crlf": 1796,
+      "sha256": "55d7e848f70b6a402053cdd7633c9ec8fd87ef41d7ea007ef22f2fd3399b7459",
+      "videos": [
+        {
+          "video_id": "DyxT-bcqVDo",
+          "title": "Samsung Galaxy A26 5G รุ่นใหม่ปี 2026 ลดเหลือ 2,999 บาทเท่านั่น สเปคแรงเกินราคา บอกเลยว่าคุ้มมาก",
+          "channel": "เอ็มซ่าส์ channel Android",
+          "url": "https://www.youtube.com/watch?v=DyxT-bcqVDo",
+          "output_filename": "transcript_DyxT-bcqVDo.md"
+        },
+        {
+          "video_id": "mWeZEEUXrok",
+          "title": "3 เดือนกับ iPhone Air ยังรู้สึกดีอยู่ไหม",
+          "channel": "2how",
+          "url": "https://www.youtube.com/watch?v=mWeZEEUXrok",
+          "output_filename": "transcript_mWeZEEUXrok.md"
+        },
+        {
+          "video_id": "tIQc4cHji68",
+          "title": "iPhone 17 หลังใช้ 4 เดือน",
+          "channel": "The Awakenr",
+          "url": "https://www.youtube.com/watch?v=tIQc4cHji68",
+          "output_filename": "transcript_tIQc4cHji68.md"
+        }
+      ]
+    },
+    {
+      "batch": 14,
+      "file": "phone-batch-14.txt",
+      "count": 3,
+      "utf16_units_crlf": 1846,
+      "sha256": "59777ef9ee14f7233e7674b3c1ae183911030b67f1bdd06bd3a808b6d759c7bb",
+      "videos": [
+        {
+          "video_id": "Mt-1d6I5SCM",
+          "title": "HONOR Magic8 Pro รีวิวจัดเต็ม กล้องซูมกลางคืน + AI ใช้แล้วเป็นยังไง?",
+          "channel": "iPhone-Droid.net",
+          "url": "https://www.youtube.com/watch?v=Mt-1d6I5SCM",
+          "output_filename": "transcript_Mt-1d6I5SCM.md"
+        },
+        {
+          "video_id": "4X8M8BPuRLo",
+          "title": "รีวิว Honor Magic 8 Pro เรือธงที่ชนได้ทุกค่าย ในค่าตัวแค่ 39,990 บาท !",
+          "channel": "TechHangout",
+          "url": "https://www.youtube.com/watch?v=4X8M8BPuRLo",
+          "output_filename": "transcript_4X8M8BPuRLo.md"
+        },
+        {
+          "video_id": "D3VWBk19Jjw",
+          "title": "รีวิว HONOR Magic 8 Pro กล้องซูม!! แบตอึด!! ชิปใหม่!! ของจริงหรือแค่ราคาคุย?",
+          "channel": "คุณลุงไอที",
+          "url": "https://www.youtube.com/watch?v=D3VWBk19Jjw",
+          "output_filename": "transcript_D3VWBk19Jjw.md"
+        }
+      ]
+    },
+    {
+      "batch": 15,
+      "file": "phone-batch-15.txt",
+      "count": 1,
+      "utf16_units_crlf": 1591,
+      "sha256": "11932461ba04b1423956308dd90825caadfa4ffb70e79c4af75e541988526ed1",
+      "videos": [
+        {
+          "video_id": "oeyfg5G5Fxc",
+          "title": "OPPO Find X9 Pro :ตัวเต็ง Best Of Camera Innovation! ไม่ได้เทพแค่กล้อง แต่สุดทั้งเครื่อง 📸🔥",
+          "channel": "APPDISQUS",
+          "url": "https://www.youtube.com/watch?v=oeyfg5G5Fxc",
+          "output_filename": "transcript_oeyfg5G5Fxc.md"
+        }
+      ]
+    }
+  ],
+  "metadata_checked_at": "2026-10-14T16:30:16.229316+00:00",
+  "metadata_evidence": "Z:\\content-ai.worktrees\\agents-content-analysis-recommendation-system\\artifacts\\transcript-prompts\\phone-camera-new90-20261014\\metadata.json",
+  "metadata_sha256": "3dab8e88f2d38b3d4acf190a759cf8c564d56eba2ec9df1ea8b855a1505df463",
+  "database_modified": false,
+  "import_performed": false,
+  "outcome_holdout_approved": false,
+  "full_transcript_verified": false,
+  "character_budget": "<2000 UTF-16 units including CRLF; internal target, not guaranteed account limit"
+}

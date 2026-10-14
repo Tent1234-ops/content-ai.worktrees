@@ -1,0 +1,520 @@
+{
+  "schema_version": "notebooklm-camera-prompt-batches-v2",
+  "updated_date": "2026-10-14",
+  "input_urls": [
+    "https://www.youtube.com/watch?v=14hhOYZ_boA",
+    "https://www.youtube.com/watch?v=HSHSLEx8q24",
+    "https://www.youtube.com/watch?v=3J5ix3V2kvI",
+    "https://www.youtube.com/watch?v=db7GpGR_rgw",
+    "https://www.youtube.com/watch?v=1CvBXc5bfOU",
+    "https://www.youtube.com/watch?v=bT4aTk-PyW0",
+    "https://www.youtube.com/watch?v=qsVywXNK2E8",
+    "https://www.youtube.com/watch?v=IjVm1fl00pw",
+    "https://www.youtube.com/watch?v=BoSKYQ9KM9k",
+    "https://www.youtube.com/watch?v=3LFpPgMpB94",
+    "https://www.youtube.com/watch?v=fVbFRheWnxQ",
+    "https://www.youtube.com/watch?v=ymioiqnjtrg",
+    "https://www.youtube.com/watch?v=MAvjWj_s1JA",
+    "https://www.youtube.com/watch?v=t87iG5j_3EQ",
+    "https://www.youtube.com/watch?v=xL8pbI-gbfA",
+    "https://www.youtube.com/watch?v=45yXq6rg90Q",
+    "https://www.youtube.com/watch?v=7OM3GlzOo7U",
+    "https://www.youtube.com/watch?v=iHgzWyh_wdM",
+    "https://www.youtube.com/watch?v=ntRgICyxKLI",
+    "https://www.youtube.com/watch?v=cAyA5lKNQao",
+    "https://www.youtube.com/watch?v=-5esjVAFgoc",
+    "https://www.youtube.com/watch?v=jpUtRt5g7VM",
+    "https://www.youtube.com/watch?v=ANNxJ82UfCA",
+    "https://www.youtube.com/watch?v=ZA6xlladlpw",
+    "https://www.youtube.com/watch?v=u4Vhte8MjTw",
+    "https://www.youtube.com/watch?v=wRvltEr6Di8",
+    "https://www.youtube.com/watch?v=TeWO5jBChb4",
+    "https://www.youtube.com/watch?v=GbNUd-64umU",
+    "https://www.youtube.com/watch?v=PfxQWtXtcHg",
+    "https://www.youtube.com/watch?v=XveQvIR61mE",
+    "https://www.youtube.com/watch?v=Ci6VETWzxec",
+    "https://www.youtube.com/watch?v=rLy-Uex4O1U",
+    "https://www.youtube.com/watch?v=CFfiA4gdGJA",
+    "https://www.youtube.com/watch?v=JVmenPMIbe8",
+    "https://www.youtube.com/watch?v=OiM-FvAQHSc",
+    "https://www.youtube.com/watch?v=txe18TvYEQA",
+    "https://www.youtube.com/watch?v=4-vwBGMJtH0",
+    "https://www.youtube.com/watch?v=s1if6Be1o0g",
+    "https://www.youtube.com/watch?v=YCc_Rg-5XKY",
+    "https://www.youtube.com/watch?v=J8-L2-10fr0",
+    "https://www.youtube.com/watch?v=F4qwui2M4lQ",
+    "https://www.youtube.com/watch?v=LN8KXiTfLWo",
+    "https://www.youtube.com/watch?v=klx3O9MlonQ",
+    "https://www.youtube.com/watch?v=WjRWqMp5KOc",
+    "https://www.youtube.com/watch?v=qvQt_yWBjEw"
+  ],
+  "input_count": 45,
+  "database_rows_checked": 536,
+  "database_duplicates_excluded": [],
+  "duplicate_inputs": {},
+  "invalid_ids_held": [],
+  "metadata_unavailable_ids_held": [],
+  "total_videos": 45,
+  "batch_size": 3,
+  "batch_count": 15,
+  "batches": [
+    {
+      "batch": 1,
+      "file": "camera-batch-01.txt",
+      "count": 3,
+      "utf16_units_crlf": 1884,
+      "sha256": "5a41341c2c7dcbb99a262f4325e5bd16694a712710dcd16a1872c6803da63497",
+      "videos": [
+        {
+          "video_id": "14hhOYZ_boA",
+          "title": "รีวิวกล้อง Canon EOS 1DX Mark III ราชากล้อง DSLR สุดทุกทาง เอาอยู่ทุกโมเมนต์",
+          "channel": "Asayhi channel",
+          "url": "https://www.youtube.com/watch?v=14hhOYZ_boA",
+          "output_filename": "transcript_14hhOYZ_boA.md"
+        },
+        {
+          "video_id": "HSHSLEx8q24",
+          "title": "รีวิวกล้อง Sony A7C สำหรับงานวิดีโอ เก่งในเรื่องไหนบ้าง เจาะเรื่องคุณภาพไฟล์ และการโฟกัส",
+          "channel": "CreatorSchoolThailand",
+          "url": "https://www.youtube.com/watch?v=HSHSLEx8q24",
+          "output_filename": "transcript_HSHSLEx8q24.md"
+        },
+        {
+          "video_id": "3J5ix3V2kvI",
+          "title": "รีวิว Canon EOS 80D กล้อง DSLR ระดับกึ่งโปร ที่รองรับการใช้งานในระดับมืออาชีพ",
+          "channel": "Thaiware.com",
+          "url": "https://www.youtube.com/watch?v=3J5ix3V2kvI",
+          "output_filename": "transcript_3J5ix3V2kvI.md"
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "file": "camera-batch-02.txt",
+      "count": 3,
+      "utf16_units_crlf": 1850,
+      "sha256": "7f8c83b14f96b662085bfa27006829d8c5fcc570fa137c845f21730125fc756b",
+      "videos": [
+        {
+          "video_id": "db7GpGR_rgw",
+          "title": "Tech Chill ตอนที่ 76 รีวิวกล้อง Olympus E-PL7",
+          "channel": "TechChillChannel",
+          "url": "https://www.youtube.com/watch?v=db7GpGR_rgw",
+          "output_filename": "transcript_db7GpGR_rgw.md"
+        },
+        {
+          "video_id": "1CvBXc5bfOU",
+          "title": "รีวิวกล้อง : Review FUJIFILM  X-T200 ถ่ายภาพก็สวย ถ่ายวิดีโอก็ปัง",
+          "channel": "AVcentershop",
+          "url": "https://www.youtube.com/watch?v=1CvBXc5bfOU",
+          "output_filename": "transcript_1CvBXc5bfOU.md"
+        },
+        {
+          "video_id": "bT4aTk-PyW0",
+          "title": "Review Canon EOS Kiss X3 (500D/Rebel T1i) - รีวิวกล้อง DSLR [ตอนเดียวจบ] (แอบรีวิวกล้องลูกค้า)",
+          "channel": "MG We Love Film Camera",
+          "url": "https://www.youtube.com/watch?v=bT4aTk-PyW0",
+          "output_filename": "transcript_bT4aTk-PyW0.md"
+        }
+      ]
+    },
+    {
+      "batch": 3,
+      "file": "camera-batch-03.txt",
+      "count": 3,
+      "utf16_units_crlf": 1779,
+      "sha256": "d73ca8bcbdbc5fa3185b50deafc9cf805ccefb051d8860a31065e7a1ba1696c6",
+      "videos": [
+        {
+          "video_id": "qsVywXNK2E8",
+          "title": "รีวิว Panasonic Lumix G100",
+          "channel": "BIG Camera",
+          "url": "https://www.youtube.com/watch?v=qsVywXNK2E8",
+          "output_filename": "transcript_qsVywXNK2E8.md"
+        },
+        {
+          "video_id": "IjVm1fl00pw",
+          "title": "รีวิว Sony ZV-1 กล้องเล็กสำหรับครอบครัว แถมถ่าย Vlog เทพ!",
+          "channel": "BT beartai",
+          "url": "https://www.youtube.com/watch?v=IjVm1fl00pw",
+          "output_filename": "transcript_IjVm1fl00pw.md"
+        },
+        {
+          "video_id": "BoSKYQ9KM9k",
+          "title": "Full Review Sony ZV-E10 กล้องเพื่อ VLOGGER ที่สามารถเปลี่ยนเลนส์ได้",
+          "channel": "Bigglive blog",
+          "url": "https://www.youtube.com/watch?v=BoSKYQ9KM9k",
+          "output_filename": "transcript_BoSKYQ9KM9k.md"
+        }
+      ]
+    },
+    {
+      "batch": 4,
+      "file": "camera-batch-04.txt",
+      "count": 3,
+      "utf16_units_crlf": 1780,
+      "sha256": "3684eb0e6cd787039ca8f1f77e77898fdfe1c949ffdb7986ce2c2291e76faec4",
+      "videos": [
+        {
+          "video_id": "3LFpPgMpB94",
+          "title": "รีวิวกล้อง Lumix GF8 ซื้อมาถ่ายอะไรได้บ้าง?",
+          "channel": "Ceemeagain",
+          "url": "https://www.youtube.com/watch?v=3LFpPgMpB94",
+          "output_filename": "transcript_3LFpPgMpB94.md"
+        },
+        {
+          "video_id": "fVbFRheWnxQ",
+          "title": "รีวิวกล้อง Canon 600D ยังน่าใช้ไหม ในปี 2025",
+          "channel": "Online2easy : Photo Hobby",
+          "url": "https://www.youtube.com/watch?v=fVbFRheWnxQ",
+          "output_filename": "transcript_fVbFRheWnxQ.md"
+        },
+        {
+          "video_id": "ymioiqnjtrg",
+          "title": "Review Gopro hero 9 กล้อง 5K Action Camera",
+          "channel": "World Camera Channel",
+          "url": "https://www.youtube.com/watch?v=ymioiqnjtrg",
+          "output_filename": "transcript_ymioiqnjtrg.md"
+        }
+      ]
+    },
+    {
+      "batch": 5,
+      "file": "camera-batch-05.txt",
+      "count": 3,
+      "utf16_units_crlf": 1807,
+      "sha256": "279b89e25f5e7a82fb72a624676a31202a8bdc27ab5e50e96814eb0d165bf203",
+      "videos": [
+        {
+          "video_id": "MAvjWj_s1JA",
+          "title": "รีวิวกล้องโกโปร 12 ใต้น้ำและบนบก #GoProHERO12 Black Review",
+          "channel": "Nicole. Aloha",
+          "url": "https://www.youtube.com/watch?v=MAvjWj_s1JA",
+          "output_filename": "transcript_MAvjWj_s1JA.md"
+        },
+        {
+          "video_id": "t87iG5j_3EQ",
+          "title": "รีวิว SONY ZV-1 | Youtber ใช้กล้องอะไรดี | กล้องสำหรับ Vlogger",
+          "channel": "3PAT Review",
+          "url": "https://www.youtube.com/watch?v=t87iG5j_3EQ",
+          "output_filename": "transcript_t87iG5j_3EQ.md"
+        },
+        {
+          "video_id": "xL8pbI-gbfA",
+          "title": "รีวิวเต็ม Sony ZV 1 📸 กล้องจิ๋วแต่แจ๋ว สายวีดีโอต้องปลื้ม",
+          "channel": "Sony Thai",
+          "url": "https://www.youtube.com/watch?v=xL8pbI-gbfA",
+          "output_filename": "transcript_xL8pbI-gbfA.md"
+        }
+      ]
+    },
+    {
+      "batch": 6,
+      "file": "camera-batch-06.txt",
+      "count": 3,
+      "utf16_units_crlf": 1793,
+      "sha256": "e79835a90ff85ccc3114e9b4099669645556c65b80fe8df15094d99430d32060",
+      "videos": [
+        {
+          "video_id": "45yXq6rg90Q",
+          "title": "[spin9] รีวิว Sony ZV-1 กล้องคอมแพคที่เกิดมาเพื่อคนทำคอนเทนต์",
+          "channel": "spin9",
+          "url": "https://www.youtube.com/watch?v=45yXq6rg90Q",
+          "output_filename": "transcript_45yXq6rg90Q.md"
+        },
+        {
+          "video_id": "7OM3GlzOo7U",
+          "title": "Review!! Sony ZV-1 ฉบับเกือบเต็ม [มีตัวอย่างประกอบ]",
+          "channel": "SNAPPIX",
+          "url": "https://www.youtube.com/watch?v=7OM3GlzOo7U",
+          "output_filename": "transcript_7OM3GlzOo7U.md"
+        },
+        {
+          "video_id": "iHgzWyh_wdM",
+          "title": "รีวิว SONY ZV-1 กล้องเก่า ที่ช่องเราได้มาใหม่ | ทำไมถึงซื้อ?",
+          "channel": "Rafe in peace",
+          "url": "https://www.youtube.com/watch?v=iHgzWyh_wdM",
+          "output_filename": "transcript_iHgzWyh_wdM.md"
+        }
+      ]
+    },
+    {
+      "batch": 7,
+      "file": "camera-batch-07.txt",
+      "count": 3,
+      "utf16_units_crlf": 1835,
+      "sha256": "cda6bf755e198c4c3adfaf3d06a8f2059e7bc4adfc3728e7e1aaeba936d038d5",
+      "videos": [
+        {
+          "video_id": "ntRgICyxKLI",
+          "title": "รีวิว Sony ZV-1 : กล้องเล็กแค่นี้ ราคาเท่านี้ ประสิทธิภาพจะขนาดไหน ?  // 4K",
+          "channel": "KOEY WITH MIEW",
+          "url": "https://www.youtube.com/watch?v=ntRgICyxKLI",
+          "output_filename": "transcript_ntRgICyxKLI.md"
+        },
+        {
+          "video_id": "cAyA5lKNQao",
+          "title": "Fujifilm X-S10 กล้องเล็ก สเปคสุดคุ้ม ฟังก์ชั่นจัดเต็ม  [SnapTech EP164]",
+          "channel": "SnapTech Zone",
+          "url": "https://www.youtube.com/watch?v=cAyA5lKNQao",
+          "output_filename": "transcript_cAyA5lKNQao.md"
+        },
+        {
+          "video_id": "-5esjVAFgoc",
+          "title": "รีวิว Fuji X-S10 กลายร่าง!! | ซื้อไม่ซื้อ | FOTOFILE ep.26",
+          "channel": "FOTOFILE",
+          "url": "https://www.youtube.com/watch?v=-5esjVAFgoc",
+          "output_filename": "transcript_-5esjVAFgoc.md"
+        }
+      ]
+    },
+    {
+      "batch": 8,
+      "file": "camera-batch-08.txt",
+      "count": 3,
+      "utf16_units_crlf": 1833,
+      "sha256": "2b208bf7ad0c3f0c843f2318acfad6af185eb882f95f6c24abaf179b7601a8e2",
+      "videos": [
+        {
+          "video_id": "jpUtRt5g7VM",
+          "title": "รีวิวกล้อง Lumix S9 ในแบบของคนที่ใช้กล้องพานาโซนิคเป็นประจำทุกวัน",
+          "channel": "Wichan Photo",
+          "url": "https://www.youtube.com/watch?v=jpUtRt5g7VM",
+          "output_filename": "transcript_jpUtRt5g7VM.md"
+        },
+        {
+          "video_id": "ANNxJ82UfCA",
+          "title": "รีวิวกล้อง Panasonic LUMIX GF10 กับ 10 จุดเด่น เน้นSelfie",
+          "channel": "bellyly ly",
+          "url": "https://www.youtube.com/watch?v=ANNxJ82UfCA",
+          "output_filename": "transcript_ANNxJ82UfCA.md"
+        },
+        {
+          "video_id": "ZA6xlladlpw",
+          "title": "รีวิว Olympus OM-D E-M1 mark II เจาะลึกเรือธงใหม่ของ Olympus - Hyper Review EP. 33",
+          "channel": "HYPER PIXEL",
+          "url": "https://www.youtube.com/watch?v=ZA6xlladlpw",
+          "output_filename": "transcript_ZA6xlladlpw.md"
+        }
+      ]
+    },
+    {
+      "batch": 9,
+      "file": "camera-batch-09.txt",
+      "count": 3,
+      "utf16_units_crlf": 1802,
+      "sha256": "e32c1792547b2f65c8d3790aa355664ca36191d3c5c81e476da68510dc8b2c31",
+      "videos": [
+        {
+          "video_id": "u4Vhte8MjTw",
+          "title": "B-inside E.p.13 Review รีวิวที่ครบที่สุด ทำไม Olympus OM-D E-M10 Mark IV ถึงยังเป็นกล้องที่น่าซื้อ",
+          "channel": "B-inside",
+          "url": "https://www.youtube.com/watch?v=u4Vhte8MjTw",
+          "output_filename": "transcript_u4Vhte8MjTw.md"
+        },
+        {
+          "video_id": "wRvltEr6Di8",
+          "title": "รีวิว Panasonic Lumix S9 ลองดูว่าเป็นยังไง",
+          "channel": "Minimal Channel",
+          "url": "https://www.youtube.com/watch?v=wRvltEr6Di8",
+          "output_filename": "transcript_wRvltEr6Di8.md"
+        },
+        {
+          "video_id": "TeWO5jBChb4",
+          "title": "รีวิว Sony ZV-E10 ใช้งานจริง",
+          "channel": "iLoveToGoDotCOM",
+          "url": "https://www.youtube.com/watch?v=TeWO5jBChb4",
+          "output_filename": "transcript_TeWO5jBChb4.md"
+        }
+      ]
+    },
+    {
+      "batch": 10,
+      "file": "camera-batch-10.txt",
+      "count": 3,
+      "utf16_units_crlf": 1880,
+      "sha256": "70e47d99d59202fd4db6ef0b70566461b537f326bbce4b6f9baf273a38016e46",
+      "videos": [
+        {
+          "video_id": "GbNUd-64umU",
+          "title": "รีวิว Sony ZV-E10 งาน Video ดีจริง หรือ แค่กระแส ในมุม Content Creator ! | VLOG EP.9",
+          "channel": "BrightToTech",
+          "url": "https://www.youtube.com/watch?v=GbNUd-64umU",
+          "output_filename": "transcript_GbNUd-64umU.md"
+        },
+        {
+          "video_id": "PfxQWtXtcHg",
+          "title": "รีวิว Sony ZV-E10 \"กล้อง Compact ที่ไม่ใช่กล้อง Compact\" เปลี่ยนเลนส์ได้ ฟังก์ชั่นครบครัน",
+          "channel": "TechOffside “ล้ำหน้าโชว์”",
+          "url": "https://www.youtube.com/watch?v=PfxQWtXtcHg",
+          "output_filename": "transcript_PfxQWtXtcHg.md"
+        },
+        {
+          "video_id": "XveQvIR61mE",
+          "title": "รีวิว Sony ZV-E10 จากการใช้งานจริง ข้อดี-ข้อเสีย บอกหมดไม่มีกั๊ก",
+          "channel": "ZOOMCAMERA",
+          "url": "https://www.youtube.com/watch?v=XveQvIR61mE",
+          "output_filename": "transcript_XveQvIR61mE.md"
+        }
+      ]
+    },
+    {
+      "batch": 11,
+      "file": "camera-batch-11.txt",
+      "count": 3,
+      "utf16_units_crlf": 1868,
+      "sha256": "699634e9667a8faa3cc37dbb044001b60d5db11e7c195ef2631147aaef79af34",
+      "videos": [
+        {
+          "video_id": "Ci6VETWzxec",
+          "title": "รีวิว GoPro 9 วิดีโอคมชัด กันสั่นโคตรเทพ กล้องแอคชั่นมาแรงที่สุดในปี 2020",
+          "channel": "ExtreamGoPro",
+          "url": "https://www.youtube.com/watch?v=Ci6VETWzxec",
+          "output_filename": "transcript_Ci6VETWzxec.md"
+        },
+        {
+          "video_id": "rLy-Uex4O1U",
+          "title": "GoPro ตัวจบของสายท่องเที่ยว? รีวิวข้อดี - ข้อเสียที่ต้องรู้ก่อนซื้อ",
+          "channel": "ตากล้องสายเที่ยว",
+          "url": "https://www.youtube.com/watch?v=rLy-Uex4O1U",
+          "output_filename": "transcript_rLy-Uex4O1U.md"
+        },
+        {
+          "video_id": "CFfiA4gdGJA",
+          "title": "GoPro HERO 11 Black รีวิวทุกรายละเอียด ข้อดี ข้อเสีย จากการใช้งานจริง 2 เดือน",
+          "channel": "ECMALL Unbox + Quick Review",
+          "url": "https://www.youtube.com/watch?v=CFfiA4gdGJA",
+          "output_filename": "transcript_CFfiA4gdGJA.md"
+        }
+      ]
+    },
+    {
+      "batch": 12,
+      "file": "camera-batch-12.txt",
+      "count": 3,
+      "utf16_units_crlf": 1882,
+      "sha256": "19cd4811e95803def94e7a60295dc5902ceb696a28bcc6872d06200863222ac3",
+      "videos": [
+        {
+          "video_id": "JVmenPMIbe8",
+          "title": "รีวิว GoPro Hero 11 Black เซนเซอร์ใหญ่ กันสั่นเทพมาพร้อมกับไฟล์ 10 Bit ยกระดับทุกความสามารถที่ดีขึ้น",
+          "channel": "lnwGadget Store จําหน่ายแก๊ตเจ็ทขั้นเทพโดยกูรูอย่างแท้ทรู",
+          "url": "https://www.youtube.com/watch?v=JVmenPMIbe8",
+          "output_filename": "transcript_JVmenPMIbe8.md"
+        },
+        {
+          "video_id": "OiM-FvAQHSc",
+          "title": "Full review Gopro Hero 11 Black  (รีวิวเต็ม)",
+          "channel": "FotoCandiny Photography",
+          "url": "https://www.youtube.com/watch?v=OiM-FvAQHSc",
+          "output_filename": "transcript_OiM-FvAQHSc.md"
+        },
+        {
+          "video_id": "txe18TvYEQA",
+          "title": "GOPRO HERO 11 (2024) ยังน่าใช้อยู่ไหมหรือไป 13 ดีกว่า",
+          "channel": "MEMO TRIP",
+          "url": "https://www.youtube.com/watch?v=txe18TvYEQA",
+          "output_filename": "transcript_txe18TvYEQA.md"
+        }
+      ]
+    },
+    {
+      "batch": 13,
+      "file": "camera-batch-13.txt",
+      "count": 3,
+      "utf16_units_crlf": 1823,
+      "sha256": "6abd143fc6e8e6737ff78430260acb1c4bcae2bb0249f9df57a503beae5fdeeb",
+      "videos": [
+        {
+          "video_id": "4-vwBGMJtH0",
+          "title": "EP 96 รีวิวกล้อง DJI OSMO POCKET 3 มันเทพจริงๆนะ",
+          "channel": "AUNZA THAILAND",
+          "url": "https://www.youtube.com/watch?v=4-vwBGMJtH0",
+          "output_filename": "transcript_4-vwBGMJtH0.md"
+        },
+        {
+          "video_id": "s1if6Be1o0g",
+          "title": "รีวิว Sony ZV-1F กล้องที่เหมาะกับมือใหม่ คนจริงจังข้ามไปก่อน",
+          "channel": "ThePeak Channel",
+          "url": "https://www.youtube.com/watch?v=s1if6Be1o0g",
+          "output_filename": "transcript_s1if6Be1o0g.md"
+        },
+        {
+          "video_id": "YCc_Rg-5XKY",
+          "title": "Fujifilm X-T4 รีวิว แบบคนชอบเที่ยว || เที่ยวแล้วเที่ยวอีก",
+          "channel": "เที่ยวแล้วเที่ยวอีก Travels Again",
+          "url": "https://www.youtube.com/watch?v=YCc_Rg-5XKY",
+          "output_filename": "transcript_YCc_Rg-5XKY.md"
+        }
+      ]
+    },
+    {
+      "batch": 14,
+      "file": "camera-batch-14.txt",
+      "count": 3,
+      "utf16_units_crlf": 1811,
+      "sha256": "c3229afa7f344eb82bf4053bdf25aa59bcad961db917c9119ab85eaaf946ff74",
+      "videos": [
+        {
+          "video_id": "J8-L2-10fr0",
+          "title": "รีวิว sony zv1f ปี 2024 น่าใช้มาก ถ้ามี ND filter ราคากำลังดี เหมาะกับสายทำวิดีโอคอนเท้น",
+          "channel": "IT Review channel ",
+          "url": "https://www.youtube.com/watch?v=J8-L2-10fr0",
+          "output_filename": "transcript_J8-L2-10fr0.md"
+        },
+        {
+          "video_id": "F4qwui2M4lQ",
+          "title": "Sony ZV-1F คือ Vlog Camera จริงหรอ?",
+          "channel": "Helog",
+          "url": "https://www.youtube.com/watch?v=F4qwui2M4lQ",
+          "output_filename": "transcript_F4qwui2M4lQ.md"
+        },
+        {
+          "video_id": "LN8KXiTfLWo",
+          "title": "นี้คือกล้องจิ๋วที่น่าใช้ที่สุดใหม่ Insta360 GO 3 | แฟนช่างภาพ",
+          "channel": "Kanbokeh",
+          "url": "https://www.youtube.com/watch?v=LN8KXiTfLWo",
+          "output_filename": "transcript_LN8KXiTfLWo.md"
+        }
+      ]
+    },
+    {
+      "batch": 15,
+      "file": "camera-batch-15.txt",
+      "count": 3,
+      "utf16_units_crlf": 1830,
+      "sha256": "b54376848030277997cb3eae2d73f2e59141373b0310903fcb19a63606c339fa",
+      "videos": [
+        {
+          "video_id": "klx3O9MlonQ",
+          "title": "Review Insta360 GO3: เมื่อขีดจำกัดอยู่แค่จินตนาการ และ ตัง...",
+          "channel": "RatchetBoy",
+          "url": "https://www.youtube.com/watch?v=klx3O9MlonQ",
+          "output_filename": "transcript_klx3O9MlonQ.md"
+        },
+        {
+          "video_id": "WjRWqMp5KOc",
+          "title": "Canon EOS R50 รีวิวใช้จริงแบบละเอียด ทดสอบถ่ายเที่ยวต่างประเทศ สวนสนุกสุดเหวี่ยง ปีนเขาสุดโหด!",
+          "channel": "รีวิวใช้จริงจริง",
+          "url": "https://www.youtube.com/watch?v=WjRWqMp5KOc",
+          "output_filename": "transcript_WjRWqMp5KOc.md"
+        },
+        {
+          "video_id": "qvQt_yWBjEw",
+          "title": "รีวิว GoPro 9 | 6 ไอเดียใช้งาน GOPRO 9 !!",
+          "channel": "AIMAN STUDIO",
+          "url": "https://www.youtube.com/watch?v=qvQt_yWBjEw",
+          "output_filename": "transcript_qvQt_yWBjEw.md"
+        }
+      ]
+    }
+  ],
+  "metadata_checked_at": "2026-10-14T16:30:16.229316+00:00",
+  "metadata_evidence": "Z:\\content-ai.worktrees\\agents-content-analysis-recommendation-system\\artifacts\\transcript-prompts\\phone-camera-new90-20261014\\metadata.json",
+  "metadata_sha256": "3dab8e88f2d38b3d4acf190a759cf8c564d56eba2ec9df1ea8b855a1505df463",
+  "database_modified": false,
+  "import_performed": false,
+  "outcome_holdout_approved": false,
+  "full_transcript_verified": false,
+  "character_budget": "<2000 UTF-16 units including CRLF; internal target, not guaranteed account limit"
+}

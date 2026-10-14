@@ -45,10 +45,12 @@ class OutcomeTrainingTests(unittest.TestCase):
             protocol=self.protocol,
             data_use_record=json.loads(fixture["data_use_path"].read_text(encoding="utf-8")),
             trusted_root=fixture["manifest_path"].parent,
+            allow_synthetic_fixture=True,
         )
 
     def test_fixture_pipeline_is_validation_only_and_test_stays_sealed(self):
-        self.assertEqual(self.report["status"], "fixture_validation_passed")
+        self.assertEqual(self.report["status"], "fixture_experimental")
+        self.assertFalse(self.report["qualification"]["checks"]["category_evaluation_complete"])
         self.assertTrue(self.report["artifact_created"])
         self.assertFalse(self.report["independent_test_opened"])
         self.assertFalse(self.report["production_eligible"])
@@ -79,7 +81,12 @@ class OutcomeTrainingTests(unittest.TestCase):
             values["before"]["overall"]["channel_balanced"]["sample_count"]
             for values in tuning.values()
         }
-        self.assertEqual(counts, {30})
+        self.assertEqual(counts, {25})
+        for values in tuning.values():
+            coverage = values["before"]["coverage"]
+            self.assertEqual(coverage["eligible"], 30)
+            self.assertEqual(coverage["abstained"], 5)
+            self.assertAlmostEqual(coverage["rate"], 25 / 30)
 
     def test_heldout_outcome_changes_do_not_change_fit_or_model_choice(self):
         second = write_synthetic_fixture(

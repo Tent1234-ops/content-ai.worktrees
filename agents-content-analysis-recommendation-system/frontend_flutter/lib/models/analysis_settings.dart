@@ -7,6 +7,7 @@ class AnalysisSettings {
     this.updatedAt = '',
     this.whisperModels = const [],
     this.classificationModel = const {},
+    this.outcomeContexts = const [],
   });
 
   final int uploadMaxDurationSeconds;
@@ -16,6 +17,7 @@ class AnalysisSettings {
   final String updatedAt;
   final List<WhisperOption> whisperModels;
   final Map<String, dynamic> classificationModel;
+  final List<Map<String, dynamic>> outcomeContexts;
 
   bool acceptsDuration(Duration duration) =>
       duration <= Duration(seconds: uploadMaxDurationSeconds, milliseconds: 50);
@@ -34,6 +36,10 @@ class AnalysisSettings {
             .toList(),
         classificationModel: Map<String, dynamic>.from(
             json['classification_model'] as Map? ?? {}),
+        outcomeContexts:
+            ((json['outcome_upload'] as Map?)?['contexts'] as List? ?? [])
+                .map((item) => Map<String, dynamic>.from(item as Map))
+                .toList(),
       );
 }
 

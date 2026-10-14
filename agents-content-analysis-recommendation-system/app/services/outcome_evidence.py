@@ -5,7 +5,7 @@ import copy
 from typing import Any
 
 
-SCHEMA_VERSION = "recommendation-evidence-explanation-v1"
+SCHEMA_VERSION = "recommendation-evidence-explanation-v2"
 
 
 def _number(value: Any) -> str:
@@ -61,7 +61,8 @@ def _comparison_message(comparison: dict[str, Any] | None, item: dict[str, Any])
         uncertainty = views.get("uncertainty") or {}
         interval = ""
         if uncertainty.get("low") is not None and uncertainty.get("high") is not None:
-            interval = f" ช่วงความไม่แน่นอน {_number(uncertainty['low'])} ถึง {_number(uncertainty['high'])}"
+            interval = (f" ช่วงความไม่แน่นอนของผลต่างยอดวิวแบบจับคู่ภายในช่อง "
+                        f"{_number(uncertainty['low'])} ถึง {_number(uncertainty['high'])} วิว")
         return {
             "level": "comparison_uncertain",
             "message_th": (
@@ -78,8 +79,14 @@ def _comparison_message(comparison: dict[str, Any] | None, item: dict[str, Any])
         "level": "comparison_supported",
         "message_th": (
             f"ในคลิปอ้างอิงหมวดและบริบทที่เทียบกันได้ ณ {comparison.get('as_of') or 'เวลาที่บันทึกหลักฐาน'} "
-            f"กลุ่มที่พบหัวข้อนี้มีค่ากลางยอดวิว {_number(detected.get('median'))} ซึ่ง{direction}กลุ่มที่ไม่พบ "
-            f"({_number(absent.get('median'))}) นี่เป็นความสัมพันธ์ในตัวอย่าง ไม่ใช่เหตุยืนยันว่ายอดวิวจะเพิ่ม"
+            f"เมื่อจับคู่ภายในช่องและบริบทเดียวกันจาก {views.get('paired_channel_count', 0)} ช่อง "
+            f"กลุ่มที่พบหัวข้อนี้มีแนวโน้มยอดวิว{direction}กลุ่มที่ไม่พบ "
+            f"ค่ากลางผลต่างแบบจับคู่คือ {_number(views.get('within_channel_median_difference'))} วิว "
+            f"ช่วงความไม่แน่นอนของผลต่าง {_number((views.get('uncertainty') or {}).get('low'))} "
+            f"ถึง {_number((views.get('uncertainty') or {}).get('high'))} วิว "
+            f"ส่วนค่ากลางรวมทุกคลิปของกลุ่มที่พบและไม่พบคือ {_number(detected.get('median'))} "
+            f"และ {_number(absent.get('median'))} วิวตามลำดับ ซึ่งเป็นคนละสถิติกับผลต่างแบบจับคู่ "
+            "นี่เป็นความสัมพันธ์ในตัวอย่าง ไม่ใช่เหตุยืนยันว่ายอดวิวจะเพิ่ม"
         ),
         "statistics": statistics,
         "causal_claim": False,

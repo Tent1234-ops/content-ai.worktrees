@@ -352,6 +352,13 @@ def execute_training_run(run_id: str, *, session_factory=SessionLocal) -> None:
             )
             if not report.get("artifact_created"):
                 raise ValueError("Outcome training was blocked during execution")
+            candidate_artifact = load_outcome_artifact(
+                Path(report["artifact_path"]), trusted_root=ARTIFACT_ROOT,
+                expected_sha256=report["artifact_sha256"], expected_protocol_sha256=report["protocol_sha256"],
+                expected_feature_schema_sha256=report["feature_schema_sha256"],
+            )
+            if candidate_artifact.get("calibration_version") != report.get("calibration_version"):
+                raise ValueError("Training report calibration version differs from artifact")
             db.expire_all()
             run = db.get(OutcomeTrainingRun, run_id)
             if run.active_slot != 1:
@@ -363,7 +370,7 @@ def execute_training_run(run_id: str, *, session_factory=SessionLocal) -> None:
                 feature_schema_sha256=report["feature_schema_sha256"],
                 manifest_sha256=report["manifest_sha256"],
                 split_hashes_json=json.dumps(report["split_hashes"]),
-                calibration_version="weighted-sigmoid-v1",
+                calibration_version=report["calibration_version"],
                 source_kind="real", status=report["qualification"]["status"],
                 is_active=False, artifact_path=report["artifact_path"],
                 artifact_sha256=report["artifact_sha256"],
@@ -379,9 +386,7 @@ def execute_training_run(run_id: str, *, session_factory=SessionLocal) -> None:
                         "metrics": None,
                     },
                 }),
-                evaluated_scopes_json=json.dumps([
-                    "overall", "category", "confirmed_format", "age_context"
-                ]),
+                evaluated_scopes_json=json.dumps({"schema_version": "outcome-qualified-scopes-v1", "contexts": []}),
                 library_versions_json=json.dumps(report["library_versions"]),
                 training_sample_count=sum(
                     int(report["partition_counts"][role]["videos"])
@@ -448,12 +453,8 @@ def _serialize_model(row: OutcomeModel) -> dict[str, Any]:
         "fit", "tuning", "calibration", "independent_test"
     )):
         gate["reason_codes"].append("outcome_split_hashes_incomplete")
-    required_scopes = {
-        "overall", "category", "confirmed_format", "age_context",
-    }
-    evaluated_scopes = set(_json(row.evaluated_scopes_json, []))
-    if not required_scopes.issubset(evaluated_scopes):
-        gate["reason_codes"].append("outcome_evaluated_scopes_incomplete")
+    from app.services.outcome_support import qualified_scope_reasons
+    gate["reason_codes"].extend(qualified_scope_reasons(_json(row.evaluated_scopes_json, {})))
     if row.source_kind != "real":
         gate["reason_codes"] = sorted(set([
             *gate["reason_codes"], "synthetic_fixture_not_activatable",
@@ -504,7 +505,10 @@ def training_overview(db: Session, *, model_limit: int = 20) -> dict[str, Any]:
         "runs": list_training_runs(db, limit=20),
         "models": list_models(db, limit=model_limit),
         "active_model": active_model(db),
-        "independent_test_opened": False,
+        "independent_test_opened": any(
+            bool((_json(row.metrics_json).get("independent_test") or {}).get("independent_test_opened"))
+            for row in db.query(OutcomeModel).all()
+        ),
     }
 
 
@@ -579,13 +583,18 @@ def activate_model(
         reasons = ", ".join(detail["activation_reason_codes"])
         raise ValueError(f"Outcome model activation blocked: {reasons}")
 
-    load_outcome_artifact(
+    artifact = load_outcome_artifact(
         Path(target.artifact_path),
         trusted_root=ARTIFACT_ROOT,
         expected_sha256=target.artifact_sha256,
         expected_protocol_sha256=target.protocol_sha256,
         expected_feature_schema_sha256=target.feature_schema_sha256,
     )
+    from app.services.outcome_inference import _qualification_reasons, _model_snapshot_by_id
+    reasons = _qualification_reasons(_model_snapshot_by_id(db, model_id), artifact,
+                                     allow_synthetic_fixture=False)
+    if reasons:
+        raise ValueError("Outcome artifact activation blocked: " + ", ".join(reasons))
     previous_id = current.model_id if current else None
     if current is not None:
         current.is_active = False

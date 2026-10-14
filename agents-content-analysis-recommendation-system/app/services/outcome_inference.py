@@ -24,12 +24,11 @@ from app.services.outcome_prediction_readiness import (
     validate_protocol,
 )
 from app.services.outcome_training import (
-    TRAINING_SUPPORT_VERSION,
     _matrix,
     _positive_probability,
-    _topic_signature,
     load_outcome_artifact,
 )
+from app.services.outcome_support import qualified_scope_reasons, training_support
 from app.services.recommendation_evidence import fingerprint, text_hash
 
 
@@ -175,6 +174,7 @@ def _active_model_snapshot(db: Session) -> tuple[dict[str, Any] | None, list[str
         "artifact_sha256": row.artifact_sha256,
         "independent_test_passed": bool(row.independent_test_passed),
         "production_eligible": bool(row.production_eligible),
+        "evaluated_scopes": _parse_json(row.evaluated_scopes_json, {}),
     }, []
 
 
@@ -207,6 +207,7 @@ def _model_snapshot_by_id(db: Session, model_id: int) -> dict[str, Any] | None:
         "artifact_sha256": row.artifact_sha256,
         "independent_test_passed": bool(row.independent_test_passed),
         "production_eligible": bool(row.production_eligible),
+        "evaluated_scopes": _parse_json(row.evaluated_scopes_json, {}),
     }
 
 
@@ -236,6 +237,28 @@ def clear_outcome_artifact_cache() -> None:
         _ARTIFACT_CACHE.clear()
 
 
+def outcome_upload_options(db: Session) -> dict[str, Any]:
+    """Return supported reference contexts, never scores or an inferred format."""
+    unavailable = {"status": "unavailable", "contexts": []}
+    try:
+        if not data_use_gate(_load_json(DATA_USE_PATH), "serving")["allowed"]:
+            return unavailable
+        model, reasons = _active_model_snapshot(db)
+        if model is None or reasons:
+            return unavailable
+        if model["protocol_sha256"] != validate_protocol(_load_json(PROTOCOL_PATH))["protocol_sha256"]:
+            return unavailable
+        artifact = _load_cached_artifact(model)
+        if _qualification_reasons(model, artifact, allow_synthetic_fixture=False):
+            return unavailable
+        contexts = [{key: row[key] for key in (
+            "accepted_category", "confirmed_format", "frozen_age_context", "view_metric_version")}
+            for row in artifact["evaluated_scopes"]["contexts"] if row.get("qualified") is True]
+        return {"status": "available", "model_id": model["model_id"], "contexts": contexts}
+    except (OSError, ValueError, KeyError, TypeError):
+        return unavailable
+
+
 def _qualification_reasons(
     model: dict[str, Any], artifact: dict[str, Any] | None, *, allow_synthetic_fixture: bool,
 ) -> list[str]:
@@ -248,12 +271,17 @@ def _qualification_reasons(
         reasons.append("production_eligibility_false")
     if model.get("source_kind") == "synthetic_fixture" and not allow_synthetic_fixture:
         reasons.append("synthetic_fixture_not_allowed_for_live_serving")
+    reasons.extend(qualified_scope_reasons(model.get("evaluated_scopes")))
     if artifact is not None:
         qualification = artifact.get("qualification") or {}
-        if qualification.get("status") != "qualified" and qualification.get("qualified") is not True:
+        if qualification.get("status") != "qualified" or qualification.get("qualified") is not True:
             reasons.append("artifact_not_qualified")
         if artifact.get("production_eligible") is not True:
             reasons.append("artifact_production_eligibility_false")
+        if artifact.get("evaluated_scopes") != model.get("evaluated_scopes"):
+            reasons.append("qualified_scopes_registry_mismatch")
+        if artifact.get("calibration_version") != model.get("calibration_version"):
+            reasons.append("calibration_version_mismatch")
     return sorted(set(reasons))
 
 
@@ -306,39 +334,7 @@ def _resolve_context(
 def _training_support(
     artifact: dict[str, Any], model_input: dict[str, Any],
 ) -> tuple[dict[str, Any], list[str]]:
-    support = artifact.get("training_support") or {}
-    if support.get("version") != TRAINING_SUPPORT_VERSION:
-        return {"status": "unsupported"}, ["training_support_artifact_missing"]
-    signature = _topic_signature(model_input)
-    match = next((
-        item for item in support.get("signatures", [])
-        if item.get("accepted_category") == model_input.get("accepted_category")
-        and item.get("confirmed_format") == model_input.get("confirmed_format")
-        and item.get("frozen_age_context") == model_input.get("frozen_age_context")
-        and item.get("topic_signature") == signature
-    ), None)
-    if match is None:
-        return {
-            "status": "unsupported", "topic_signature": signature,
-            "policy_version": support.get("version"),
-        }, ["joint_feature_signature_not_seen_in_fit"]
-    minimum_videos = int(support.get("minimum_signature_videos", 0))
-    minimum_channels = int(support.get("minimum_signature_channels", 0))
-    reasons = []
-    if int(match.get("video_count", 0)) < minimum_videos:
-        reasons.append("joint_feature_minimum_videos_not_met")
-    if int(match.get("channel_count", 0)) < minimum_channels:
-        reasons.append("joint_feature_minimum_channels_not_met")
-    return {
-        "status": "supported" if not reasons else "unsupported",
-        "policy_version": support.get("version"),
-        "source_partition": support.get("source_partition"),
-        "topic_signature": signature,
-        "video_count": int(match.get("video_count", 0)),
-        "channel_count": int(match.get("channel_count", 0)),
-        "minimum_video_count": minimum_videos,
-        "minimum_channel_count": minimum_channels,
-    }, reasons
+    return training_support(artifact, model_input)
 
 
 def _predict(artifact: dict[str, Any], model_input: dict[str, Any]) -> float:
@@ -411,7 +407,7 @@ def assess_outcome(
             )
             return result
 
-        rights = data_use_gate(_load_json(DATA_USE_PATH), "serving")
+        rights = data_use_gate(_load_json(DATA_USE_PATH), "serving", allow_synthetic_fixture=allow_synthetic_fixture)
         if not rights["allowed"]:
             result.update(status="data_use_unverified", reason_codes=rights["reason_codes"])
             return result
@@ -445,6 +441,10 @@ def assess_outcome(
         )
         if context is None:
             result.update(status="unsupported_context", reason_codes=context_reasons)
+            return result
+        scope_reasons = qualified_scope_reasons(artifact.get("evaluated_scopes"), context)
+        if scope_reasons:
+            result.update(status="unsupported_context", reason_codes=scope_reasons)
             return result
 
         record = {
@@ -515,7 +515,7 @@ def predict_frozen_model_input(
     allow_synthetic_fixture: bool = False,
 ) -> dict[str, Any]:
     """Score a copied feature vector using the exact model pinned in a snapshot."""
-    rights = data_use_gate(_load_json(DATA_USE_PATH), "serving")
+    rights = data_use_gate(_load_json(DATA_USE_PATH), "serving", allow_synthetic_fixture=allow_synthetic_fixture)
     if not rights["allowed"]:
         return {"status": "data_use_unverified", "reason_codes": rights["reason_codes"],
                 "probability": None, "support_summary": None}
@@ -544,6 +544,13 @@ def predict_frozen_model_input(
     reasons = _qualification_reasons(model, artifact, allow_synthetic_fixture=allow_synthetic_fixture)
     if reasons:
         return {"status": "model_unqualified", "reason_codes": reasons,
+                "probability": None, "support_summary": None}
+    context = dict(assessment.get("context") or {})
+    context.update({key: model_input.get(key) for key in (
+        "accepted_category", "confirmed_format", "frozen_age_context")})
+    scope_reasons = qualified_scope_reasons(artifact.get("evaluated_scopes"), context)
+    if scope_reasons:
+        return {"status": "unsupported_context", "reason_codes": scope_reasons,
                 "probability": None, "support_summary": None}
     support, support_reasons = _training_support(artifact, model_input)
     if support_reasons:

@@ -95,6 +95,26 @@ class OutcomeFinalEvaluationTests(unittest.TestCase):
         self.assertIsNone(summary["fabricated_evidence_count"])
         self.assertIsNone(summary["passed"])
 
+    def test_completed_evaluation_is_reported_without_claiming_live_or_utility_pass(self):
+        self.freeze["candidate"] = {"model_id": 8, "status": "frozen_real_candidate"}
+        self.freeze["freeze_sha256"] = "test-freeze"
+        actual = {"schema_version": "outcome-independent-evaluation-report-v2", "model_id": 8,
+                  "freeze_sha256": "test-freeze", "independent_test_opened": True,
+                  "status": "experimental", "source_kind": "real", "production_eligible": False,
+                  "evaluation": {"checks": {"calibration_bins_pass": False}, "evaluated_scopes": {}}}
+        reports = build_phase6_reports(readiness=self.readiness, phase5_freeze=self.freeze,
+            data_use=self.data_use, utility_protocol=self.utility, outcome_overview=self.overview,
+            browser_evidence=self.browser, software_evidence=self.software, independent_evaluation=actual)
+        self.assertEqual(reports["independent-evaluation-report.json"], actual)
+        self.assertFalse(reports["qualification-decision.json"]["prediction_qualified"])
+        self.assertEqual(reports["release-decision.json"]["decision"], "NO_GO")
+        self.assertEqual(reports["utility-summary.json"]["status"], "not_evaluated")
+        actual["freeze_sha256"] = "wrong"
+        with self.assertRaisesRegex(ValueError, "frozen candidate"):
+            build_phase6_reports(readiness=self.readiness, phase5_freeze=self.freeze,
+                data_use=self.data_use, utility_protocol=self.utility, outcome_overview=self.overview,
+                browser_evidence=self.browser, software_evidence=self.software, independent_evaluation=actual)
+
     def test_unqualified_candidate_cannot_activate_any_scope(self):
         decision = self.reports()["qualification-decision.json"]
         self.assertFalse(decision["prediction_qualified"])

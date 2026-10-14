@@ -42,7 +42,8 @@ def confirmed_data_use():
         "status": "confirmed", "owner": "fixture-owner",
         "intended_uses": ["audit", "training", "serving"],
         "confirmation_evidence": [{"fixture": True}],
-        "decision": {"audit_allowed": True},
+        "decision": {"audit_allowed": True, "real_training_allowed": True,
+                     "real_serving_allowed": True},
     }
 
 

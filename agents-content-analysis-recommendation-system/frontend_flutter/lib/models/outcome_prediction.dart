@@ -191,6 +191,15 @@ String outcomeReasonMessage(String reason) {
       'ยังไม่มีโมเดลประเมินผลตอบรับที่เปิดใช้งาน',
     'model_not_independent_test_qualified' => 'โมเดลยังไม่ผ่านชุดทดสอบอิสระ',
     'independent_test_not_passed' => 'ผลชุดทดสอบอิสระยังไม่ผ่าน',
+    'qualified_scopes_missing' => 'ยังไม่มีขอบเขตที่ผ่านการตรวจรับ',
+    'qualified_context_missing' => 'ยังไม่มีบริบทที่ผ่านการตรวจรับ',
+    'context_not_independent_test_qualified' =>
+      'บริบทนี้ยังไม่ผ่านการประเมินด้วยชุดทดสอบอิสระ',
+    'qualified_scopes_registry_mismatch' => 'ข้อมูลขอบเขตของโมเดลไม่ตรงกัน',
+    'calibration_version_mismatch' =>
+      'เวอร์ชันการปรับค่าความน่าจะเป็นไม่ตรงกัน',
+    'data_use_serving_not_authorized' =>
+      'ยังไม่ได้รับอนุญาตให้ใช้ข้อมูลประเมินผลตอบรับ',
     'production_eligibility_false' => 'โมเดลยังไม่พร้อมใช้งานจริง',
     'confirmed_format_required' => 'ยังไม่ได้ยืนยันรูปแบบคลิปสั้นหรือคลิปยาว',
     'reference_age_context_required' => 'ยังไม่ได้ระบุช่วงอายุของคลิปอ้างอิง',

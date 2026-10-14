@@ -51,6 +51,7 @@ def _transcript(
 
 def build_synthetic_records(
     protocol: dict[str, Any], *, independent_test_view_offset: int = 0,
+    varied_laptop_fit_channels: bool = False,
 ) -> list[dict[str, Any]]:
     schema = feature_schema(protocol)
     categories = ("phone", "camera", "laptop")
@@ -79,7 +80,10 @@ def build_synthetic_records(
                 views = 3_000 + index if positive else 1_000 + index
                 if role == "independent_test":
                     views += independent_test_view_offset
-                channel = f"fixture-{role}-{category}-channel-{index % channel_count}"
+                channel_index = index % channel_count
+                if varied_laptop_fit_channels and role == "fit" and category == "laptop" and index >= 15:
+                    channel_index = (channel_index + 1) % channel_count
+                channel = f"fixture-{role}-{category}-channel-{channel_index}"
                 video_id = f"fx-{role[:3]}-{category[:3]}-{index:03d}"
                 records.append({
                     "dataset_id": dataset_id,
@@ -110,6 +114,8 @@ def build_synthetic_records(
                     "collection_strategy": "synthetic_balanced_software_path",
                     "sampling_frame": "synthetic_fixture_not_a_real_population",
                     "prior_explicit_roles": [],
+                    "outcome_holdout_status": "fresh_confirmed",
+                    "outcome_prior_use_reviewed": True,
                     "observation": {
                         "observation_id": observation_id,
                         "observed_at": "2026-10-01T00:00:00Z",
@@ -126,6 +132,7 @@ def build_synthetic_records(
 
 def write_synthetic_fixture(
     output_dir: Path, protocol: dict[str, Any], *, independent_test_view_offset: int = 0,
+    varied_laptop_fit_channels: bool = False,
 ) -> dict[str, Any]:
     if output_dir.exists():
         raise ValueError("Synthetic fixture directory already exists")
@@ -133,11 +140,13 @@ def write_synthetic_fixture(
     data_use = synthetic_data_use_record()
     frozen = freeze_manifest(
         build_synthetic_records(
-            protocol, independent_test_view_offset=independent_test_view_offset
+            protocol, independent_test_view_offset=independent_test_view_offset,
+            varied_laptop_fit_channels=varied_laptop_fit_channels,
         ),
         cutoff=datetime(2026, 10, 8, 0, 0, 0),
         protocol=protocol,
         data_use_record=data_use,
+        allow_synthetic_fixture=True,
     )
     if frozen.get("status") != "frozen":
         raise RuntimeError(f"Synthetic fixture could not be frozen: {frozen}")
@@ -152,6 +161,7 @@ def write_synthetic_fixture(
             "production_eligible": False,
             "independent_test_outcomes_written": False,
             "role_counts": ROLE_COUNTS,
+            "varied_laptop_fit_channels": varied_laptop_fit_channels,
             "purpose": "software_path_validation_only",
         },
     }

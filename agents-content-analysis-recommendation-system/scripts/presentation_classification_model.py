@@ -150,11 +150,15 @@ def disable(db, *, admin_id, expected_active_id):
         raise ValueError("Active model is not a presentation model")
     artifact = load_classification_artifact(active.artifact_path)
     previous = db.get(ClassificationModel, artifact["presentation_authorization"]["previous_active_model_id"])
-    if previous is None or previous.status != "qualified":
+    can_restore_presentation = (artifact["presentation_authorization"].get("version") == "presentation-authorization-v2"
+                                and previous is not None and previous.status == PRESENTATION_STATUS)
+    if previous is None or (previous.status != "qualified" and not can_restore_presentation):
         raise ValueError("Previous registry model is unavailable")
     active.is_active = False
     previous.is_active = True
-    result = {"disabled_model_id": active.model_id, "restored_model_id": previous.model_id}
+    result = {"disabled_model_id": active.model_id, "restored_model_id": previous.model_id,
+              "restored_status": previous.status,
+              "restored_authorization_not_renewed": True}
     db.add(SystemLog(user_id=admin_id, action="classification_presentation_disable", status="success", detail=json.dumps(result)))
     db.commit()
     return result

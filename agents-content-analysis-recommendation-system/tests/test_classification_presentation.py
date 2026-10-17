@@ -12,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database.db import Base
-from app.database.models import ClassificationModel, ModelEvaluationMetric, SystemLog, User
+from app.database.models import ClassificationModel, ModelEvaluationMetric, ModelTrainingRun, SystemLog, User
 from app.services.classification import classify_text_domain, get_active_classification_model
 from app.services.classification_acceptance import (
     CONTRAST_POLICY_VERSION, acceptance_summary, apply_acceptance_policy, fit_acceptance_policy,
@@ -23,6 +23,7 @@ from app.services.classification_readiness import classification_model_snapshot
 from app.services.classification_training import _dataset_fingerprint, classify_with_artifact
 from app.services.model_management import activate_evaluated_model
 from scripts import presentation_classification_model as command
+from scripts import activate_final_presentation as final_command
 from tests import test_classification_acceptance as fixtures
 
 
@@ -154,6 +155,88 @@ class PresentationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "data changed"):
                 self.enable()
         self.assertEqual(self.db.query(ClassificationModel).count(), 1)
+
+    def registered_source(self):
+        fingerprint = _dataset_fingerprint(self.rows)
+        artifact = self.source / "registered.joblib"
+        joblib.dump({"artifact_schema_version": 3, "model_key": "candidate", "model_version": "v1",
+                     "labels": self.fixture.labels, "unknown_leaf_key": "unknown", "unknown_threshold": 0.6,
+                     "estimator": self.fixture.estimator, "scope_policy": self.policy,
+                     "scope_test_passed": False, "dataset_fingerprint": fingerprint}, artifact)
+        source = ClassificationModel(model_key="candidate", model_version="v1", model_type="test",
+                                     taxonomy_version="test", artifact_path=str(artifact),
+                                     status="evaluated_below_threshold", is_active=False)
+        self.db.add(source)
+        self.db.flush()
+        report = {"best_model": {"model_id": source.model_id},
+                  "dataset": {"dataset_fingerprint": fingerprint},
+                  "models": [{"model_id": source.model_id, "artifact_path": str(artifact),
+                              "artifact_sha256": final_command.classification_artifact_sha256(artifact),
+                              "qualification": {"passed": False}, "scope_policy": acceptance_summary(self.policy)}]}
+        run = ModelTrainingRun(run_id="final-run", status="completed", stage="completed",
+                               result_json=json.dumps(report), parameters_json="{}")
+        self.db.add(run)
+        self.db.commit()
+        return source, run, fingerprint
+
+    def test_final_registered_activation_retains_source_and_failed_gates(self):
+        source, run, fingerprint = self.registered_source()
+        source_hash = final_command.classification_artifact_sha256(source.artifact_path)
+        self.previous.status = "presentation_only"
+        self.db.commit()
+        now = datetime.now(timezone.utc)
+        with patch.object(final_command, "training_dataset", return_value={"dataset_fingerprint": fingerprint}):
+            result = final_command.activate(self.db, run_id=run.run_id, admin_id=self.admin.user_id,
+                expected_active_id=self.previous.model_id, expires_at=now + timedelta(days=5), reason="Owner request",
+                confirmed=True, output_root=self.root / "final", now=now)
+        self.assertFalse(result["promotion_passed"])
+        self.assertFalse(result["selection_used_test"])
+        self.assertEqual(source.status, "evaluated_below_threshold")
+        self.assertEqual(final_command.classification_artifact_sha256(source.artifact_path), source_hash)
+        self.assertEqual(self.db.query(ClassificationModel).filter_by(is_active=True).count(), 1)
+        payload = joblib.load(result["artifact_path"])
+        self.assertTrue(presentation_authorization(payload, now=now + timedelta(days=4))["authorized"])
+        self.assertFalse(presentation_authorization(payload, now=now + timedelta(days=5))["authorized"])
+        prediction = classify_with_artifact(result["artifact_path"], text=fixtures.TEXTS["phone"], allow_presentation=True)
+        self.assertTrue(prediction["acceptance"]["presentation_only"])
+        self.assertEqual(classify_with_artifact(result["artifact_path"], text=fixtures.TEXTS["unknown"],
+                         allow_presentation=True)["taxonomy_leaf_key"], "unknown")
+        restored = command.disable(self.db, admin_id=self.admin.user_id, expected_active_id=result["model_id"])
+        self.assertEqual(restored["restored_model_id"], self.previous.model_id)
+        self.assertTrue(restored["restored_authorization_not_renewed"])
+
+    def test_final_registered_activation_rejects_invalid_confirmation_and_stale_fit(self):
+        source, run, fingerprint = self.registered_source()
+        now = datetime.now(timezone.utc)
+        arguments = dict(run_id=run.run_id, admin_id=self.admin.user_id, expected_active_id=self.previous.model_id,
+                         expires_at=now + timedelta(days=5), reason="Owner request", confirmed=True,
+                         output_root=self.root / "final", now=now)
+        for changes in ({"confirmed": False}, {"reason": ""}, {"expected_active_id": 999},
+                        {"expires_at": now + timedelta(days=8)}, {"expires_at": now.replace(tzinfo=None)}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                final_command.activate(self.db, **{**arguments, **changes})
+            self.db.rollback()
+        with patch.object(final_command, "training_dataset", return_value={"dataset_fingerprint": "changed"}):
+            with self.assertRaisesRegex(ValueError, "Dataset changed"):
+                final_command.activate(self.db, **arguments)
+        self.db.rollback()
+        with patch.object(final_command, "classification_artifact_sha256", return_value="changed"):
+            with self.assertRaisesRegex(ValueError, "integrity"):
+                final_command.activate(self.db, **arguments)
+        self.assertEqual(self.db.query(ClassificationModel).count(), 2)
+        self.assertTrue(self.db.get(ClassificationModel, self.previous.model_id).is_active)
+
+    def test_final_deadline_version_does_not_extend_legacy_grants(self):
+        result = self.enable()
+        payload = joblib.load(result["artifact_path"])
+        grant = payload["presentation_authorization"]
+        issued = datetime.fromisoformat(grant["issued_at"])
+        grant["expires_at"] = (issued + timedelta(days=5)).isoformat()
+        self.assertFalse(presentation_authorization(payload, now=issued)["authorized"])
+        grant.update(version="presentation-authorization-v2", deadline_at=grant["expires_at"], source_model_id=2)
+        self.assertTrue(presentation_authorization(payload, now=issued)["authorized"])
+        grant["deadline_at"] = (issued + timedelta(days=4)).isoformat()
+        self.assertFalse(presentation_authorization(payload, now=issued)["authorized"])
 
 
 if __name__ == "__main__":

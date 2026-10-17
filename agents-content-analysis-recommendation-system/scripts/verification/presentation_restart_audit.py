@@ -22,6 +22,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--analysis-report", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--expected-model-id", type=int)
+    parser.add_argument("--skip-trend-refresh", action="store_true")
     args = parser.parse_args()
     output = args.output.resolve()
     if output.exists():
@@ -50,9 +52,26 @@ def main():
         keys = ("upload_max_duration_seconds", "asr_model", "hook_duration_seconds")
         assert all(settings[key] == original["settings_before"][key] for key in keys)
         report["settings_persisted"] = {key: settings[key] for key in keys}
+        if args.expected_model_id is not None:
+            active = call("GET", "/admin/training")["active_model"]
+            assert active["model_id"] == args.expected_model_id
+            assert active["readiness"]["can_accept_predictions"]
+            report["active_model_after_restart"] = {
+                "model_id": active["model_id"], "status": active["status"],
+                "version": active["model_version"], "readiness": active["readiness"],
+            }
+        if args.skip_trend_refresh:
+            report.update(passed=True, refresh_status="not_requested")
+            print(json.dumps({"passed": True, "saved_result_identical": True,
+                              "active_model_id": args.expected_model_id,
+                              "refresh": "not_requested"}))
+            return 0
         job = call("POST", "/dashboard/refresh")
         report["refresh_job_id"] = job["job_id"]
+        deadline = time.monotonic() + 180
         while True:
+            if time.monotonic() > deadline:
+                raise TimeoutError("Provider refresh still pending; inspect the recorded job before retrying")
             status = call("GET", f"/jobs/{job['job_id']}")
             if status["status"] in {"completed", "failed", "error", "not_found"}:
                 break

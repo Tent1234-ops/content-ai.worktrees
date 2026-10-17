@@ -209,11 +209,9 @@ void main() {
             body: SingleChildScrollView(child: AnalysisReport(data: result)))));
     expect(find.text('OLD RAW SUGGESTION'), findsNothing);
     expect(find.text('OLD HOOK'), findsNothing);
-    await tester.ensureVisible(find.text('เปิดดูหลักฐานและเวอร์ชัน'));
-    await tester.tap(find.text('เปิดดูหลักฐานและเวอร์ชัน'));
-    await tester.pumpAndSettle();
+    expect(find.text('เปิดดูหลักฐานและเวอร์ชัน'), findsNothing);
     expect(find.text('OLD TOPIC EVIDENCE'), findsNothing);
-    expect(find.text('ความเร็วในการชาร์จ'), findsOneWidget);
+    expect(find.text('ความเร็วในการชาร์จ'), findsNothing);
     expect(find.textContaining('จึงไม่มีข้อเสนอให้เพิ่มซ้ำ'), findsOneWidget);
   });
 

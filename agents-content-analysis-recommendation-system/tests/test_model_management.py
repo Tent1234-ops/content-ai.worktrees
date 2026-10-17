@@ -36,6 +36,7 @@ class ModelManagementTests(unittest.TestCase):
         self.launch = patch.object(service, "launch_training_worker").start()
         patch.object(service, "TRAINING_LEAVES", ("phone", "camera")).start()
         patch.object(service, "ARTIFACT_ROOT", Path(self.tmp.name) / "artifacts").start()
+        patch('app.services.classification_approval.ARTIFACT_ROOT', Path(self.tmp.name) / 'approved').start()
         self.addCleanup(patch.stopall)
 
     def tearDown(self):
@@ -202,6 +203,72 @@ class ModelManagementTests(unittest.TestCase):
         self.db.query(ModelEvaluationMetric).delete()
         self.db.commit()
         self.assertFalse(service.model_detail(self.db, model.model_id)['can_activate'])
+
+    def test_admin_can_approve_below_target_without_changing_original_or_bypassing_unknown(self):
+        from app.services.classification_training import classify_with_artifact
+        from app.services.classification import get_active_classification_model
+        original = self.add_evaluated_model(active=True)
+        target = self.add_evaluated_model(status='evaluated_below_threshold')
+        payload = joblib.load(target.artifact_path)
+        policy = payload['scope_policy']
+        selected = policy['selected_validation']
+        selected['passes'] = False
+        selected['per_class_recall']['phone'] = 0.7
+        selected['minimum_class_recall'] = 0.7
+        policy.update(status='failed_validation', similarity_threshold=None)
+        policy.pop('selected_validation')
+        policy['selection_candidates'] = [selected]
+        payload['scope_test_passed'] = False
+        joblib.dump(payload, target.artifact_path)
+        digest = hashlib.sha256(Path(target.artifact_path).read_bytes()).hexdigest()
+        Path(target.artifact_path).with_name('evaluation.json').write_text(json.dumps({'artifact_sha256': digest}))
+        self.assertTrue(service.model_detail(self.db, target.model_id)['can_activate'])
+        with self.assertRaisesRegex(ValueError, 'acknowledge'):
+            service.activate_evaluated_model(self.db, target.model_id, expected_active_model_id=original.model_id,
+                                            user_id=self.user.user_id)
+        self.db.rollback()
+        result = service.activate_evaluated_model(self.db, target.model_id, expected_active_model_id=original.model_id,
+                                                user_id=self.user.user_id, risk_acknowledged=True)
+        self.assertNotEqual(result['model_id'], target.model_id)
+        active = get_active_classification_model(self.db)
+        self.assertEqual(active.status, 'admin_approved')
+        self.assertEqual(self.db.query(ClassificationModel).filter_by(is_active=True).count(), 1)
+        self.assertEqual(hashlib.sha256(Path(target.artifact_path).read_bytes()).hexdigest(), digest)
+        detail = service.model_detail(self.db, active.model_id)
+        self.assertTrue(detail['readiness']['can_accept_predictions'])
+        self.assertFalse(detail['readiness']['scope_test_passed'])
+        self.assertNotIn('presentation_expires_at', detail['readiness'])
+        recall = next(r for r in detail['per_category'] if r['category'] == 'phone')
+        self.assertEqual(recall['value'], 0.7)
+        self.assertFalse(any(m['split'] == 'test' for m in detail['metrics']))
+        for label in ('phone', 'unknown'):
+            prediction = classify_with_artifact(active.artifact_path, text=scope_fixtures.TEXTS[label], allow_admin_review=True)
+            self.assertEqual(prediction['taxonomy_leaf_key'], label)
+        unapproved = classify_with_artifact(active.artifact_path, text=scope_fixtures.TEXTS['phone'])
+        self.assertEqual(unapproved['taxonomy_leaf_key'], 'unknown')
+        bad = joblib.load(active.artifact_path)
+        bad['admin_authorization']['model_version'] = 'different'
+        with patch('app.services.classification_training.load_classification_artifact', return_value=bad):
+            prediction = classify_with_artifact(active.artifact_path, text=scope_fixtures.TEXTS['phone'], allow_admin_review=True)
+            self.assertEqual(prediction['taxonomy_leaf_key'], 'unknown')
+        self.db.close()
+        self.db = self.sessions()
+        self.assertTrue(service.model_detail(self.db, active.model_id)['readiness']['can_accept_predictions'])
+
+    def test_admin_approval_does_not_accept_missing_validation_or_smoke_artifacts(self):
+        from app.services.classification_approval import reviewed_policy
+        target = self.add_evaluated_model(status='evaluated_below_threshold')
+        payload = joblib.load(target.artifact_path)
+        payload['smoke_test_only'] = True
+        with self.assertRaises(ValueError):
+            reviewed_policy(payload)
+        payload.pop('smoke_test_only')
+        payload['scope_policy']['selection_split'] = 'test'
+        with self.assertRaises(ValueError):
+            reviewed_policy(payload)
+        payload['scope_policy'] = {'status': 'not_ready'}
+        with self.assertRaises(ValueError):
+            reviewed_policy(payload)
 
     def test_old_qualification_without_scope_evaluation_cannot_be_activated(self):
         model = self.add_evaluated_model()

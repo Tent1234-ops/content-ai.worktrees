@@ -79,10 +79,12 @@ class _OutcomeAssessmentPanelState extends State<OutcomeAssessmentPanel> {
     final contextData = assessment.context;
     final scenario = _scenario;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('ทำไมประเด็นนี้จึงน่าลองเพิ่ม',
+      Text('การประเมินโอกาสได้รับยอดวิวสูงกว่ากลุ่มอ้างอิง',
           style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: 8),
       if (!assessment.isAvailable) ...[
+        const Text('ยังไม่มีเปอร์เซ็นต์ทำนายที่ผ่านการประเมินสำหรับคลิปนี้'),
+        const SizedBox(height: 8),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(Icons.info_outline,
               color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -158,62 +160,64 @@ class _OutcomeAssessmentPanelState extends State<OutcomeAssessmentPanel> {
               ),
           ],
         ),
-      const Divider(height: 28),
-      Text('ลองจำลองหัวข้อที่เลือก',
-          style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: 4),
-      const Text(
-        'สถานการณ์สมมุติจะเปลี่ยนเฉพาะหัวข้อในสำเนาข้อมูล '
-        'ไม่ได้แก้ Transcript และไม่ถือว่าผู้ใช้เพิ่มเนื้อหาแล้ว',
-      ),
-      const SizedBox(height: 8),
-      if (!_canSimulate)
-        Text(_scenarioUnavailableMessage(assessment))
-      else ...[
-        for (final topicId in _eligibleTopics)
-          CheckboxListTile(
-            key: ValueKey('outcome-topic-$topicId'),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: _selected.contains(topicId),
-            title: Text(widget.topicLabels[topicId]!),
-            onChanged: _loading
-                ? null
-                : (selected) {
-                    setState(() {
-                      _scenario = null;
-                      if (selected == true && _selected.length < 3) {
-                        _selected.add(topicId);
-                      } else if (selected != true) {
-                        _selected.remove(topicId);
-                      }
-                    });
-                  },
-          ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            key: const ValueKey('simulate-outcome'),
-            onPressed: _selected.isEmpty || _loading ? null : _simulate,
-            icon: _loading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.science_outlined),
-            label: Text(_loading
-                ? 'กำลังประเมินสถานการณ์...'
-                : 'ประเมินสถานการณ์สมมุติ'),
-          ),
+      if (assessment.isAvailable) ...[
+        const Divider(height: 28),
+        Text('ลองจำลองหัวข้อที่เลือก',
+            style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 4),
+        const Text(
+          'สถานการณ์สมมุติจะเปลี่ยนเฉพาะหัวข้อในสำเนาข้อมูล '
+          'ไม่ได้แก้ Transcript และไม่ถือว่าผู้ใช้เพิ่มเนื้อหาแล้ว',
         ),
+        const SizedBox(height: 8),
+        if (!_canSimulate)
+          Text(_scenarioUnavailableMessage(assessment))
+        else ...[
+          for (final topicId in _eligibleTopics)
+            CheckboxListTile(
+              key: ValueKey('outcome-topic-$topicId'),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _selected.contains(topicId),
+              title: Text(widget.topicLabels[topicId]!),
+              onChanged: _loading
+                  ? null
+                  : (selected) {
+                      setState(() {
+                        _scenario = null;
+                        if (selected == true && _selected.length < 3) {
+                          _selected.add(topicId);
+                        } else if (selected != true) {
+                          _selected.remove(topicId);
+                        }
+                      });
+                    },
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: const ValueKey('simulate-outcome'),
+              onPressed: _selected.isEmpty || _loading ? null : _simulate,
+              icon: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.science_outlined),
+              label: Text(_loading
+                  ? 'กำลังประเมินสถานการณ์...'
+                  : 'ประเมินสถานการณ์สมมุติ'),
+            ),
+          ),
+        ],
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(_error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
       ],
-      if (_error != null)
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(_error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        ),
       if (scenario != null)
         Padding(
           padding: const EdgeInsets.only(top: 12),

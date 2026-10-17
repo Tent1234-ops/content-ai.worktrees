@@ -56,11 +56,12 @@ class PlanRepository extends ContentRepository {
       revision: 0,
       selectedIds: [],
       notes: '');
-  int saves = 0;
+  int saves = 0, reads = 0;
   bool fail = false, loadFail = false, invalidReply = false;
   Completer<void>? gate;
   @override
   Future<ClipRevisionPlan> getRevisionPlan(int contentId) async {
+    reads++;
     if (loadFail) throw Exception('offline');
     return stored;
   }
@@ -111,6 +112,43 @@ Future<void> save(WidgetTester tester) async {
 }
 
 void main() {
+  for (final revision in [0, 1]) {
+    testWidgets(
+        'result hides the entire planner and leaves stored plan untouched: revision=$revision',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final repo = PlanRepository()
+        ..stored = ClipRevisionPlan(
+            contentId: 41,
+            analysisId: 81,
+            fingerprint: 'a' * 64,
+            revision: revision,
+            selectedIds: revision == 0 ? const [] : const ['charging'],
+            notes: revision == 0 ? '' : 'Existing private notes');
+      final original = repo.stored;
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: SingleChildScrollView(
+                  child: AnalysisReport(data: fixture(), repository: repo)))));
+      await tester.pumpAndSettle();
+      expect(find.byType(ClipRevisionPlanner), findsNothing);
+      expect(find.text('แผนปรับคลิปของฉัน'), findsNothing);
+      expect(find.text('เลือกนำไปปรับ'), findsNothing);
+      expect(find.text('รายละเอียดแผนปรับคลิป'), findsNothing);
+      expect(find.text('บันทึกแผนปรับคลิป'), findsNothing);
+      expect(find.text('โหลดแผนที่บันทึก'), findsNothing);
+      expect(find.text('อัปโหลดฉบับแก้ไข'), findsNothing);
+      expect(find.byKey(const ValueKey('copy-advice-charging')), findsNothing);
+      expect(find.byTooltip('คัดลอกประโยคตัวอย่าง'), findsNothing);
+      expect(find.text('เปิดดูหลักฐานและเวอร์ชัน'), findsNothing);
+      expect(repo.reads, 0);
+      expect(repo.saves, 0);
+      expect(identical(repo.stored, original), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
       'selection is a draft, save waits for confirmation and reopening restores it',
       (tester) async {
@@ -206,34 +244,25 @@ void main() {
     expect(find.textContaining('โหลดแผนไม่สำเร็จ'), findsNothing);
   });
 
-  testWidgets('copy reports success only after Clipboard succeeds',
+  testWidgets(
+      'advice keeps the example without copy controls or clipboard calls',
       (tester) async {
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    bool fail = false;
-    String? copied;
+    int clipboardWrites = 0;
     tester.binding.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
       if (call.method == 'Clipboard.setData') {
-        if (fail) throw PlatformException(code: 'denied');
-        copied = call.arguments['text'];
+        clipboardWrites++;
       }
       return null;
     });
     addTearDown(() => tester.binding.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null));
     await mount(tester, PlanRepository());
-    await tester
-        .ensureVisible(find.byKey(const ValueKey('copy-advice-charging')));
-    await tester.tap(find.byKey(const ValueKey('copy-advice-charging')));
-    await tester.pumpAndSettle();
-    expect(copied, 'ผมจะลองจับเวลาและรายงานสิ่งที่วัดได้');
-    expect(find.text('คัดลอกประโยคตัวอย่างแล้ว'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
-    fail = true;
-    await tester.tap(find.byKey(const ValueKey('copy-advice-charging')));
-    await tester.pumpAndSettle();
-    expect(find.text('คัดลอกไม่สำเร็จ กรุณาลองอีกครั้ง'), findsOneWidget);
+    expect(find.text('ผมจะลองจับเวลาและรายงานสิ่งที่วัดได้'), findsOneWidget);
+    expect(find.byKey(const ValueKey('copy-advice-charging')), findsNothing);
+    expect(find.byTooltip('คัดลอกประโยคตัวอย่าง'), findsNothing);
+    expect(clipboardWrites, 0);
     expect(find.text('คัดลอกประโยคตัวอย่างแล้ว'), findsNothing);
   });
 
@@ -253,6 +282,33 @@ void main() {
     expect(find.text('RAW KEYWORD'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final width in [390.0, 1440.0]) {
+    testWidgets('result hides normalized transcript and audit UI at $width',
+        (tester) async {
+      await tester.binding.setSurfaceSize(Size(width, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final data = AnalysisResultViewData.fromJson({
+        ...fixture().raw,
+        'raw_transcript': 'ORIGINAL SPEECH',
+        'cleaned_transcript': 'NORMALIZED INTERNAL TEXT',
+      });
+      await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+              body: SingleChildScrollView(child: AnalysisReport(data: data)))));
+      await tester.tap(find.text('คำสำคัญและข้อความถอดเสียง'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('ข้อความถอดเสียง'));
+      await tester.tap(find.text('ข้อความถอดเสียง'));
+      await tester.pumpAndSettle();
+      expect(find.text('ORIGINAL SPEECH'), findsOneWidget);
+      expect(find.text('ข้อความหลังปรับศัพท์'), findsNothing);
+      expect(find.text('NORMALIZED INTERNAL TEXT'), findsNothing);
+      expect(find.text('เปิดดูหลักฐานและเวอร์ชัน'), findsNothing);
+      expect(data.cleanedTranscript, 'NORMALIZED INTERNAL TEXT');
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   test('empty HTTP success body is not a valid saved plan', () {
     expect(() => ClipRevisionPlan.fromJson({}), throwsFormatException);

@@ -1,202 +1,747 @@
-# คู่มือทำความเข้าใจระบบ Content AI
+# Content AI: คู่มือเข้าใจระบบตั้งแต่ข้อมูลเข้าถึงผลลัพธ์
 
-> มีคู่มือแบบแยกหน้าที่อัปเดตหลังเพิ่มข้อมูลและเทรนวันที่ 3 ต.ค. 2026 แล้ว: [อ่านฉบับปัจจุบัน](current-system/README.md) ข้อมูลจำนวนตัวอย่างและสถานะด้านล่างเป็นของรุ่นวันที่ 2 ต.ค.
+ตรวจโค้ดและอ่านสถานะฐานข้อมูลวันที่ 17 ตุลาคม 2026 คู่มือนี้อธิบาย **ระบบปัจจุบัน** ไม่ใช่รายการฟีเจอร์ที่เคยวางแผนไว้ทั้งหมด
 
-รุ่นอ้างอิง: `content-ai-closeout-20261002-phase6`  
-สถานะวันที่ 2 ตุลาคม 2026: Software workflows ส่วนใหญ่พร้อมสาธิต แต่คำแนะนำจากคลิปใหม่ยังถูกงด เพราะ Active Classification Model ไม่มี Unknown scope policy ที่ผ่านการประเมิน
+อ่านเรียงตั้งแต่บท 1 เพื่อเข้าใจภาพรวม ถ้าจะตอบเรื่อง AI ให้เน้นบท 5-10 ถ้าจะพรีเซนต์หน้าจอให้เปิดบท 3 และ 15 ถ้าจะตามแก้โค้ดให้เริ่มบท 18
 
-## 1. ระบบแก้ปัญหาอะไร
+ตัวเลขจากการทดสอบจริงจะระบุที่มา ส่วนตัวอย่างสมมุติใช้เพื่ออธิบายเท่านั้น ไม่ได้เพิ่มเข้า Dataset หรือผลผู้ใช้ ไม่มีรหัสผ่าน API key หรือ token ในเอกสารนี้
 
-ระบบมีงานหลักสองส่วนที่ไม่ควรอธิบายรวมกัน:
+## 1. ระบบนี้ทำอะไร และไม่ได้ทำอะไร
 
-1. **Dashboard เทรนด์** ช่วยตอบว่า ณ รอบข้อมูลที่ระบบเก็บไว้ มีวิดีโอหรือคำค้นใดอยู่ในอันดับของแต่ละแพลตฟอร์ม อันดับเปลี่ยนอย่างไร และข้อมูลช่วงใดหายไป
-2. **วิเคราะห์คลิปของผู้ใช้** ถอดเสียง จำแนกหมวด แล้วเปรียบเทียบเนื้อหากับคลิปอ้างอิงที่ผ่านการตรวจ เพื่อเสนอประเด็นที่ควรพิจารณาเพิ่มพร้อมหลักฐาน
+ระบบช่วยผู้สร้างคอนเทนต์สองช่วง: ก่อนทำคลิปใช้ Dashboard ดูสิ่งที่กำลังปรากฏในรายการเทรนด์ หลังมีคลิปแล้วให้อัปโหลดเพื่อดูว่าเนื้อหาพูดถึงอะไร และมีประเด็นใดน่าลองเพิ่มจากคลิปอ้างอิงหมวดเดียวกัน
 
-ความต่างจากการเปิด YouTube โดยตรงคือระบบเก็บ Snapshot หลายเวลา ทำกราฟย้อนหลัง แยกอันดับรวม/รายหมวด และเชื่อม Transcript กับ Dataset อ้างอิง แต่ระบบไม่ได้รู้เหตุผลที่คลิปดังทั้งหมด และไม่รับประกันว่าทำตามคำแนะนำแล้ว Engagement จะเพิ่ม
+หมวดที่ใช้กับโมเดลวิเคราะห์หลักคือ **Phone / Camera / Laptop** ไม่ใช่ทุกหมวด YouTube ที่แสดงบน Dashboard หมวดกล้องหมายถึงกล้องถ่ายภาพ/วิดีโอ ไม่ใช่เห็นคำว่า “กล้องมือถือ” แล้วต้องเป็น Camera เสมอ
 
-โค้ดหน้าหลักอยู่ที่ `frontend_flutter/lib/screens/dashboard_screen.dart`, `upload_screen.dart`, `result_screen.dart` และ route อยู่ใน `frontend_flutter/lib/routing/app_router.dart`
+สิ่งที่ต้องแยกให้ชัด:
 
-## 2. Dashboard ตั้งแต่แหล่งข้อมูลถึงกราฟ
-
-### 2.1 การไหลของข้อมูล
-
-```text
-YouTube / Google
-  -> ดึงข้อมูลตามรอบ
-  -> แปลงชื่อ field ให้ระบบจัดเก็บได้
-  -> trend_snapshot_runs + trend_snapshot_items
-  -> สรุป trend_history_buckets
-  -> Dashboard API
-  -> Browser อ่าน DB ทุก 60 วินาที
-```
-
-- YouTube ใช้รายการจัดอันดับจาก provider และเก็บอันดับรวมกับอันดับ `category:<id>` แยกกัน
-- Google เก็บคำค้นและค่าปริมาณค้นหาที่ provider ส่งมา ไม่เอายอดค้นหา Google ไปเทียบเป็นหน่วยเดียวกับยอดวิว YouTube
-- `app/services/trending_fetcher.py::_normalize_trend_item()` ทำ **schema normalization** เช่นใช้ field กลาง `title`, `platform`, `rank` และ `captured_at` ไม่ได้ทำให้ `views` กับ `search_volume` กลายเป็นตัวเลขชนิดเดียวกัน
-- `app/services/live_trend_snapshots.py` บันทึก snapshot และ `app/services/trend_history.py::archive_snapshot_run()` เก็บประวัติที่ยังอยู่หลัง raw snapshot ถูกลดจำนวน
-- `app/routes/dashboard.py` ให้ endpoint `/dashboard/public/trends`, `/dashboard/public/youtube/categories` และ `/dashboard/public/history`
-
-### 2.2 รอบเก็บข้อมูลกับรอบหน้าเว็บ
-
-สองรอบนี้เป็นคนละอย่าง:
-
-- Browser poll: `dashboard_screen.dart` ใช้ `Timer.periodic(Duration(seconds: 60))` เพื่ออ่านค่าล่าสุดจาก Backend/Database ไม่เรียก provider ทุกครั้ง
-- Collection schedule รุ่นส่ง: ชั่วโมงละครั้ง 10 รอบ ระหว่าง 14:00-23:00 Asia/Bangkok ค่าจริงอ่านจาก `app/services/trend_settings.py::trend_schedule()` และ Admin settings
-- Windows Task ใช้ `pythonw.exe` เพื่อไม่ให้ terminal เด้ง รายละเอียดอยู่ใน `scripts/run_trend_scheduler.py` และ `scripts/install_trend_scheduler.ps1`
-
-ดังนั้นคำว่า “อัปเดตทุก 60 วินาที” บนหน้าเว็บหมายถึงตรวจ DB ทุก 60 วินาที ไม่ได้หมายถึงใช้ YouTube quota ทุก 60 วินาที
-
-### 2.3 อันดับขึ้นลงและช่วงข้อมูลขาด
-
-- อันดับใหม่เทียบกับ snapshot ก่อนหน้าที่มี `platform`, `region` และ `ranking_scope` เดียวกัน
-- สูตรอันดับขยับ = `อันดับเก่า - อันดับใหม่` เพราะเลขอันดับน้อยกว่าดีกว่า เช่น จาก #10 เป็น #4 ได้ `10 - 4 = +6`
-- อันดับรายหมวดไม่เทียบกับอันดับรวม และ YouTube ไม่แย่งอันดับกับ Google
-- กราฟสร้างจุดขาดเมื่อไม่มี observation จริง ไม่ลากเส้นข้ามช่วงว่าง โค้ด UI ใช้ `FlSpot.nullSpot` ใน `frontend_flutter/lib/widgets/trend_history_panel.dart`
-
-### 2.4 Notification
-
-`app/services/live_trend_notifications.py::compare_live_trend_snapshot()` เทียบ baseline ของ watch session กับ snapshot ใหม่ แล้วสร้างแจ้งเตือนสำหรับรายการใหม่ตามโหมดและหมวดที่ติดตาม การเปิด Dashboard ไม่ได้แปลว่าทุก 60 วินาทีจะมีแจ้งเตือน ต้องมี snapshot ใหม่ที่เข้าเงื่อนไขจริง ตารางหลักคือ `user_trend_watch_sessions`, `followed_topics` และ `notifications`
-
-## 3. Analysis ตั้งแต่อัปโหลดถึงบันทึกผล
-
-```text
-ตรวจไฟล์/ความยาว
-  -> แยกเสียงและ Faster Whisper
-  -> Raw transcript + Cleaned transcript + Timestamp segments
-  -> สกัด feature จากข้อความ
-  -> Active Model จำแนก Phone/Camera/Laptop
-  -> Acceptance ตรวจ confidence และ Unknown policy
-  -> เลือก Dataset หมวดเดียวกัน
-  -> หาเรื่องที่พูดแล้ว/ยังไม่พบ/ตรวจไม่ได้
-  -> คำแนะนำ + หลักฐาน + ช่วงความยาว
-  -> ผู้ใช้เลือกแผนและบันทึก
-```
-
-### 3.1 Upload และ ASR
-
-- `app/routes/analyze.py::_save_validated_upload()` ตรวจไฟล์และระยะสูงสุดจาก Server settings
-- Endpoint หลักคือ `POST /analyze/save`; หน้าเว็บเรียกจาก `frontend_flutter/lib/screens/upload_screen.dart`
-- `models/speech_to_text.py` ใช้ Faster Whisper ตามรุ่นที่ตั้งไว้ ปัจจุบันคือ `small`
-- Transcript เก็บทั้ง raw, cleaned และ segments การ normalize แก้เฉพาะศัพท์ที่มีหลักฐาน ไม่เขียน Transcript ทั้งก้อนใหม่
-- หาก ASR ล้มเหลว สถานะคือ “ตรวจไม่ได้” ไม่ใช่ “ผู้ใช้ไม่ได้พูดหัวข้อนั้น”
-
-### 3.2 Feature และ Classification
-
-Feature ของโมเดลปัจจุบันมาจากข้อความ เช่นคำและกลุ่มตัวอักษรที่ TF-IDF ให้น้ำหนัก ไม่ได้ใช้ยอดวิวหรือยอดไลก์เป็น feature จำแนกหมวด `app/services/classification.py::classify_text_domain()` โหลด Active Model และเป็นจุดตัดสินหมวดเดียว
-
-Acceptance มีหน้าที่แยก “โมเดลทายอะไร” ออกจาก “ระบบยอมรับผลหรือไม่” ถ้า scope policy ไม่พร้อม ระบบต้องคืน Unknown/งดคำแนะนำเฉพาะหมวด ไม่ให้ keyword rule ทายทับ ปัจจุบัน Active Model #14 โหลดได้ แต่ `scope_policy_missing` จึง `can_accept_predictions=false`
-
-### 3.3 Keyword และ Topic Gap
-
-- `app/services/nlp.py::run_nlp_pipeline()` สกัดคำจาก Transcript
-- `extract_comparable_keyword_candidates()` รวมคำพ้องเป็นแนวคิดมาตรฐานสำหรับเทียบ Dataset
-- `app/services/recommendation.py::build_recommendation_from_analysis_data()` เลือกคลิปอ้างอิงหมวดเดียวกับ classification ที่ได้รับการยอมรับ
-- `app/services/recommendation_evidence.py` เก็บข้อความต้นทาง, Dataset ID, video/channel, วันที่เผยแพร่, วันที่เก็บสถิติ และ Timestamp เมื่อมีจริง
-- “ยังไม่ตรวจพบ” ต่างจาก “ตรวจไม่ได้” และระบบห้ามสร้าง Timestamp ให้ Transcript ที่ไม่มีเวลา
-
-### 3.4 คำแนะนำและความยาว
-
-`app/services/actionable_recommendations.py::build_actionable_recommendations()` เปลี่ยน topic gap เป็นสิ่งที่ทำต่อได้: สิ่งที่พบ, สิ่งที่เสนอ, วิธีเพิ่มเนื้อหา, ตัวอย่างประโยค และเหตุผล จำกัด 2-3 ข้อที่สำคัญโดยไม่จำกัดจำนวนคำที่สกัด
-
-หลักฐานเชิงเปรียบเทียบใน `app/services/topic_comparisons.py` แบ่งคลิปที่พูดถึง/ไม่พูดถึงหัวข้อใน cohort ที่พอเทียบกันได้ รายงานค่ากลาง จำนวนวิดีโอ จำนวนช่อง และความไม่แน่นอน ถ้าตัวอย่างน้อยจะใช้เพียง “พบในคลิปอ้างอิง” ไม่อ้างความต่าง
-
-Recommended Duration ใช้ median และ P25-P75 จากคลิปหมวดเดียวกันที่มี metadata พอ ถ้าน้อยกว่าเกณฑ์ต้องแสดงหลักฐานไม่เพียงพอ ไม่สร้างตัวเลขให้ดูแม่น
-
-### 3.5 Save, Plan และ Revision
-
-- `app/services/persistence.py::save_video_analysis_result()` บันทึกผลและ snapshot ของ settings/model/method ณ เวลานั้น
-- `GET/PUT /contents/{content_id}/revision-plan` เก็บข้อที่ผู้ใช้เลือกว่าจะนำไปปรับ
-- `app/services/revision_comparisons.py::create_revision_job()` เชื่อมไฟล์แก้ไขกับ parent/plan เดิม
-- การเปรียบเทียบเรียกว่า “การเปลี่ยนแปลงเนื้อหา” ไม่ใช่คะแนนว่าฉบับใหม่จะดังขึ้น
-- ผลเก่าต้องเปิดจาก payload ที่บันทึกไว้ ไม่คำนวณทับด้วย Dataset ปัจจุบันอย่างเงียบ ๆ
-
-## 4. การ Train Classification Model
-
-### 4.1 ลำดับข้อมูล
-
-```text
-Transcript + human-reviewed taxonomy label + Channel ID
-  -> ตรวจ eligibility
-  -> แบ่ง Train / Validation / Test ตาม Channel
-  -> สร้าง TF-IDF features
-  -> Fit candidate models
-  -> Validation เลือกวิธีและ threshold
-  -> Test ประเมินครั้งสุดท้าย
-  -> model.joblib + evaluation.json + metrics ใน DB
-  -> Admin Activate แบบ manual เมื่อผ่าน gate
-```
-
-- Dataset readiness อยู่ใน `app/services/model_management.py::training_dataset()`
-- การแยกช่องและตรวจ leakage อยู่ใน `app/services/classification_training.py::prepare_classification_dataset()`
-- Grouped cross-validation ใช้ `StratifiedGroupKFold` โดย group คือ Channel ID จึงไม่ให้คลิปจากช่องเดียวกันอยู่ทั้ง train และ validation fold
-- `train_and_evaluate_classification_models()` เปรียบเทียบ candidate หลายชนิด
-- `activate_classification_model()` เปลี่ยน Active Model หลังผ่านเกณฑ์เท่านั้น การ Train ไม่ Activate อัตโนมัติ
-- หน้า Admin เรียก `/admin/training/runs` และ `/admin/training/models/{id}/activate` จาก `app/routes/model_management.py`
-
-### 4.2 ความหมายของตัวเลข
-
-สมมุติมีคลิปคำตอบจริง 10 คลิป ทายถูก 8 คลิป:
-
-- **Accuracy = 8/10 = 80%** ดูภาพรวม แต่หมวดใหญ่สามารถกลบหมวดเล็ก
-- **Recall ของ Camera** ถ้ามี Camera จริง 5 คลิป แต่จับถูก 2 คลิป Recall = 2/5 = 40% แปลว่าพลาด Camera 3 คลิป
-- **Precision ของ Camera** ถ้าระบบทาย Camera 4 คลิป แต่ถูกจริง 2 คลิป Precision = 2/4 = 50%
-- **F1** ประนีประนอม Precision กับ Recall ของหมวดนั้น
-- **Macro F1** หา F1 ของแต่ละหมวดแล้วเฉลี่ยเท่ากัน จึงไม่ให้หมวดข้อมูลเยอะมีน้ำหนักเหนือหมวดอื่น
-- **Confidence** คือความมั่นใจภายในโมเดลต่อคลิปหนึ่ง ไม่ใช่ Accuracy และโมเดลอาจมั่นใจสูงแต่ทายผิดได้
-
-ผล registry เดิมของ Model #14 คือ Validation n=21, Accuracy 0.857, Macro F1 0.805 และ Laptop Recall 0.40 ส่วน Test เดิม n=17 ได้ 1.00 แต่ไม่ใช่ fresh heldout รอบส่ง จึงห้ามสรุปว่าโมเดลปัจจุบันแม่น 100% กับคลิปใหม่
-
-## 5. Recommendation ไม่ใช่ Classification Model
-
-Classification ตอบว่า “คลิปอยู่หมวดใด” ส่วน Recommendation ตอบว่า “เมื่อยอมรับหมวดแล้ว คลิปอ้างอิงในหมวดเดียวกันมีประเด็นใดที่ผู้ใช้ยังไม่พูดและมีหลักฐานอะไร” การเพิ่ม Dataset/reference statistics เปลี่ยนหลักฐานแนะนำได้โดยไม่จำเป็นต้อง train classifier ใหม่ทุกครั้ง
-
-ยอดวิว/ไลก์/ความคิดเห็นใช้บอกลักษณะของคลิปอ้างอิงและการเปรียบเทียบเชิงพรรณนา ไม่ได้เป็น label ว่าคำนั้นเป็นสาเหตุให้ยอดเพิ่ม ความสัมพันธ์อาจมาจากชื่อช่อง อายุคลิป คุณภาพการถ่าย หรือปัจจัยอื่น
-
-## 6. ตาราง Database ที่ใช้จริง
-
-| Flow | ตาราง | มาจากไหน / เก็บอะไร / ใช้ต่ออย่างไร |
+| ส่วน | คำถามที่ตอบ | วิธีหลัก |
 |---|---|---|
-| บัญชี | `users` | Register/Admin สร้างบัญชี; เก็บ role/status/password hash; Auth และ ownership ใช้ต่อ |
-| คลิปผู้ใช้ | `user_contents` | Upload ที่บันทึกสำเร็จ; เก็บชื่อและ transcript; เชื่อมผล/ประวัติ |
-| ผลวิเคราะห์ | `analysis_results` | Pipeline บันทึก classification, summary และ payload แบบ versioned; Result/History เปิดย้อนหลัง |
-| แผนแก้คลิป | `clip_revision_plans` | ผู้ใช้เลือกข้อแนะนำ; ใช้เป็นเป้าหมายของ revision |
-| เทียบฉบับแก้ | `clip_revision_comparisons` | Revision job เก็บ parent/child/method/status/result |
-| Dataset | `dataset_contents` | แถวที่ผ่าน review; ใช้ Train, Keyword reference หรือ Duration ตาม role/eligibility |
-| รอบนำเข้า | `dataset_collection_runs` | Collector/NotebookLM batch, config, artifact path และสถานะ |
-| การตรวจ | `dataset_review_events` | Admin approve/reject พร้อมผู้ตรวจและเวลา; เป็น audit |
-| Taxonomy | `taxonomy_nodes` | โครงสร้างหมวดและ version; classification/dataset validation ใช้ร่วมกัน |
-| โมเดล | `classification_models` | model key/version/path/status/active/threshold/policy |
-| Metrics | `model_evaluation_metrics` | Validation/Test metrics ภาพรวมและรายหมวด |
-| งาน Train | `model_training_runs` | งานเบื้องหลัง, config, progress และผล |
-| Snapshot | `trend_snapshot_runs`, `trend_snapshot_items` | รอบ provider และรายการอันดับ ณ เวลานั้น |
-| ประวัติกราฟ | `trend_history_buckets`, `trend_history_attempts` | สรุป observation และช่วงเก็บไม่สำเร็จ |
-| หัวข้อเทรนด์ | `trend_topics`, `trend_topic_versions`, `trend_topic_definitions`, `trend_topic_aliases`, `trend_topic_observations`, `trend_topic_evidence`, `trend_topic_counts`, `trend_topic_jobs`, `trend_topic_configs` | ทะเบียนหัวข้อ/คำพ้อง/หลักฐาน/ผลนับแบบ versioned |
-| ติดตาม | `followed_topics`, `user_trend_watch_sessions`, `notifications` | ความสนใจ, baseline session และ notification ต่อผู้ใช้ |
-| สถิติอ้างอิง | `reference_statistics_configs`, `reference_statistics_runs`, `reference_video_statistics` | ยอดหลายเวลาของคลิปอ้างอิง ใช้แยกยอดสะสมกับการเติบโต |
-| ตั้งค่า | `system_configs` | Analysis/Trend/Admin settings ที่ Backend อ่านจริง |
-| Audit | `system_logs` | Event ที่โค้ดเรียก log ไว้ ไม่ใช่ Browser/OS debugger ทุกกรณี |
+| ASR / Whisper | ในคลิปพูดว่าอะไร | โมเดลแปลงเสียงเป็นข้อความที่ฝึกไว้แล้ว |
+| Classification | เนื้อหาน่าจะอยู่หมวดใด | TF-IDF + โมเดลจำแนกที่ฝึกจาก Transcript |
+| Unknown acceptance | ควรยอมรับหมวดนี้เพื่อเลือกหลักฐานหรือไม่ | ตรวจคะแนนและความคล้ายชุดฝึกด้วยเกณฑ์จาก Validation |
+| Keyword / topic extraction | มีคำและประเด็นใดในข้อความ | ตัดคำ นับคำ วลี และคำพ้องมาตรฐาน |
+| Recommendation | ควรทดลองเพิ่มเนื้อหาอะไรและทำอย่างไร | เทียบหัวข้อกับคลิปอ้างอิง + จัดอันดับ + แม่แบบภาษาไทย |
+| Reference responses | คลิปอ้างอิงเหล่านั้นมีผลตอบรับเท่าไร | แสดงสถิติจริงพร้อมเวลาและข้อความสนับสนุน |
+| Outcome Prediction | ประเมินโอกาสอยู่ในกลุ่มผลตอบรับที่นิยามไว้ | มีโครงสร้างรองรับ แต่ยังไม่มีโมเดลที่เปิดใช้ |
+| Trend collection | ผู้ให้บริการส่งรายการอะไรมาในแต่ละเวลา | API/ตัวอ่านข้อมูลเว็บ + Snapshot + กราฟ |
 
-`clusters`, `cluster_runs`, `cluster_memberships`, `keywords`, `content_keywords`, `recommendations` และ `trending_items` เป็นโครงสร้างเดิมหรือ compatibility บางส่วน ไม่ควรพรีเซนต์ว่าเป็นแกนหลักของ pipeline รุ่นส่งโดยไม่มีการตรวจ route ที่ใช้งาน
+**ปัจจุบันไม่ได้ทำนายเปอร์เซ็นต์ว่า “ทำตามแล้วจะดังขึ้น”** หัวข้อ 3 ใช้ผลตอบรับจริงของคลิปอ้างอิงตามทางเลือกที่เจ้าของโปรเจคอนุมัติ ไม่ใช่ Demo และไม่ใช่หลักฐานเชิงเหตุและผล
 
-## 7. หน้าที่ Admin
+การใช้คลิปจาก YouTube เป็นแหล่งข้อมูลไม่ได้แปลว่าโมเดลถูกฝึกโดย YouTube และ NotebookLM เป็นเครื่องมือเตรียมข้อความภายนอก ไม่ใช่โมเดลที่เว็บเรียกทุกครั้งที่ผู้ใช้อัปโหลด
 
-- **จัดการผู้ใช้**: ดูสถิติ, เปลี่ยน role/status, revoke session และลบตาม guard (`app/routes/user_management.py`)
-- **เทรนโมเดล AI**: ดู readiness, เริ่ม background training, metrics และ activate แบบยืนยัน (`app/routes/model_management.py`)
-- **ตั้งค่าการวิเคราะห์**: max duration, Whisper model ที่พร้อม และ Hook duration (`/admin/analysis-settings`)
-- **นำเข้า Transcript**: สร้าง candidate เท่านั้น ไม่เข้า training ทันที (`app/routes/dataset_review.py::create_notebooklm_candidate()`)
-- **ตรวจสอบ Dataset**: คน approve/reject พร้อมหมวด/คุณภาพ
-- **จัดการ Dataset**: แก้ transcript/taxonomy พร้อม hash, trash/restore; การแก้ไม่ทำให้โมเดลที่ train แล้วเปลี่ยน ต้อง train/activate รุ่นใหม่
-- **บันทึกการทำงาน**: ดูเฉพาะ event ที่ระบบบันทึกผ่าน `log_system_event()` จึงช่วยตาม provider/import/admin operation แต่ไม่แทน stack trace ทุก bug
+## 2. โครงสร้าง Full Stack และทางเดินข้อมูล
 
-## 8. ข้อจำกัดที่ต้องบอกตรง ๆ
+```text
+Browser / Flutter Web
+  หน้าจอ -> Repository -> HTTP JSON / multipart upload
+                              |
+                           FastAPI
+              ตรวจบัญชี สิทธิ์ เจ้าของข้อมูล และ input
+                              |
+                    Python services / background jobs
+                   /                 |                 \
+          Faster Whisper      classifier artifact      collectors
+                   \                 |                 /
+                     SQLAlchemy -> MySQL
+                         + ไฟล์ในเครื่อง
+```
 
-1. Active Model รุ่นส่งยังขาด validated Unknown scope policy จึงงด positive recommendation จากคลิปใหม่
-2. ไม่มี fresh heldout Phone/Camera/Laptop/Unknown ตาม protocol และไม่มีผู้ประเมินมนุษย์ 3 คน จึงยังไม่รับรอง generalization หรือ utility
-3. Trend ไม่ realtime ทุกวินาที รุ่นส่งเก็บชั่วโมงละครั้งในช่วง 14:00-23:00 และหน้าเว็บอ่าน DB ทุก 60 วินาที
-4. Google กับ YouTube มีคนละหน่วย จึงแยกแท็บและไม่จัดอันดับรวม
-5. TikTok ไม่มี provider ฟรีที่เสถียรและตรวจสอบได้ รุ่นส่งแสดง unavailable ไม่แต่งข้อมูล
-6. ASR อาจถอดชื่อสินค้า/ศัพท์เฉพาะผิด ความผิดพลาดส่งต่อไปยัง classification และ recommendation ได้
-7. ช่วงไม่มี snapshot ต้องเป็นช่องว่าง ไม่ตีความเป็นศูนย์
-8. ขอบเขตรายงานที่ยังรออาจารย์ยืนยัน: Classification แทน Clustering, YouTube/Google แทน YouTube/TikTok และยกเลิกการจำกัดจำนวน keyword จากหน้า Admin
+- **Flutter Web** วาดหน้าจอ แสดง loading/error/empty state และเรียก API ไม่ได้เทรน SVM ในเบราว์เซอร์
+- **FastAPI** เป็นประตูรับ request; route ตรวจ input/สิทธิ์ แล้วส่งให้ service ทำงาน
+- **SQLAlchemy** อ่านและบันทึกแถวข้อมูลใน MySQL; โค้ดรองรับ SQLite สำหรับบางงานทดสอบ/พัฒนา แต่ไม่ควรสลับฐานโดยไม่ตั้งใจ
+- **Background job** ทำงานหนักนอก request เช่นถอดเสียง/เทรน Frontend ใช้ job ID ถามความคืบหน้า
+- **ไฟล์ในเครื่อง** เก็บวิดีโอ โมเดล Whisper และ `model.joblib` ส่วน DB เก็บทะเบียน path และข้อมูลประกอบ ไม่ได้เก็บน้ำหนักทุกโมเดลลง column
 
-หลักฐานตรวจรับทั้งหมดอยู่ใน `docs/implementation/project-closeout-final-acceptance.md`
+มีทางเดินข้อมูลหลักสามสาย ไม่ควรรวมทุกอย่างเป็น Dataset ก้อนเดียว:
+
+```text
+A. YouTube / Google -> trend snapshots -> hourly history -> Dashboard
+B. Transcript ที่ Admin ตรวจ -> dataset_contents -> train -> model.joblib
+C. MP4 ผู้ใช้ -> Whisper -> classifier -> recommendation -> saved analysis
+```
+
+สาย A ช่วยหาไอเดียล่าสุด สาย B เป็นความรู้ที่เตรียมไว้ สาย C คือการใช้งาน ข้อมูล C ไม่ถูกนำไป Train อัตโนมัติ และการอัปเดต A ไม่ได้ทำให้ B เทรนใหม่ทุกชั่วโมง
+
+### 2.1 HTTP ที่เชื่อมหน้าเว็บกับ Backend
+
+| การกระทำ | ตัวอย่าง endpoint จริง | ลักษณะข้อมูล |
+|---|---|---|
+| เปิดเทรนด์สาธารณะ | `GET /dashboard/public/trends` | Snapshot ล่าสุดพร้อมรายการ |
+| เปิดกราฟ | `GET /dashboard/public/history` | ชุดจุดตามเวลาและสถานะข้อมูล |
+| สมัคร/เข้าระบบ | `POST /auth/register`, `POST /auth/login` | JSON; Login คืน token/session |
+| อ่านค่าอัปโหลด | `GET /analyze/settings` | ค่าที่ Backend ยอมรับและความพร้อม |
+| วิเคราะห์และบันทึก | `POST /analyze/save` | ไฟล์แบบ multipart; คืน `job_id` |
+| ติดตามงาน | `GET /jobs/{job_id}` | `status`, `stage`, `progress`, `result` หรือ error |
+| เปิดประวัติ/ผลเดิม | `GET /contents/my`, `GET /contents/{content_id}` | ข้อมูลของเจ้าของผล |
+| สถิติส่วนบุคคล | `GET /contents/statistics` | จำนวนรายวัน/เดือนและหมวด |
+| คิวตรวจ Dataset | `GET /admin/dataset-review/queue` | รายการและสถานะตรวจ |
+| เริ่ม Train | `POST /admin/training/runs` | งานเทรนพร้อม ID ที่ติดตามได้ |
+| เปิดใช้โมเดล | `POST /admin/training/models/{model_id}/activate` | ตรวจสิทธิ์/ความพร้อมและบันทึกการเลือก |
+| บันทึกการตั้งค่า | `PUT /admin/analysis-settings`, `PUT /admin/trend-settings` | ค่าที่ผ่าน validation และถูกบันทึกจริง |
+
+URL ที่มี `/#/history` เป็น route ของ Flutter ส่วน `/contents/my` เป็น route ของ API คนละหน้าที่ ไม่ใช่ไฟล์ HTML หนึ่งไฟล์ต่อหนึ่งหน้า
+
+## 3. อธิบายหน้าผู้ใช้ทีละหน้า
+
+### 3.1 Dashboard (`/#/dashboard`)
+
+เป็นหน้าแรกสาธารณะ ไม่ต้อง Login เพื่อดูเทรนด์ แต่การวิเคราะห์ ประวัติ การติดตาม และข้อมูลส่วนตัวต้องยืนยันบัญชี
+
+**YouTube:** แสดงภาพปก ชื่อ ช่อง อันดับ ยอดวิว ความยาว และเปิดคลิปต้นทาง อันดับคืออันดับภายในรายการ/ขอบเขตที่ API คืนมา ไม่ใช่อันดับความดังที่ระบบพิสูจน์จากวิดีโอทั้งโลก
+
+**Google:** แสดงเรื่องหรือคำค้นที่อยู่ในผล Trends และข้อมูลประกอบที่แหล่งส่งมา ปริมาณค้นหาไม่ใช่ยอดวิว YouTube ถ้าไม่มีข้อมูลจะไม่แปลงเป็นยอดวิวศูนย์เพื่อใช้เทียบกัน
+
+**กราฟย้อนหลัง:** UI ใช้ 7 วัน มีตัวเลือกคลิป/รายการและกราฟ ไม่แสดงแผงรายละเอียดการเก็บข้อมูลหลังบ้าน ช่วงไม่มีข้อมูลยังเป็นช่องว่าง ไม่ลากเส้นให้เหมือนมีการวัดต่อเนื่อง
+
+**โดนัทเทรนด์ตามหมวด:** นับจากรายการอันดับรวมปัจจุบัน ตัวอย่างสมมุติ 50 รายการ มีเพลง 22 รายการ คือ 22/50 x 100 = 44% ความหมายคือ “44% ของรายการที่เก็บมาอยู่หมวดเพลง” ไม่ใช่ “44% ของคนไทยชอบเพลง” ถ้า API คืนไม่ครบ 50 ต้องใช้จำนวนที่ได้จริงเป็นตัวหาร
+
+**ติดตามและกระดิ่ง:** เปิดรายการติดตามและการแจ้งเตือนจากปุ่มด้านขวาบน บันทึกความสนใจของบัญชีในเว็บนี้ ไม่ได้กด Subscribe YouTube แทนผู้ใช้ และไม่ใช่การแจ้งเตือน Push บนมือถือโดยอัตโนมัติ
+
+แหล่งหลัก: `trend_snapshot_runs`, `trend_snapshot_items`, `trend_history_buckets`, `trend_history_attempts`; ส่วนบุคคลใช้ `followed_topics`, `notifications`, `user_trend_watch_sessions`
+
+TikTok ไม่ได้เปิดใน Dashboard ปัจจุบัน แม้ยังมี route/field เก่าใน Backend ห้ามใช้การพบชื่อในโค้ดเป็นหลักฐานว่าฟีเจอร์เปิดแล้ว
+
+### 3.2 สมัครสมาชิกและเข้าสู่ระบบ
+
+Register สร้างแถว `users` โดยเก็บ password hash ไม่เก็บรหัสผ่านตรง ๆ Login ตรวจรหัสแล้วออก access token พร้อม session เพื่อเรียก API ส่วนตัว
+
+ระบบใช้ PBKDF2-HMAC-SHA256 พร้อม salt และ 120,000 iterations ตามโค้ดปัจจุบัน Token มีลายเซ็นและวันหมดอายุ Backend ยังอ่านสถานะบัญชี/role/session จริง ไม่เชื่อแค่ปุ่มที่ซ่อนใน Frontend
+
+การเปิด URL หน้า Admin โดยตรงจึงไม่ใช่ทางข้ามสิทธิ์ ส่วน API ตรวจสิทธิ์อีกชั้น `401` หมายถึงยังยืนยันตัวตนไม่ได้ ส่วน `403` หมายถึงไม่มีสิทธิ์สำหรับการกระทำนั้น
+
+### 3.3 วิเคราะห์คลิปของฉัน (`/#/upload`)
+
+Frontend อ่านค่าการวิเคราะห์จาก Backend แล้วตรวจไฟล์เบื้องต้น Backend ตรวจอีกครั้งด้วย metadata จาก `ffprobe` ไม่เชื่อความยาวที่ Browser ส่งมาอย่างเดียว
+
+ค่าที่อ่านจาก DB รอบนี้: อัปโหลดสูงสุด **300 วินาที**, Whisper **medium**, Hook **60 วินาที**, จำนวนคำตั้งต้น **10** ค่าเหล่านี้เปลี่ยนได้ผ่าน Admin และงานหนึ่งมี snapshot ของค่าตอนเริ่ม
+
+เมื่อส่งไฟล์จะได้ job ID แทนการรอถอดเสียงจบใน request เดียว UI polling `/jobs/{job_id}` จนสำเร็จ/ล้มเหลว เปอร์เซ็นต์ความคืบหน้าคืองานไปถึงขั้นไหน ไม่ใช่ความแม่นยำของ AI
+
+### 3.4 ผลวิเคราะห์ (`/#/result`)
+
+**1. พบอะไรในคลิป:** หมวดที่ยอมรับ คะแนนเชื่อมั่นของ classifier สรุปประเด็นที่พบ และส่วนพับสำหรับคำสำคัญกับข้อความต้นฉบับ หลังแก้รอบนี้ไม่แสดง “ข้อความหลังปรับศัพท์” แต่ Backend ยังเก็บไว้เพื่อประมวลผลและตรวจย้อนหลัง
+
+**2. ควรเพิ่มอะไร:** คำสำคัญแนะนำ ข้อเสนอช่วงเปิด และคำแนะนำภาษาไทย ประกอบด้วยสิ่งที่พบ สิ่งที่เสนอ เงื่อนไข วิธีทำ ตัวอย่างประโยค และเหตุผล ยังแสดงประโยคตัวอย่าง แต่ไม่มีปุ่มคัดลอก ไม่มี checkbox เลือกนำไปปรับ และไม่มีกล่องแผนปรับคลิป
+
+**3. ผลตอบรับจากคลิปอ้างอิง:** แสดงคลิปที่รองรับหัวข้อแนะนำ จำนวนคลิป/ช่อง วิว ไลก์ คอมเมนต์ วันที่เผยแพร่ เวลาเก็บสถิติ URL และข้อความต้นทาง ไม่ใช่เปอร์เซ็นต์ Predict และไม่ใช้ตัวเลขโมเดลจำแนกหมวดมาแทน
+
+เอากล่องรวม “เปิดดูหลักฐานและเวอร์ชัน” ออกตามคำขอแล้ว แต่ยังมีหลักฐานเฉพาะข้อผ่าน “ดูข้อความและคลิปอ้างอิง” และข้อความต้นทางของคลิปในหัวข้อ 3 ไม่ได้ลบหลักฐานออกจากข้อมูลที่บันทึก
+
+สถานะ “ยังไม่ตรวจพบ” หมายถึงไม่พบในข้อความที่วิเคราะห์ ไม่ยืนยันว่าคลิปไม่มีเรื่องนั้นจริง ถ้า Whisper ฟังผิดอาจทำให้แนะนำซ้ำได้ จึงควรฟังเทียบเสียงเมื่อผลดูผิดปกติ
+
+### 3.5 ไอเดียและประวัติ (`/#/history`)
+
+อ่านเฉพาะคลิปของผู้ใช้ เรียงใหม่ไปเก่า มีตัวกรองหมวด เปิดผลเดิมได้ จำนวนผลที่บันทึกกับจำนวนความพยายามอัปโหลดเป็นคนละอย่าง งานล้มเหลวที่ไม่บันทึกไม่ควรถูกอ้างว่าเป็นผลวิเคราะห์สำเร็จ
+
+สถิติส่วนบุคคลสรุปจำนวนตามเวลาและหมวด จาก `user_contents` / `analysis_results` หน้า History ปัจจุบันขอรายการล่าสุดด้วย `limit: 50`; ไม่ควรพรีเซนต์ว่าโหลดประวัติไม่จำกัดทั้งหมดในครั้งเดียว
+
+การเปิดผลเก่าใช้ JSON snapshot เดิม ไม่เลือก Dataset ปัจจุบันมาสร้างคำแนะนำใหม่เงียบ ๆ เปลี่ยน Active Model แล้วผลเก่าก็ยังเป็นผลจากโมเดลเดิม
+
+## 4. ไฟล์อัปโหลดกลายเป็นผลวิเคราะห์ได้อย่างไร
+
+```text
+MP4 -> ตรวจสิทธิ์/ชนิด/ระยะเวลา -> บันทึกไฟล์ -> freeze settings/model
+    -> enqueue job -> FFmpeg แยกเสียง -> Faster Whisper
+    -> raw text + segments -> cleaned text -> active classifier
+    -> ตรวจ Unknown -> สกัดหัวข้อจากหมวดที่ยอมรับ
+    -> เลือกคลิปอ้างอิง -> หา gap -> สร้างคำแนะนำและหลักฐาน
+    -> ตรวจ Outcome availability -> บันทึก transaction
+    -> job completed + content_id -> Frontend เปิดผล
+```
+
+เส้นทางหลักของงานบันทึกอยู่ใน `analyze_and_save_video_job()` ของ [analyze.py](../../app/routes/analyze.py) และ [persistence.py](../../app/services/persistence.py) ไม่ใช่ทุก function เก่าใน pipeline ถูกใช้ตัดสินผลสุดท้าย
+
+ก่อนงานเริ่มจะเก็บรุ่น Whisper, Hook, ข้อจำกัดอัปโหลด และตัวตน/hash ของ classifier ไว้ หาก Admin สลับรุ่นกลางงาน งานเดิมต้องไม่เปลี่ยนโมเดลเงียบ ๆ การตรวจ hash ช่วยจับกรณีไฟล์โมเดลที่อ้างอยู่ถูกแก้
+
+ผลที่บันทึกประกอบด้วยข้อมูลคลิป คำที่พบ ผลหมวด คำแนะนำ Evidence bundle และ settings snapshot ถ้าบันทึกล้มเหลว UI ไม่ควรบอกว่า “บันทึกแล้ว” เพียงเพราะถอดเสียงสำเร็จ
+
+## 5. Speech-to-Text และการเตรียมข้อความ
+
+### 5.1 FFmpeg / Whisper
+
+FFmpeg แยกเสียงเป็น PCM WAV, 16,000 Hz, 1 channel แล้ว Faster Whisper ถอด **ทั้งคลิปที่รับได้** ไม่ได้ถอดแค่ 60 วินาทีแรก
+
+Whisper เป็นโมเดลที่ฝึกไว้แล้ว โปรเจคนี้ไม่ได้ใช้ Transcript Phone/Camera/Laptop ไปฝึก Whisper ใหม่ การเลือก small/medium/large คือเปลี่ยนโมเดลถอดเสียง ไม่ใช่เปลี่ยนโมเดลทายหมวด
+
+Model manager โหลดขนาดที่เลือกจาก cache เมื่อจำเป็นและใช้ซ้ำ มีการตรวจไฟล์ที่ต้องมีและ package ก่อนให้ใช้งาน รองรับ CUDA/float16 เมื่อพร้อม และ CPU/int8 เป็นทางสำรองตามโค้ดเครื่องนี้
+
+มี VAD ช่วยกรองช่วงไม่ใช่เสียงพูด; medium/large ใช้ beam size 5 ส่วนขนาดอื่นใช้ 1 ค่าพวกนี้ไม่ได้รับประกันว่าชื่อสินค้า ตัวเลขหรือสำเนียงจะถูกทุกคำ
+
+ตัวอย่างโครงสร้างสมมุติของ ASR:
+
+```json
+{
+  "text": "วันนี้รีวิวกล้อง ถ่ายวิดีโอสี่เคได้",
+  "language": "th",
+  "segments": [
+    {"start": 0.4, "end": 3.6, "text": "วันนี้รีวิวกล้อง"},
+    {"start": 3.6, "end": 7.2, "text": "ถ่ายวิดีโอสี่เคได้"}
+  ]
+}
+```
+
+Segment คือช่วงที่ ASR คืน ไม่ใช่เวลาระดับคำที่แม่นยำเสมอ ถ้า Transcript นำเข้าไม่มีเวลา จะไม่สร้าง Timestamp ให้เพื่อให้ดูสมบูรณ์
+
+### 5.2 Raw กับ Cleaned ต่างกันอย่างไร
+
+- Raw คือข้อความที่ถอดได้จริงก่อนปรับคำ
+- Cleaned ลบ noise/จัดช่องว่างและแทนคำผิดที่ระบุไว้ เช่น “ไดเมนซิตี้” เป็น `dimensity`
+- ไม่ใช่การค้นสเปกใหม่ ไม่ใช่การให้ LLM แต่งบทพูดให้ตรงหมวด
+- ภายหลัง classifier ยัง normalize ของตนอีกชั้น เช่น Unicode NFKC และ casefold
+
+การซ่อน Cleaned บนหน้าเว็บรอบนี้ไม่กระทบการคำนวณ เพราะเป็นการเอา widget ออก ไม่ได้ลบ field หรือเปลี่ยน input ของโมเดล
+
+### 5.3 Hook เลือกอย่างไร
+
+โค้ดเลือกข้อความจาก segment ที่ `0 <= start < hook_seconds` หาก segment เริ่มก่อน 60 แต่จบหลัง 60 จะใช้ข้อความ segment นั้นทั้งก้อน ไม่ใช่ตัดเสียงตรงวินาทีที่ 60 อย่างแม่นยำระดับคำ
+
+หากไม่มี segments ที่มีเวลาพอ จะเป็น “ตรวจช่วงเปิดไม่ได้” ไม่ใช้ข้อความต้นไฟล์จำนวน N คำมาสมมุติว่าคือ 60 วินาที
+
+ชั้น Evidence ตรวจเข้มกว่าข้อความ Hook เบื้องต้น: การยืนยันว่าหัวข้ออยู่ใน Hook ต้องมี occurrence ที่ segment จบภายในขอบเขต หากพบเพียง segment คร่อมขอบเขตหรือข้อความกับเวลาจับคู่ไม่ได้ จะระบุ `unassessable` ไม่สร้างเวลาเฉพาะคำขึ้นมาเอง จึงต้องแยก “คำที่สกัดจาก window เบื้องต้น” กับ “หลักฐานหัวข้อใน Hook ที่ยืนยันเวลาได้”
+
+### 5.4 ถอดเสียงไม่สำเร็จเกิดอะไรขึ้น
+
+ใน pipeline เก่ายังมี filename fallback เพื่อรักษาโครงสร้างผล แต่ route วิเคราะห์จริงตรวจ `transcript_source == fallback_filename` แล้วส่งข้อความว่างเข้าจำแนกหมวด ระบบไม่ใช้ชื่อไฟล์ “camera.mp4” ยืนยันว่าเป็นกล้อง
+
+ต้องแยก “ไม่มีหัวข้อนี้ในข้อความที่ตรวจได้” ออกจาก “ไม่มีข้อความที่เชื่อถือได้ให้ตรวจ” กรณีหลังงดข้อเสนอเฉพาะหมวด
+
+## 6. Transcript -> Vector: โมเดลอ่านภาษาได้อย่างไร
+
+อ้างอิง [classification_features.py](../../app/services/classification_features.py) รุ่น feature `thai-transcript-v1`
+
+### 6.1 Normalize และตัดคำ
+
+1. แปลง Unicode เป็นรูป NFKC และตัวอังกฤษเป็น casefold
+2. ยุบช่องว่างที่แทรกระหว่างตัวอักษรไทย เพื่อลดความต่างระหว่าง ASR กับข้อความนำเข้า
+3. ตัดคำด้วย PyThaiNLP `newmm`
+4. สร้าง word n-gram 1-2 คำ และ character n-gram 3-5 ตัวอักษร
+
+ตัวอย่างแนวคิด: `รีวิว กล้อง` เป็น word bigram หนึ่ง feature ส่วนช่วงตัวอักษรย่อยช่วยให้ยังมีสัญญาณแม้ตัดคำต่างหรือสะกดต่างบางส่วน ไม่ได้แปลว่าทนคำผิดได้ทุกแบบ
+
+**ไม่ต้องนั่งเว้นคำ Transcript เอง** ควรรักษาข้อความตรงกับต้นทาง ให้ preprocessing ของระบบจัดการเหมือนกันทั้งฝึกและทำนาย
+
+### 6.2 TF-IDF เป็นตัวเลขแบบไหน
+
+กำหนดให้ `c` คือจำนวนครั้งที่คำ/วลีปรากฏในคลิป, `N` คือจำนวนเอกสารที่ใช้ fit ตัวแปลง, `df` คือจำนวนเอกสารที่มี feature นั้น
+
+```text
+tf = 1 + ln(c)                     เมื่อ c > 0 (sublinear_tf=True)
+idf = ln((1 + N) / (1 + df)) + 1    เมื่อใช้ smooth_idf ตาม default
+weight = tf * idf
+จากนั้น normalize เวกเตอร์แต่ละส่วนด้วย L2 ตาม TfidfVectorizer
+```
+
+Feature ที่พบแทบทุกคลิปอาจแยกหมวดได้น้อยกว่าคำเฉพาะ ค่าทั้งหมดต้องเรียนรู้จากชุดฝึก ไม่ fit vocabulary ใหม่จากคลิปผู้ใช้ทุกครั้ง ไม่เช่นนั้นตำแหน่งตัวเลขจะไม่ตรงกับโมเดลที่ฝึกไว้
+
+ฝั่ง word จำกัดไม่เกิน 40,000 features ฝั่ง char ไม่เกิน 40,000 แล้ว `FeatureUnion` ต่อสองส่วนเข้าด้วยกัน เป็น **sparse vector**: เก็บเฉพาะตำแหน่งที่ไม่เป็นศูนย์ ไม่ใช่บันทึกตัวเลขศูนย์ทุกช่องอย่างสิ้นเปลือง
+
+นี่ไม่ใช่ embedding ของ LLM และไม่ใช่ “เอา Keyword 10 คำบนหน้าจอไป Train” โมเดลอ่านข้อความทั้งหมดที่ส่งเข้า feature pipeline คำที่แสดงบน UI เป็นอีกกระบวนการหนึ่ง
+
+### 6.3 ตัวอย่างที่รันกับ Active Model จริง
+
+ข้อความสั้นต่อไปนี้เขียนเพื่อสาธิตการคำนวณ ไม่ใช่คลิปทดสอบอิสระ ไม่ได้เพิ่มเข้า Dataset:
+
+> วันนี้รีวิวกล้องมิเรอร์เลส เปลี่ยนเลนส์ได้ ระบบออโต้โฟกัสติดตามใบหน้า ถ่ายวิดีโอ 4K และทดสอบสีของภาพ
+
+ผลตัดคำจริงบางส่วน: `วันนี้`, `รีวิว`, `กล้อง`, `มิ`, `เรอร์เลส`, `เปลี่ยน`, `เลนส์`, `ได้`, `ระบบ`, `ออโต้`, `โฟกัส`, `ติดตาม`, `ใบหน้า`, `ถ่าย`, `วิดีโอ`, `4`, `k`
+
+จะเห็นว่าคำเฉพาะยังตัดไม่สวยทุกคำ นี่เป็นเหตุผลหนึ่งที่มี char features ช่วยด้วย
+
+ผลจริงจากตัวแปลงของ Model #58 วันที่ตรวจ:
+
+```text
+matrix shape = (1, 80000)
+non-zero positions = 228
+word__วิดีโอ 4       = 0.34288
+word__รีวิว กล้อง    = 0.28936
+word__เลนส์ ได้      = 0.27528
+word__ออโต้ โฟกัส    = 0.27213
+word__เปลี่ยน เลนส์  = 0.25805
+```
+
+ตัวเลขเหล่านี้เป็นน้ำหนัก feature ไม่ใช่เปอร์เซ็นต์ว่า feature นั้นทำให้คนดูเพิ่ม และไม่ใช่รายการครบ 80,000 ช่อง
+
+## 7. Vector -> Classifier -> Unknown
+
+### 7.1 Active Model คืออะไร
+
+อ่านจาก DB รอบนี้ Active Model คือ **#58**, key `taxonomy-tfidf-linear-svm-calibrated-approved`, version `admin-20261016T115419-03ae10ad`, status `admin_approved`
+
+Pipeline หลักเป็น **word/char TF-IDF + Linear SVM + sigmoid calibration** SVM เรียนรู้เส้นแบ่งหมวดจาก features และ label ของคลิปฝึก
+
+ภาพคณิตศาสตร์แบบย่อของ linear classifier:
+
+```text
+score ของหมวด k = w_k dot x + b_k
+x = เวกเตอร์ข้อความใหม่
+w_k, b_k = ค่าที่เรียนรู้ระหว่างฝึก
+```
+
+คะแนนดิบของ SVM ไม่ใช่ probability จึงมี `CalibratedClassifierCV(method='sigmoid', cv=2)` ครอบเพื่อแปลงคะแนนเป็นความน่าจะเป็นของ **หมวด** ในชุดการเรียนรู้ของ classifier นี้ ไม่ใช่ calibration ของ Outcome
+
+ไม่มีการนำยอดวิว ไลก์ หรือชื่อไฟล์เป็น input เพื่อเดาว่าเป็น Phone/Camera/Laptop
+
+### 7.2 ทำไมมี confidence แล้วยังต้องตรวจ Unknown
+
+โมเดลที่รู้จักสามหมวดอาจเลือก Camera แม้ input อยู่นอกสามหมวด จึงต้องตรวจอีกชั้น:
+
+1. คะแนนหมวดที่สูงสุดถึง confidence threshold หรือไม่
+2. ข้อความคล้ายตัวอย่าง Train ของหมวดที่ทายมากพอหรือไม่
+3. ความคล้ายหมวดที่ทายเหนือกว่าความคล้ายหมวดอื่นตาม contrast margin หรือไม่
+4. artifact/นโยบายตรวจรับพร้อม และหมวดมี coverage ที่ต้องใช้หรือไม่
+
+Support similarity ใช้ character TF-IDF แยกสำหรับนโยบายตรวจรับ แล้วเทียบกับเวกเตอร์ Train ที่เก็บไว้ ค่าสูงสุดในหมวดที่ทายเป็น support score ส่วน contrast คือ support score ลบค่าสูงสุดของหมวดอื่น เกณฑ์เลือกจาก Validation ไม่ใช่ปรับตามผล Test
+
+ค่าของ #58 ที่ตรวจได้: confidence **0.6**, similarity **0.2**, contrast **0.0** การเอาเกณฑ์ผลงานรวม 80% ออกจากการเปิดโมเดลไม่ได้เอา Unknown gate รายคลิปออก
+
+### 7.3 ผลตัวอย่างจริงต่อจากบท 6
+
+```json
+{
+  "raw_taxonomy_leaf_key": "camera",
+  "probabilities": {"camera": 0.981816, "phone": 0.012963, "laptop": 0.005222},
+  "taxonomy_leaf_key": "unknown",
+  "acceptance": {
+    "accepted": false,
+    "reason": "outside_training_support",
+    "support_similarity": 0.141417,
+    "similarity_threshold": 0.2,
+    "support_contrast": 0.022798,
+    "contrast_margin_threshold": 0.0
+  }
+}
+```
+
+ตัวเลขปัดเศษจึงอาจรวมไม่ตรง 1 เป๊ะ หมวดดิบ Camera 98.18% แต่ similarity 0.141417 ต่ำกว่า 0.2 จึงเป็น Unknown และ **ต้องไม่ไปยืมคลิป Camera มาสร้างคำแนะนำเฉพาะหมวด** นี่เป็นตัวอย่างผลที่ระบบงดตอบ ไม่ใช่ข้อพิสูจน์ว่าโมเดลไม่รู้จักกล้องทุกคลิป
+
+ผล MP4 จริงที่เคยทดสอบและบันทึก #41 `review camera` ต่างออกไป: ผ่านเป็น Camera โดย confidence 0.971817 และมีคำแนะนำ 3 ข้อ อ้างอิง [บันทึกตรวจโมเดลและอัปโหลดจริง](../implementation/classification-admin-approval-20261016-handoff.md) ผลนี้เป็น regression ที่เคยใช้ตรวจระบบ ไม่ใช่ Test ใหม่
+
+## 8. หลังทราบหมวดแล้วสกัดคำและหัวข้ออย่างไร
+
+Route ใช้หมวดจาก Active Model สร้าง `build_classified_user_signal_snapshot()` ใหม่ ไม่ให้ domain rule เก่าตัดสินหมวดทับผลที่ไม่ผ่าน
+
+ใน [nlp.py](../../app/services/nlp.py) มี normalization, ตัดคำไทย, กรอง stopwords, นับคำ, bigram/trigram และวลีเฉพาะหมวด แล้วจับคำพ้องกับชื่อหัวข้อมาตรฐาน เช่น “ชาร์จไว”, “fast charging”, “การชาร์จ” เชื่อมกับ `charging speed`
+
+ตัวอย่างสมมุติ:
+
+```text
+ข้อความ: รีวิวมือถือรุ่นนี้ แบตอึด ใช้ได้ทั้งวัน หน้าจอสว่าง
+คำที่พบ: มือถือ, แบต, หน้าจอ, ...
+หัวข้อมาตรฐานที่พบ: battery life, display quality
+หัวข้อ charging speed: ยังไม่ตรวจพบ
+```
+
+ชนิดข้อมูลที่แยกกัน:
+
+| Field | ความหมาย |
+|---|---|
+| `content_keywords` | คำที่สกัดจากข้อความทั้งคลิป |
+| `hook_terms` | คำที่พบจริงในข้อความช่วงเปิดที่มีเวลา |
+| `comparable_keywords` | หัวข้อมาตรฐานสำหรับเทียบคำพ้อง |
+| `missing_keywords` | ข้อเสนอ keyword gap จากคลิปอ้างอิง |
+| `hook_keywords` | ข้อเสนอสำหรับใช้ช่วงเปิด ไม่ใช่คำที่ยืนยันว่าผู้ใช้พูดแล้ว |
+| `actionable_recommendations` | ข้อเสนอภาษาไทยพร้อมวิธีทำที่ใช้แสดงหลัก |
+
+การจำกัดจำนวนที่แสดงต้องไม่ตัดการตรวจหัวข้อ เช่น ระบบแสดงแค่ 10 คำไม่ได้แปลว่าคำที่ 11 “ไม่ได้พูด” การหา gap ตรวจข้อความ/หลักฐาน ไม่ใช้แค่รายการที่ถูกตัดไว้บนจอ
+
+มีโค้ด KeyBERT/semantic/visual แบบเก่าและตัวเลือกเสริม แต่ไม่ได้หมายความว่าทุกงานวิเคราะห์เรียกทั้งหมด `ANALYZE_ENABLE_ML_KEYWORDS` default ปิด และ route สร้างสัญญาณข้อความใหม่ตามหมวดที่ผ่าน จึงไม่ควรอธิบายว่าคำแนะนำทุกข้อเกิดจาก KeyBERT หรือระบบเข้าใจภาพวิดีโอครบแล้ว
+
+## 9. Recommendation: จากหัวข้อที่ขาดไปสู่สิ่งที่ทำได้
+
+### 9.1 เลือกคลิปอ้างอิงก่อน
+
+เลือกแถวที่ผ่าน review และเงื่อนไขการใช้งาน อยู่หมวดเดียวกัน มี Transcript/ที่มา/เวลา/metadata พร้อม และไม่ใช่ Validation/Test ที่กันไว้ ตัด Video ID ซ้ำ เลือก cohort ของ view metric ที่เทียบกันได้
+
+โมเดลจำแนกหมวดใช้ข้อมูลหลายระดับผลตอบรับ แต่ชั้นเลือกตัวอย่างสำหรับ keyword ใช้คลิปที่มี performance signal สูงกว่าภายในชุดที่มีอยู่ จึงต้องบอกว่ามี selection bias ไม่ใช่ตัวแทนคลิปทั่วไปทุกคลิป
+
+สูตรใน `recommendation.py`:
+
+```text
+computed = ln(1 + average_views_per_day) * (1 + min(engagement_rate * 10, 1))
+signal   = max(computed, trend_score ที่แถวนั้นเก็บไว้, 0)
+จำนวนเลือก = min(limit, max(10, ceil(จำนวนแถวที่จัดอันดับได้ * 0.4)))
+```
+
+หากมีไม่ถึง 10 ก็เลือกได้เท่าที่มีจริง ไม่แต่งแถวให้ครบ `limit` ในเส้นทางวิเคราะห์นี้ส่ง 80 เป็นเพดาน ไม่ใช่สั่งให้ทุกคำแนะนำต้องมี 80 คลิป น้ำหนักแถวที่เลือกถูกปรับในช่วง 1-3 ตาม signal
+
+`average_views_per_day` เป็นค่าเฉลี่ยตั้งแต่เผยแพร่ถึงเวลาเก็บ ไม่ใช่ความเร็วเติบโตใน 24 ชั่วโมงล่าสุด ยอดสะสมมากจึงไม่เท่ากับกำลังมาแรงตอนนี้
+
+ตัวคำนวณ metadata ใช้ `engagement_rate = (likes + comments) / max(views, 1)` เป็นสัดส่วน ไม่ได้รวม share หรือผู้ติดตามที่ระบบไม่มี ส่วนค่าเฉลี่ยวิวต่อวันใช้ views หารอายุคลิป ณ เวลาเก็บ โดยมี lower bound ของอายุเพื่อไม่หารศูนย์ ตัวเลขเหล่านี้ไม่แก้ความต่างของขนาดช่องได้ครบ
+
+### 9.2 คะแนนคำสำคัญกับคะแนนข้อเสนอคนละอย่าง
+
+คำสำคัญชั้นฐานมีคะแนนรวม:
+
+```text
+0.45 * สัดส่วนคลิปที่กล่าวถึง
++ 0.25 * ความถี่แบบ log ที่ปรับขนาดแล้ว
++ 0.30 * น้ำหนักผลตอบรับของคลิปสนับสนุนที่ปรับขนาดแล้ว
+```
+
+ตัวอย่างสมมุติ ส่วนประกอบ 0.4, 0.6, 0.5 จะได้ 0.48 เป็นคะแนนจัดอันดับ **ไม่ใช่มีโอกาสเพิ่มยอดวิว 48%**
+
+คำแนะนำภาษาไทยรุ่นปัจจุบันมีขั้นตอนเฉพาะต่อจากนั้นใน [actionable_recommendations.py](../../app/services/actionable_recommendations.py):
+
+1. อ่าน catalog แม่แบบเฉพาะ Phone/Camera/Laptop
+2. ตรวจทุกหัวข้อและคำพ้องใน Transcript ผู้ใช้
+3. แยก `detected` / `not_detected` / `unassessable`
+4. หา quote จาก Transcript คลิปอ้างอิงที่ตรงหัวข้อจริง
+5. ต้องยังไม่ตรวจพบในผู้ใช้ มีบริบทสัมพันธ์ และอย่างน้อย **2 คลิปจาก 2 ช่อง** สนับสนุน
+6. เรียงตามความเกี่ยวข้องก่อน ตามด้วยสัดส่วนสนับสนุน จำนวนช่อง และค่าเฉลี่ย log ความถี่ แล้วใช้ key เป็นตัวตัดสินเมื่อเสมอ
+7. แสดงสูงสุด **3 ข้อ** แต่ประเมินหัวข้อครบ ไม่ตัดการตรวจเหลือแค่สามคำ
+
+### 9.3 ตัวอย่างข้อเสนอ
+
+ตัวอย่างเพื่ออธิบาย ไม่ใช่ผลคลิปจริงหรือข้อความแม่แบบทุกตัวอักษร:
+
+```text
+สิ่งที่พบ: กล่าวถึงแบตเตอรี่แล้ว แต่ยังไม่ตรวจพบการทดสอบความเร็วในการชาร์จ
+สิ่งที่เสนอ: เพิ่มการทดลองจับเวลาชาร์จ
+เงื่อนไข: ตรวจว่ารุ่นและอะแดปเตอร์รองรับการชาร์จที่ต้องการทดสอบก่อน
+วิธีทำ: ระบุอุปกรณ์ จุดเริ่มต้นแบต เวลา และสภาพการใช้งานให้ชัด
+ตัวอย่างประโยค: ผมจะลองจับเวลาชาร์จด้วยอุปกรณ์ชุดนี้ แล้วรายงานค่าที่วัดได้
+เหตุผล: มีข้อความกล่าวถึงหัวข้อนี้ในคลิปอ้างอิงหลายคลิปและหลายช่อง
+```
+
+ตัวอย่างประโยคเป็นสิ่งที่แนะนำให้ลองพูดก่อนทดสอบ ไม่อ้างว่าทดสอบแล้วได้ผล 20 นาที ไม่สมมุติว่าทุกรุ่นรองรับฟังก์ชัน และไม่สั่งให้พูดคำเดิมซ้ำเพื่อทำให้ยอดสูงขึ้น
+
+ถ้าหัวข้อทั้งหมดพบแล้วหรือหลักฐานไม่พอ ให้บอกตามจริง ไม่ต้องสร้างคำแนะนำให้ครบสามข้อทุกครั้ง
+
+### 9.4 ความยาวที่แนะนำมาจากไหน
+
+ใช้ metadata ความยาวคลิปอ้างอิงที่ผ่านเงื่อนไข duration หมวดเดียวกัน ใน cohort ไม่เกิน 300 วินาที มีอย่างน้อย **10 คลิป** จึงแสดง median และ P25-P75; เป้าหมายเก็บข้อมูลคือ 15 ไม่ใช่ขั้นต่ำที่ต้องผ่าน
+
+ตัวอย่างสมมุติความยาว 10 คลิป: `60, 80, 100, 120, 140, 160, 180, 200, 220, 240` วินาที ได้ median 150 วินาที P25 ประมาณ 105 และ P75 ประมาณ 195 ใช้ interpolation ไม่ได้เลือกตามใจหรือใช้สูตรบวก/ลบ 20 วินาที
+
+ยังเป็นค่ากลางของคลิปที่มี ไม่ใช่ “ระยะเวลาที่เหมาะที่สุดเชิงสาเหตุ” ข้อจำกัด 300 วินาทีของ cohort นี้เป็นกฎของบริการ duration ปัจจุบัน ไม่ใช่กฎห้ามนำเข้า/ฝึกจากคลิปต้นทางยาวกว่า 5 นาที
+
+## 10. หลักฐาน สถิติจริง และ Predict ต่างกันอย่างไร
+
+### 10.1 Evidence bundle คือแฟ้มหลักฐานของผลหนึ่งครั้ง
+
+โครงสร้างย่อเพื่ออธิบาย:
+
+```text
+recommendation
+  classification -> หมวด รุ่น คะแนน และการตรวจรับ
+  actionable_recommendations -> ข้อความที่ให้ผู้ใช้ + version
+  evidence_bundle
+    generated_at / data_fingerprint
+    input -> ข้อความผู้ใช้ segments และสถานะที่ตรวจได้
+    action_topics -> topic_id คำพ้อง สิ่งที่พบ/ไม่พบ และ reference IDs
+    reference_documents -> ข้อความต้นทาง metadata สถิติและเวลาที่ใช้จริง
+    topic_comparisons -> ผลเปรียบเทียบหรือเหตุผลที่หลักฐานไม่พอ
+```
+
+Fingerprint คือ hash ช่วยตรวจว่าข้อมูลชุดใดถูกใช้ ไม่ใช่ encryption ไม่ใช่ตัวรับรองว่าข้อความถูกต้องแทนคนตรวจ การเปลี่ยน Dataset ทีหลังไม่เปลี่ยน snapshot ในผลเก่า
+
+การหา occurrence เริ่มจาก Raw Transcript พร้อม segments ถ้าไม่พบจึงลอง Cleaned ที่ต่างออกไป แต่ผลจาก Cleaned ไม่ถูกใส่ Timestamp ที่ไม่มีหลักฐานรองรับ ดังนั้นผู้พรีเซนต์ควรพูดว่า “พบในข้อความที่ใช้วิเคราะห์” ไม่อ้างเวลาละเอียดกว่าที่ ASR ให้มา
+
+### 10.2 หัวข้อ 3 แสดงอะไรจริง
+
+Frontend จับคู่ topic ที่แนะนำกับ document ใน snapshot ตรวจ category, Video ID, split และ quote ว่าอยู่ใน transcript จริง แล้วตัดซ้ำต่อหัวข้อ แสดงสองคลิปแรกและเปิดเพิ่มได้ ไม่จัดใหม่ให้เหลือแต่ตัวเลขวิวสูงที่สุด
+
+ตัวเลขใช้ได้เมื่อมีเวลาเก็บและที่มาสอดคล้องกับเวลาสร้างหลักฐาน ค่าว่าง/ติดลบ/ไม่ถูกต้องไม่ถูกแทนเป็นศูนย์ ถ้าค่าจริงเป็น 0 ก็แสดง 0 ได้
+
+ตัวอย่างจากผลจริง #41 ในการตรวจหน้าเว็บก่อนหน้านี้: คลิปอ้างอิง Dataset #419 / Video ID `l-kRE01uUOA` เก็บ 53,473 views, 2,021 likes, 60 comments ณ 16 ต.ค. 2026 เวลา 18:00 ไทย นี่คือเลขที่บันทึกกับผลนั้น **ไม่ใช่การอ้างว่ายอดปัจจุบันบน YouTube ยังเท่าเดิม**
+
+หลักฐานว่าคลิปที่พูดเรื่องนี้มีวิวสูง ไม่พอพิสูจน์ว่าเรื่องนี้ทำให้วิวสูง อาจมีชื่อช่อง ภาพปก ราคา ความใหม่ เวลาเผยแพร่ หรือการโปรโมตเป็นปัจจัยอื่น
+
+### 10.3 บริการเปรียบเทียบที่มีใน Backend
+
+`topic_comparisons.py` ใช้กลุ่มก่อนคัดเฉพาะ performance สูง แยกมี/ไม่มีหัวข้อภายในหมวด รูปแบบวิดีโอ อายุ ความยาว และ metric version ที่เทียบกันได้ คำนึงถึงช่องด้วย ไม่เอา median ของคลิปดังที่คัดมาแล้วไปเรียกว่าผล uplift
+
+กฎปัจจุบันกำหนดอย่างน้อย 10 คลิปต่อฝั่ง และ 5 ช่องที่มีข้อมูลเทียบกัน; ช่วงความไม่แน่นอนต้องมี 10 ช่อง ใช้ bootstrap BCa 2,000 resamples / 95% เมื่อเงื่อนไขครบ ผลน้อยกว่านั้นจะงดข้อสรุปเปรียบเทียบ
+
+การโตใช้สองสถิติจริง มุ่งช่วง 24 ชั่วโมง ยอมรับระยะห่าง 12-36 ชั่วโมงตาม policy ไม่แทนด้วยยอดสะสมหารอายุ ฟีเจอร์นี้มีในโครงสร้างหลักฐาน/รายละเอียด ไม่ได้หมายความว่าทุกผลมีข้อมูลครบและแสดงกราฟเพิ่มยอดได้
+
+### 10.4 สถานะ Outcome Prediction ตอนนี้
+
+อ่าน DB รอบนี้ `outcome_models` มี **0 รุ่น** จึงไม่มีโมเดล Outcome จริงให้เปิดทำนาย ตัวเลข 96 eligible / Fit 72 / Tuning 24 / Calibration 0 / Independent Test 0 เป็นผล audit รอบก่อนที่บันทึกไว้ ไม่ใช่ผลคำนวณ readiness ใหม่ในงาน UI นี้
+
+ข้อค้างที่บันทึกไว้คือหลักฐานฐานการใช้ข้อมูลตาม project contract และชุดประเมินอิสระ/ปรับความน่าเชื่อถือของเปอร์เซ็นต์ โค้ด pipeline หรือหน้าตั้งค่าที่สร้างไว้ไม่ได้แทนข้อมูลเหล่านี้
+
+แม้ในอนาคตฝึกได้ target ที่ออกแบบไว้คือโอกาสอยู่กลุ่มยอดวิวสูงกว่าค่าอ้างอิงในเงื่อนไขที่รองรับ **ไม่ใช่** โอกาสที่คลิปเดิมจะดีขึ้นจากการทำตามคำแนะนำ การเปรียบเทียบก่อน/หลังในโมเดลอย่างเดียวก็ยังไม่พิสูจน์เหตุและผล
+
+สิ่งที่พูดกับอาจารย์ได้ตรงที่สุดตอนนี้: “ระบบเลือกประเด็นที่ยังไม่ตรวจพบและมีหลักฐานจากคลิปหมวดเดียวกัน พร้อมแสดงสถิติจริงเพื่อประกอบการตัดสินใจ แต่ยังไม่รับรองผลตอบรับหลังแก้คลิป”
+
+## 11. การเตรียม Dataset และ Train โมเดล
+
+### 11.1 Import และ Review
+
+ไฟล์ `.md` ควรมีชื่อคลิป URL Video ID และข้อความตรงต้นทาง Parser แยก header/metadata ออกจาก Transcript ไม่ใช่เอาทั้ง prompt ไปเป็นเสียงพูด
+
+Backend ตรวจ Video ID/metadata และ duplicate ใช้ YouTube ID ป้องกันนำเข้าคลิปเดิมซ้ำ คนตรวจยืนยันหมวดและคุณภาพข้อความก่อน approve; ปุ่ม approve all เป็นการตัดสินของ Admin ต่อรายการ ไม่ใช่ AI รับรองว่าทุกข้อความตรงเสียง 100%
+
+นำเข้าใหม่ที่คุณภาพดีกว่าไม่ควรลบคลิปแล้วทำให้ split/ID หลักฐานหายโดยไม่ตรวจ โครงการมี script replace พร้อมการตรวจ provenance แต่ snapshot ของผลเก่ายังคงข้อความฉบับที่ใช้ตอนนั้นไว้
+
+### 11.2 “ข้อมูลจำแนกหมวด” กับ “คลิปผลตอบรับสูง”
+
+ทั้งคู่ลง `dataset_contents` เหมือนกัน ต่างที่เจตนาและ strategy การเก็บ เช่น `classification_diverse` เทียบกับข้อมูลที่มุ่งเลือกตัวอย่างผลตอบรับสูง ไม่ใช่การ Train คนละ database
+
+ข้อมูลจำแนกหมวดต้องหลากหลาย ไม่เลือกเฉพาะดัง เพื่อสอนว่าหมวดมีรูปแบบข้อความอย่างไร ส่วนคลิปผลตอบรับสูงมีประโยชน์เป็นตัวอย่างอ้างอิง แต่ **การเลือกปุ่มนี้ไม่ใช่หลักฐานว่าเพิ่มหัวข้อแล้วได้วิวสูง** และไม่ทำให้เป็นข้อมูลประเมิน Outcome ที่เป็นกลางอัตโนมัติ
+
+หนึ่งแถวมีสิทธิ์ใช้ฝึก/keyword/duration ต่างกันได้ ต้องอ่าน eligibility จริงพร้อม split ไม่ดูเพียงช่องเลือกตอนนำเข้า
+
+### 11.3 แบ่งข้อมูลอย่างไร
+
+| ชุด | ใช้ทำอะไร | ไม่ควรใช้ทำอะไร |
+|---|---|---|
+| Train | fit vocabulary/IDF/classifier และสร้าง support vectors | อ้างคะแนนบนข้อมูลเดิมว่าเป็นความแม่นบนคลิปใหม่ |
+| Validation | เลือกเกณฑ์ตรวจรับและวิธีที่พัฒนา | นับเป็น Test ใหม่หลังใช้ปรับระบบแล้ว |
+| Test | ประเมินรุ่นที่เลือก/ล็อกแล้ว | เปิดดูไปปรับ threshold ไป |
+| Unknown Validation/Test | วัดการปฏิเสธคลิปนอกขอบเขต | เอาเป็นคลิปอ้างอิงเฉพาะหมวด |
+
+มีการกันซ้ำตาม Video ID/hash/กลุ่มช่อง และแผน split ที่บันทึกไว้ ไม่ควรย้ายชุดเพียงเพื่อให้จำนวนหรือคะแนนดูดี ชื่อ “Test Data” ในโฟลเดอร์ไม่ได้รับประกันบทบาท ต้องดู `data_split`/manifest จริง
+
+อ่าน production eligibility query รอบนี้ เฉพาะสามหมวด:
+
+| หมวด | Train | Validation | Test | รวม |
+|---|---:|---:|---:|---:|
+| Phone | 108 | 18 | 18 | 144 |
+| Camera | 110 | 21 | 12 | 143 |
+| Laptop | 93 | 10 | 43 | 146 |
+| รวม | 311 | 49 | 73 | 433 |
+
+DB มี Dataset ทั้งหมด 663 แถว ไม่ใช่ใช้ Train ทั้ง 663 Query ยังพบ Audio 1 และ Hardware 2 ที่อยู่นอกสามหมวดนี้ การเตรียมรอบ Train ยังมีขั้นตรวจ/deduplicate เพิ่ม ต้องอ่าน manifest ของรุ่นนั้นหากต้องการจำนวน fit สุดท้าย ไม่ใช้ตัวเลขตารางนี้แทน manifest ทุกกรณี
+
+### 11.4 ขั้นตอนเทรนในโค้ดปัจจุบัน
+
+1. ตรวจข้อมูลและแบ่ง Train/Validation/Test ที่ไม่ปนกัน
+2. ทำ Grouped Cross-validation ภายใน **Train** โดยใช้ช่องเป็นกลุ่ม
+3. ทดลอง candidate เช่น ComplementNB, Logistic Regression, calibrated Linear SVM และ multilingual embedding + Logistic Regression เมื่อมีโมเดลพร้อม
+4. Logistic Regression ทดลอง `C=0.5,1,2,4` แล้วเลือกจาก Grouped CV ไม่ใช้ Test เลือก C
+5. fit estimator สุดท้ายด้วย **Train** เท่านั้นในโค้ดปัจจุบัน
+6. สร้าง support vectorizer จาก Train เลือกเกณฑ์บน Validation รวม Unknown Validation
+7. บันทึก Accuracy, Macro F1, per-class metrics, confusion matrix และผล Unknown แยกกัน
+8. เก็บ artifact, hash, manifest, รายงาน และทะเบียนโมเดล
+9. Admin อ่านคะแนนแล้วเลือกเปิดใช้รุ่นที่ผ่านการตรวจความพร้อมไฟล์/การทำนาย
+
+เอกสารเก่าบางฉบับเคยเขียนว่า fit ด้วย Train+Validation หรือบังคับผ่าน 80% จึงไม่ใช่คำอธิบาย flow ปัจจุบัน
+
+ข้อควรรู้เชิงการประเมิน: Grouped CV ชั้นนอกแยกช่อง แต่ sigmoid calibration ใน SVM ใช้ `cv=2` ภายในตามโค้ด ไม่ควรอ้างว่าได้ออกแบบ channel-group calibration ทุกชั้นแล้ว และคะแนนคลิปที่เคยใช้ debug ไม่ใช่หลักฐาน independent test ใหม่
+
+### 11.5 เปิดใช้โมเดลกับความแม่นยำไม่ใช่สิ่งเดียวกัน
+
+Admin ปัจจุบันอนุมัติได้แม้คะแนนต่ำกว่า 80% โดยเห็นคะแนนจริง มีการบันทึกการอนุมัติ ไม่หมดอายุแบบ presentation-only เดิม แต่ยังต้องตรวจ artifact identity การโหลด/ทำนาย สิทธิ์ Admin และ Unknown policy
+
+สำหรับ #58 รายงาน Validation ที่บันทึกไว้คือ 42/49 ถูก หรือ 85.71%; Phone 14/18 = 77.78%, Camera 19/21 = 90.48%, Laptop 9/10 = 90%; Unknown ปฏิเสธ 8/10 = 80% ตัวเลขนี้เป็น **Validation** ไม่ใช่คะแนน Test ใหม่ และไม่ใช่เปอร์เซ็นต์ Engagement
+
+Accuracy คือถูกทั้งหมดหารจำนวนตัวอย่าง; Recall หมวดคือคลิปจริงหมวดนั้นที่ยอมรับถูกหารคลิปจริงหมวดนั้น; Precision คือทายเป็นหมวดนั้นแล้วถูกเท่าไร; F1 สมดุล Precision/Recall; Macro F1 เฉลี่ยรายหมวดให้แต่ละหมวดน้ำหนักเท่ากัน
+
+Unknown recall คือคลิปนอกขอบเขตที่ปฏิเสธได้จริง การปฏิเสธทุกคลิปจะทำให้ Unknown ดีแต่ระบบใช้งานไม่ได้ จึงต้องดู Recall ของสามหมวดควบคู่
+
+## 12. เทรนด์ Scheduler และกราฟย้อนหลัง
+
+### 12.1 ข้อมูลต้นทางที่ระบบเรียกจริง
+
+YouTube ใช้ Data API `videos.list` กับ `chart=mostPopular`, region และ `maxResults` ไม่เกิน 50; แยกรอบอันดับรวมกับอันดับรายหมวด `videoCategoryId` ไม่ใช้ชื่อหมวด Phone/Camera/Laptop ของ AI แทนหมวด YouTube
+
+เหตุผลของ 50 คือขนาดหน้ารายการ/ขอบเขตที่เลือกเก็บ ไม่ใช่จำนวนที่พิสูจน์แล้วว่าเป็น sample แทนผู้ใช้ทั้งหมด การเรียกหมวดละ 50 ทำให้จำนวนเท่ากันโดยการออกแบบ จึงห้ามใช้จำนวนเหล่านั้นสรุปว่าหมวดใดนิยมกว่า ต้องใช้รายการรวมเป็นฐานเมื่อแสดงโดนัท
+
+Google ใน implementation ปัจจุบันเป็นตัวอ่านข้อมูลจากหน้า Google Trends แล้ว parse embedded data ไม่ใช่ API ทางการที่มี SLA หากรูปแบบเว็บเปลี่ยนอาจเก็บไม่ได้ ต้องแสดงสถานะจริงและไม่ใช้ mock ทับข้อมูล live
+
+เส้นทาง collector ปัจจุบันกำหนด provider แบบ live และ active แค่ YouTube/Google โค้ด helper รุ่นเก่ามี mock mode สำหรับงานอื่น แต่ไม่ได้หมายความว่ากราฟสาธารณะใช้ mock ได้เป็นข้อมูลจริง
+
+### 12.2 รอบเวลาและการปิดเครื่อง
+
+ค่าที่อ่านได้คือ `hourly_window` 14:00-23:00 ไทย รวม 10 รอบ/วัน UI เหลือการตั้งตารางรายวัน แม้ Backend ยังรองรับ interval เพื่อความเข้ากันได้
+
+Browser polling ทุกระยะเพื่ออ่าน snapshot ไม่ได้หมายถึงขอ API ต้นทางใหม่ทุกครั้งที่เปิดหน้า Backend worker และ Windows Task Scheduler ใช้ collection slot ช่วยกันการทำรอบเดียวซ้ำ
+
+ถ้าปิดคอมช่วงหนึ่งจะไม่มีการวัดช่วงนั้น เปิดกลับมาดึงได้เฉพาะสถานะปัจจุบัน ไม่สามารถเรียกยอดเมื่อวานรายชั่วโมงจากข้อมูลปัจจุบันแล้วอ้างว่าเก็บจริง ต้องเก็บช่องว่างไว้
+
+### 12.3 กราฟตีความอย่างไร
+
+- แกนเวลาใช้เวลาที่เก็บจริง ไม่ใช่วันเผยแพร่คลิป
+- กราฟอันดับใช้ rank ภายใน platform/region/scope เดียวกัน เลขน้อยลงหมายถึงอันดับสูงขึ้น
+- คลิปหลุดรายการที่เก็บครบ กับการเก็บล้มเหลวเป็นคนละสถานะ ห้ามแทนทั้งคู่ด้วย rank 0
+- วิวเพิ่มคำนวณ `views(t2)-views(t1)` เมื่อมีสองจุดที่เปรียบเทียบกันได้; ห้ามเรียกค่าที่ขาดว่า 0
+- เก็บสรุปรายชั่วโมงก่อน prune raw snapshots; history service มี retention 90 วัน แต่ UI ให้ดู 7 วัน สองค่าไม่ขัดกัน
+- แยก YouTube กับ Google เพราะ rank/search volume/views มีหน่วยและความหมายต่างกัน
+
+### 12.4 หัวข้อจากชื่อคลิปและไอเดียล่าสุด
+
+ทะเบียน trend topics ใช้ชื่อคลิปเป็นหลักสำหรับการนับ มี PyThaiNLP/วลี/คำพ้องที่ตรวจแล้ว และเครื่องมือเสนอหัวข้อใหม่หรือ semantic similarity เมื่อพร้อม การเสนอชื่อคล้ายกันไม่เท่ากับยืนยันว่าเป็นเรื่องเดียวกัน
+
+ใช้ topic ID ถาวรและ version ของ alias/extractor ประมวลผลเบื้องหลังหลัง snapshot มีหลักฐานว่า Video ID/ชื่อใดทำให้พบหัวข้อ และคำนวณย้อนหลังได้เฉพาะช่วงที่มีชื่อเก็บจริง
+
+บริการ `current_trend_ideas.py` เป็นอีกส่วนที่เชื่อม metadata ล่าสุดกับคลิปผู้ใช้ ใช้เงื่อนไขความสด เช่น snapshot ไม่เกิน 24 ชั่วโมง วิดีโอสำหรับไอเดียไม่เกิน 7 วัน และคำค้นตามเกณฑ์เวลาที่กำหนด ต้องมีบริบทสัมพันธ์ ไม่เอาข่าวโทรศัพท์รุ่นใหม่ไปใส่คลิปกล้องโดยไม่มีเหตุผล
+
+คำจาก title/description/query ใช้เสนอ “ไอเดียจากกระแสล่าสุด” ไม่อ้างว่าเป็นคำพูดใน Transcript ถ้าไม่มีที่เกี่ยวข้องให้ไม่มีข้อเสนอได้
+
+## 13. หน้า Admin ทีละหน้า
+
+หน้า Admin ที่ router เปิดจริงมี 7 หน้า ไม่ใช่ทุก endpoint จะมีหน้าใหม่ของตัวเอง
+
+| หน้า | ใช้ทำอะไร | ตาราง/บริการหลัก |
+|---|---|---|
+| นำเข้า Transcript | เลือกหมวด strategy และไฟล์ Markdown/ข้อความ ตรวจที่มา ส่งเป็นชุดนำเข้า | `dataset_collection_runs`, `dataset_contents`, `youtube_cc_dataset.py` |
+| ตรวจสอบ Dataset | ดูคิว approve/reject/approve all ตรวจ coverage | `dataset_review_events`, `dataset_contents`, `taxonomy_nodes` |
+| จัดการ Dataset | ค้น/กรอง เพิ่ม แก้ ลบแบบ soft delete และเครื่องมือเพิ่มเติม | `datasets.py`, readiness/statistics/trash services |
+| เทรนโมเดล AI | ดูข้อมูลพร้อมหรือไม่ เริ่มงาน ดูรุ่น/คะแนน/ความสับสน และเลือกเปิดใช้; มีส่วน Outcome readiness | `model_training_runs`, `classification_models`, `model_evaluation_metrics`, `outcome_*` |
+| ตั้งค่าการวิเคราะห์ | ความยาวอัปโหลด Whisper ที่พร้อม Hook จำนวนคำ รอบอัปเดตเทรนด์ | `system_configs`, `analysis_settings.py`, `trend_settings.py` |
+| จัดการผู้ใช้ | เพิ่ม/ค้น/แก้ role ระงับบัญชี ถอน session ลบ และดูรายละเอียดสถิติ | `users`, `user_trend_watch_sessions`, `system_logs` |
+| Logs | ดูเหตุการณ์และความสำเร็จ/ล้มเหลวของงานที่มีการบันทึก | `system_logs`, ข้อมูลรอบ collector ประกอบ |
+
+การลบ Dataset แบบ soft delete คือทำเครื่องหมายไม่ใช้ในงานใหม่และกู้คืนได้ ไม่ย้อนลบ snapshot ในผลผู้ใช้เก่า เพราะจะทำให้หลักฐานที่ใช้ตอนนั้นหาย
+
+เครื่องมือคุณภาพ/แผนเก็บข้อมูล สถิติ และถังขยะยังมีประโยชน์ในเมนูเพิ่มเติม แม้ไม่ใช่แท็บหลักตาม UI ที่ปรับแล้ว ไม่ใช่ console ที่ต้องเปิดทุกครั้งก่อน Analyze
+
+การเปลี่ยน role/สถานะบัญชีตรวจสิทธิ์ฝั่ง server มีข้อป้องกันบัญชี Admin สำคัญและ Admin คนสุดท้าย มี revision ตรวจความขัดแย้งในการแก้ และ audit การกระทำ การดูรายละเอียดผู้ใช้ไม่เหมือนกราฟแนวโน้มการใช้งานรวมรายวัน
+
+## 14. Database เชื่อมกันอย่างไร
+
+ดูชื่อจริงทั้งหมดใน [models.py](../../app/database/models.py) ตารางหนึ่งไม่เท่ากับหนึ่งหน้าจอ
+
+```text
+users -> user_contents -> analysis_results -> classification_models
+                    |-> content_keywords -> keywords
+                    |-> recommendations
+
+dataset_collection_runs -> dataset_contents -> dataset_review_events
+                                     |-> reference_video_statistics
+                                     |-> train/validation/test manifest
+model_training_runs -> classification_models -> model_evaluation_metrics
+
+trend_snapshot_runs -> trend_snapshot_items
+                    -> trend_history_buckets / trend_history_attempts
+                    -> trend topic observations/jobs/evidence/counts
+users -> followed_topics / notifications / user_trend_watch_sessions
+```
+
+| กลุ่ม | ตาราง | เก็บอะไรที่ต้องจำ |
+|---|---|---|
+| บัญชี | `users`, `user_trend_watch_sessions` | เจ้าของ role password hash และสถานะ session |
+| ผลผู้ใช้ | `user_contents`, `analysis_results` | path/raw/cleaned Transcript และผลหมวด/summary JSON frozen |
+| คำ/ข้อเสนอ | `keywords`, `content_keywords`, `recommendations` | คำที่พบ ความเชื่อมโยง และสรุปคำแนะนำ |
+| ต้นแบบ | `dataset_contents`, `dataset_collection_runs`, `dataset_review_events` | ข้อมูลต้นทาง batch การตรวจและ eligibility |
+| หมวด/แบ่งชุด | `taxonomy_nodes`, `dataset_split_plans` | หมวดมาตรฐานและแผนกันข้อมูลรั่ว |
+| Classifier | `model_training_runs`, `classification_models`, `model_evaluation_metrics` | งาน รุ่น path/hash และผลวัด ไม่ใช่น้ำหนัก Whisper |
+| Outcome | `outcome_training_runs`, `outcome_models`, `outcome_model_metrics` | โครงสร้างพร้อม แต่การมีตารางไม่ได้แปลว่าฝึก/เปิดรุ่นแล้ว |
+| เทรนด์ | `trend_snapshot_runs`, `trend_snapshot_items`, `trend_collection_slots` | รอบ รายการ และสิทธิ์ทำ slot |
+| ประวัติ | `trend_history_buckets`, `trend_history_attempts` | สรุปเวลาจริงและผลเก็บล้มเหลว |
+| สถิติอ้างอิง | `reference_statistics_configs`, `reference_statistics_runs`, `reference_video_statistics` | ตั้งรอบและเก็บยอดหลายเวลาโดยไม่ถอดเสียงใหม่ |
+| หัวข้อเทรนด์ | `trend_topics`, `trend_topic_versions`, `trend_topic_definitions`, `trend_topic_aliases`, `trend_topic_configs` | ID ความหมาย คำพ้องและรุ่นที่ใช้ |
+| งานนับหัวข้อ | `trend_topic_observations`, `trend_topic_jobs`, `trend_topic_evidence`, `trend_topic_counts` | ข้อความต้นทาง งานเบื้องหลัง หลักฐานและจำนวน |
+| ความสนใจ | `followed_topics`, `notifications` | เรื่องติดตามและข้อความส่วนบุคคล |
+| ตั้งค่า/audit | `system_configs`, `system_logs` | ค่าถาวรและเหตุการณ์ที่โค้ดบันทึก |
+| ความเข้ากันได้ | `clip_revision_plans`, `clip_revision_comparisons` | แผน/ผลเทียบเดิมที่ยังเก็บ แม้เอากล่องแผนออกจากหน้าผล |
+| จัดกลุ่มเดิม | `clusters`, `cluster_runs`, `cluster_memberships`, `trending_items` | กลไก/ข้อมูลรุ่นเก่า ไม่ใช่ classifier ที่ตัดสินคลิปปัจจุบัน |
+
+ทำไม Dataset มีหลาย column ทั้งที่ classifier ใช้ Transcript? เพราะ column อื่นใช้กับงานอื่น: label เป็นคำตอบฝึก, Channel ID/split กันข้อมูลรั่ว, views/likes/comments ใช้หลักฐานผลตอบรับ, duration ใช้คำแนะนำความยาว, วันที่ใช้กำกับอายุ/ความสด, URL/hash/reviewer ใช้ตรวจที่มา
+
+`license_name` หรือ URL ที่ระบบเก็บเป็น metadata ไม่ควรอธิบายว่าแปลว่ามีสิทธิ์ฝึกและเผยแพร่ Transcript ทุกกรณีโดยอัตโนมัติ Outcome ยังมี data-use contract แยกต่างหาก
+
+## 15. เดโมที่อธิบายได้เป็นขั้นตอน
+
+1. เปิด Dashboard แบบไม่ Login ชี้ว่าเป็นข้อมูลจากคนละแพลตฟอร์ม และกราฟวัดช่วงที่เก็บจริง
+2. เปิดโดนัท อธิบายว่าตัวหารคือจำนวนรายการรวม ไม่ใช่จำนวนคำขอรายหมวด
+3. Login แล้วเลือก MP4 ที่เตรียมไว้ อธิบายค่าความยาว/Whisper/Hook
+4. ระหว่างรอ อธิบายเสียง -> ข้อความ -> features -> classifier ไม่ต้องบอกว่าทุกขั้นเป็น Generative AI
+5. เปิดผล ชี้หมวดและบอกว่า confidence คือความมั่นใจหมวด ไม่ใช่คุณภาพคลิป
+6. อ่านข้อเสนอหนึ่งข้อพร้อมวิธีทำและเงื่อนไข แสดงว่ามีหลักฐานว่าไม่ตรวจพบในข้อความที่ใช้
+7. เปิดคลิปอ้างอิงในหัวข้อ 3 ชี้ยอดสะสมและเวลา ไม่กล่าวว่าทำตามแล้วได้ยอดเท่าต้นแบบ
+8. เปิดผลเดิมจาก History แสดงว่ายังเป็นข้อความและสถิติที่บันทึกในครั้งนั้น
+9. เปิด Admin Training อธิบาย Train/Validation/Test และการเลือก Active Model โดยคะแนนจริง
+10. จบด้วยข้อจำกัดเรื่อง ASR, Dataset bias, ความครอบคลุมเวลา และ Outcome ที่ยังไม่พร้อม
+
+มีผลเก่าเตรียมไว้ช่วยกรณีถอดเสียงนานหรือแหล่งเทรนด์ล่มได้ แต่ต้องบอกว่าเปิดผลที่บันทึกไว้ ไม่อ้างว่าเพิ่งวิเคราะห์สด
+
+## 16. คำถามอาจารย์และแนวตอบ
+
+**Q: ได้ Keyword แล้วเอาไปทำอะไรต่อ?**
+A: รวมคำพ้องเป็นประเด็น ตรวจสิ่งที่มี/ยังไม่พบ เทียบกับคลิปอ้างอิงที่ตรวจแล้ว จัดอันดับความเกี่ยวข้อง และเปลี่ยนเป็นวิธีทดลอง/สิ่งที่ควรอธิบายพร้อมตัวอย่างประโยค ไม่จบที่รายการคำดิบ
+
+**Q: ทำไมต้อง Train ทั้งที่มี Whisper อยู่แล้ว?**
+A: Whisper ตอบว่าเสียงพูดอะไร ส่วน classifier ตอบว่าข้อความอยู่หมวดใด เป็นงานคนละอย่าง เราฝึกตัวหลังจาก Transcript ที่มี label
+
+**Q: จัดกลุ่มกับจำแนกหมวดต่างกันอย่างไร?**
+A: Classification มีป้ายกำกับคำตอบฝึก เช่น Camera ส่วน clustering รวมสิ่งคล้ายกันโดยไม่ได้เริ่มจาก label แบบนั้น ระบบมี KMeans/HDBSCAN เก่า แต่เส้นทาง Analyze ปัจจุบันใช้ supervised classifier ไม่ควรเรียก SVM ว่า KMeans
+
+**Q: รู้อย่างไรว่าแนะนำแล้วจะดีขึ้น?**
+A: ตอนนี้รู้ว่ามีประเด็นที่ยังไม่ตรวจพบและมีคลิปอ้างอิงที่กล่าวถึงพร้อมผลตอบรับจริง ยังไม่พิสูจน์ว่าการเพิ่มประเด็นเป็นสาเหตุของยอดที่เพิ่ม ต้องมีข้อมูลผลลัพธ์และการประเมิน/ออกแบบการทดลองเพิ่มเติม
+
+**Q: ถ้า accuracy ต่ำกว่า 80% ทำไมเปิดได้?**
+A: รุ่นปัจจุบันให้ Admin พิจารณาคะแนนจริงและอนุมัติใช้งานโดยรับทราบข้อจำกัด ไม่ซ่อนคะแนนหรือเขียนว่าผ่านเกณฑ์เดิม และยังตรวจ Unknown ของแต่ละคลิป
+
+**Q: ทำไมทาย Camera 98% แต่สุดท้าย Unknown?**
+A: 98% เป็นความมั่นใจภายในสามหมวด ไม่รับรองว่า input อยู่ในขอบเขต จึงมี similarity/contrast ตรวจอีกชั้น ดูตัวอย่างจริงในบท 7
+
+**Q: ทำไมกราฟขาดช่วง?**
+A: ไม่มี snapshot จริงช่วงนั้นจากการปิดเครื่อง/provider ล้ม จึงไม่แทนเป็นศูนย์หรือสร้างย้อนหลัง กราฟซื่อสัตย์ต่อข้อมูลที่มี
+
+**Q: ทำไมไม่ใช้ยอดวิวเป็น feature ทายหมวด?**
+A: ยอดวิวไม่ได้บอกว่าเป็นมือถือหรือกล้องโดยตรงและอาจทำให้โมเดลจำความดังแทนเนื้อหา เราใช้ข้อความทายหมวด แล้วใช้สถิติในขั้นอ้างอิงที่มีหน้าที่ต่างกัน
+
+**Q: คำแนะนำภาษาไทยมาจาก ChatGPT ทุกครั้งหรือไม่?**
+A: ไม่ใช่ ข้อเสนอหลักเป็นแม่แบบที่ตรวจได้ พร้อมเงื่อนไข/ขั้นตอนและหลักฐานจากระบบ จึงไม่ต้องเสียค่าเรียกโมเดลสร้างข้อความทุกงาน
+
+## 17. การรัน ตรวจปัญหา และข้อจำกัดที่ยังมี
+
+เริ่มระบบหลังมี dependencies/cache/build/MySQL พร้อม:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_demo.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check_demo_readiness.ps1
+```
+
+เปิด `http://127.0.0.1:8080/#/dashboard`; API `http://127.0.0.1:8000/health` และ schema ที่ `/docs` ชื่อ script มีคำว่า demo เพราะใช้เปิดเครื่องสาธิต ไม่ได้หมายความว่าข้อมูลผลตอบรับในหัวข้อ 3 เป็นข้อมูลปลอม
+
+Launcher เปิด process แบบซ่อนหน้าต่างและไม่ฆ่า service อื่นที่ยึดพอร์ต หากพอร์ตชนต้องตรวจ process ก่อน อย่ารันลบหรือ kill เหมารวม การเปิดเว็บหลังแก้ release build อาจต้อง Ctrl+F5
+
+| อาการ | ควรไล่ตรวจ |
+|---|---|
+| อัปโหลดไม่ผ่าน | session, ชนิดไฟล์, ffprobe, duration limit |
+| ถอดเสียงไม่ได้/ช้า | ไฟล์เสียง, Whisper readiness, GPU/CPU, job log |
+| ผิดหมวด | raw/cleaned transcript ก่อน แล้วค่อยตรวจ raw class/acceptance/artifact |
+| ไม่มีข้อเสนอ | Unknown, input availability, หัวข้อพบแล้ว, บริบท, จำนวนคลิป/ช่องสนับสนุน |
+| duration ไม่มีตัวเลข | มีคลิป metadata ผ่านเกณฑ์ครบ 10 หรือไม่ ไม่ใส่เลข fallback |
+| เทรนด์ไม่ขยับ | เวลาเก็บล่าสุด, slot, provider error, quota, เครื่องเปิดอยู่หรือไม่ |
+| ผลเก่าไม่เหมือนรุ่นใหม่ | ตรวจ model/settings snapshot ของแต่ละผล ไม่รีคำนวณเก่าให้เอง |
+| Admin Training โหลดนาน | แยกตรวจ API overview/readiness กับ artifact/dataset workload |
+
+ข้อจำกัดที่ต้องกล่าวตามจริง:
+
+- ยังไม่มี Outcome model ที่เปิดใช้ และยังไม่ประเมินผลเชิงสาเหตุจากการทำตามคำแนะนำ
+- ASR อาจฟังชื่อสินค้า/ตัวเลขผิด และการจับหัวข้อจากคำพ้องไม่ได้เข้าใจความหมายทุกประโยค
+- Dataset ส่วนเดิมเน้นผลตอบรับสูง มีอคติในการเลือก ไม่ใช่ random sample ของ YouTube
+- ช่อง/เวลา/รูปแบบไม่ครบทำให้บางคำแนะนำและการเปรียบเทียบงดแสดงได้
+- งาน Analyze แบบ in-process มีสถานะบางส่วนใน RAM ปิด Backend กลางงานอาจทำให้งานนั้นไม่จบ แม้ผลที่บันทึกเสร็จแล้วอยู่ใน DB
+- Google collector อาศัยรูปแบบหน้าเว็บและ YouTube มีข้อจำกัด provider/quota
+- ประวัติการตรวจครั้งก่อนมี Admin Training timeout 90 วินาที งานปรับ UI รอบนี้ไม่ได้แก้ performance จุดนั้น ห้ามเหมารวมว่าทุก workflow ผ่านใหม่ทั้งหมด
+- ยังมี legacy code และเอกสารเก่าบางบท อย่าอ่าน README เก่าเพียงหน้าเดียวแล้วสรุปสถาปัตยกรรมปัจจุบัน
+
+สำรองต้องเก็บทั้ง DB, classifier artifacts, Whisper cache และไฟล์คลิปที่ต้องใช้ พร้อมแยก credential อย่างปลอดภัย การมี SQL backup อย่างเดียวไม่พอให้ ASR/classifier ทำงานบนเครื่องใหม่
+
+## 18. แผนที่โค้ดสำหรับอ่านเหมือนเป็นผู้เขียน
+
+| ต้องการเข้าใจ | เริ่มอ่าน |
+|---|---|
+| การเปิดหน้า/สิทธิ์ฝั่งเว็บ | [app_router.dart](../../frontend_flutter/lib/routing/app_router.dart), `state/auth_controller.dart` |
+| หน้าผลทั้งหมด | [result_screen.dart](../../frontend_flutter/lib/screens/result_screen.dart) |
+| ข้อเสนอและตัวอย่างภาษาไทยบน UI | [actionable_advice_panel.dart](../../frontend_flutter/lib/widgets/actionable_advice_panel.dart) |
+| สถิติอ้างอิงและตรวจ snapshot ก่อนแสดง | [reference_response.dart](../../frontend_flutter/lib/models/reference_response.dart), [reference_response_panel.dart](../../frontend_flutter/lib/widgets/reference_response_panel.dart) |
+| รับไฟล์ คุมงาน และประกอบผล | [analyze.py](../../app/routes/analyze.py), [jobs.py](../../app/services/jobs.py) |
+| แยกเสียง/เตรียม transcript | [pipeline/core.py](../../app/services/pipeline/core.py), [speech_to_text.py](../../models/speech_to_text.py) |
+| token และ vector | [classification_features.py](../../app/services/classification_features.py) |
+| Train/evaluate/load classifier | [classification_training.py](../../app/services/classification_training.py) |
+| Active Model และ Unknown | [classification.py](../../app/services/classification.py), [classification_acceptance.py](../../app/services/classification_acceptance.py), [classification_approval.py](../../app/services/classification_approval.py) |
+| คำ วลี คำพ้อง | [nlp.py](../../app/services/nlp.py) |
+| คัดตัวอย่าง keyword/duration | [recommendation.py](../../app/services/recommendation.py) |
+| จับข้อความและแช่หลักฐาน | [recommendation_evidence.py](../../app/services/recommendation_evidence.py), [saved_recommendations.py](../../app/services/saved_recommendations.py) |
+| แม่แบบและการจัดอันดับข้อเสนอ | [actionable_recommendations.py](../../app/services/actionable_recommendations.py), [recommendation_templates.json](../../app/services/recommendation_templates.json) |
+| เปรียบเทียบมี/ไม่มีหัวข้อ | [topic_comparisons.py](../../app/services/topic_comparisons.py) |
+| Outcome ที่ยังงดใช้งาน | [outcome_inference.py](../../app/services/outcome_inference.py), [prediction-contract.md](../prompts/outcome-prediction/prediction-contract.md) |
+| Import/review/eligibility | [youtube_cc_dataset.py](../../app/services/youtube_cc_dataset.py), [dataset_eligibility.py](../../app/services/dataset_eligibility.py) |
+| เทรนด์ปัจจุบัน/ประวัติ | [live_trend_snapshots.py](../../app/services/live_trend_snapshots.py), [trend_history.py](../../app/services/trend_history.py), [trends.py](../../app/services/trends.py) |
+| เวลาเก็บ/งาน scheduler | [trend_settings.py](../../app/services/trend_settings.py), [trend_scheduler.py](../../app/services/trend_scheduler.py), [run_trend_scheduler.py](../../scripts/run_trend_scheduler.py) |
+| ไอเดียตาม metadata ล่าสุด | [current_trend_ideas.py](../../app/services/current_trend_ideas.py) |
+| ฐานข้อมูล/การบันทึก | [models.py](../../app/database/models.py), [persistence.py](../../app/services/persistence.py) |
+| บัญชี/สิทธิ์ | [security.py](../../app/core/security.py), [deps.py](../../app/api/deps.py), [user_management.py](../../app/services/user_management.py) |
+
+วิธีอ่านให้จับภาพเร็ว: เริ่มจาก widget ที่เห็น -> repository ที่เรียก API -> route ที่รับ -> service ที่คำนวณ -> model/table ที่บันทึก แล้วค่อยย้อนอ่านสูตรและ tests ไม่ต้องเริ่มอ่านทุกบรรทัดใน `pipeline/core.py` ซึ่งยังมีโค้ดเก่าปะปน
+
+## 19. สรุปสั้นที่ใช้เล่าได้ด้วยคำของตัวเอง
+
+“เว็บผมแยกข้อมูลเทรนด์กับข้อมูลต้นแบบครับ เทรนด์เก็บเป็นช่วงเวลาไว้ดู Dashboard ส่วนต้นแบบเป็น Transcript ที่ตรวจหมวดและที่มาแล้ว ใช้ฝึก classifier และเป็นหลักฐานตามสิทธิ์ของข้อมูลแต่ละแถว เมื่อผู้ใช้อัปโหลด ระบบถอดเสียงด้วย Whisper แปลงข้อความเป็น word/character TF-IDF แล้วใช้ SVM ทายหมวด พร้อมตรวจ Unknown ก่อนเลือกข้อมูลอ้างอิง จากนั้นตรวจหัวข้อที่พูดแล้วและหัวข้อที่ยังไม่พบ สร้างข้อเสนอพร้อมวิธีทำจากแม่แบบภาษาไทย และแสดงสถิติจริงของคลิปที่สนับสนุนข้อเสนอนั้น ผลทั้งหมดบันทึกพร้อมรุ่นและหลักฐาน เพื่อเปิดย้อนหลังได้เหมือนเดิม แต่ยังไม่อ้างว่าการทำตามจะทำให้ยอดเพิ่มแน่นอนครับ”

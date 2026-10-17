@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/common_models.dart';
 import '../models/actionable_recommendations.dart';
 import '../models/recommendation_result.dart';
 import '../repositories/content_repository.dart';
 import '../state/auth_scope.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/analysis_settings_audit.dart';
 import '../widgets/revision_comparison_panel.dart';
 import '../widgets/current_trend_ideas_panel.dart';
-import '../widgets/recommendation_evidence_panel.dart';
 import '../widgets/actionable_advice_panel.dart';
-import '../widgets/clip_revision_planner.dart';
 import '../widgets/outcome_assessment_panel.dart';
+import '../widgets/reference_response_panel.dart';
 import '../widgets/state_widgets.dart';
 
 class ResultScreenArgs {
@@ -36,7 +33,6 @@ class _ResultScreenState extends State<ResultScreen> {
   int? _contentId;
   bool _initialized = false;
   bool _loading = false;
-  bool _planDirty = false;
   int _viewVersion = 0;
 
   @override
@@ -51,32 +47,12 @@ class _ResultScreenState extends State<ResultScreen> {
     if (_contentId != null) _loadContent();
   }
 
-  Future<bool> _confirmLeaving() async {
-    if (!_planDirty) return true;
-    return await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-                    title: const Text('แผนปรับคลิปยังไม่บันทึก'),
-                    content: const Text(
-                        'ต้องการออกหรือโหลดข้อมูลใหม่โดยไม่บันทึกการเปลี่ยนแปลงหรือไม่?'),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('แก้ต่อ')),
-                      TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('ดำเนินการโดยไม่บันทึก'))
-                    ])) ??
-        false;
-  }
-
   Future<void> _openRoute(String route) async {
-    if (await _confirmLeaving() && mounted) Navigator.pushNamed(context, route);
+    Navigator.pushNamed(context, route);
   }
 
   Future<void> _loadContent() async {
     if (_contentId == null || _loading) return;
-    if (!await _confirmLeaving() || !mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -86,7 +62,6 @@ class _ResultScreenState extends State<ResultScreen> {
       if (mounted) {
         setState(() {
           _data = response;
-          _planDirty = false;
           _viewVersion++;
         });
       }
@@ -102,92 +77,69 @@ class _ResultScreenState extends State<ResultScreen> {
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    return PopScope(
-        canPop: !_planDirty,
-        onPopInvokedWithResult: (didPop, result) async {
-          if (!didPop && await _confirmLeaving() && mounted) {
-            setState(() => _planDirty = false);
-            await Future<void>.delayed(Duration.zero);
-            if (context.mounted) Navigator.pop(context, result);
-          }
-        },
-        child: AppShell(
-          title: 'ผลวิเคราะห์คลิป',
-          isAdmin: AuthScope.of(context).isAdmin,
-          actions: [
-            if (_contentId != null)
-              IconButton(
-                  onPressed: _loading ? null : _loadContent,
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'โหลดผลวิเคราะห์ใหม่'),
-          ],
-          child: _loading && data == null
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? ErrorStateView(message: _error!, onRetry: _loadContent)
-                  : data == null
-                      ? const EmptyStateView(
-                          title: 'ยังไม่มีผลวิเคราะห์',
-                          message: 'ไม่พบรายการผลวิเคราะห์นี้',
-                          icon: Icons.analytics_outlined)
-                      : RefreshIndicator(
-                          onRefresh: _loadContent,
-                          child: ListView(
-                              padding: const EdgeInsets.all(24),
-                              children: [
-                                if (_loading) const LinearProgressIndicator(),
-                                Text(data.title,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineSmall),
-                                const SizedBox(height: 8),
-                                Text(
-                                    data.saved && data.contentId != null
-                                        ? 'ผลวิเคราะห์บันทึกแล้ว · #${data.contentId}'
-                                        : 'ผลนี้ยังไม่มีรายการที่ยืนยันว่าบันทึกแล้ว',
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall),
-                                const SizedBox(height: 24),
-                                AnalysisReport(
-                                    key: ValueKey('report-$_viewVersion'),
-                                    data: data,
-                                    repository: _repository,
-                                    onPlanDirtyChanged: (dirty) {
-                                      if (mounted) {
-                                        setState(() => _planDirty = dirty);
-                                      }
-                                    }),
-                                const SizedBox(height: 24),
-                                Wrap(spacing: 12, runSpacing: 12, children: [
-                                  FilledButton.icon(
-                                      onPressed: () => _openRoute('/upload'),
-                                      icon: const Icon(
-                                          Icons.upload_file_outlined),
-                                      label: const Text('วิเคราะห์คลิปใหม่')),
-                                  OutlinedButton.icon(
-                                      onPressed: () => _openRoute('/history'),
-                                      icon:
-                                          const Icon(Icons.bookmarks_outlined),
-                                      label: const Text('รายการไอเดียของฉัน')),
-                                  OutlinedButton.icon(
-                                      onPressed: () => _openRoute('/dashboard'),
-                                      icon: const Icon(Icons.home_outlined),
-                                      label: const Text('กลับ Dashboard')),
-                                ]),
-                              ])),
-        ));
+    return AppShell(
+      title: 'ผลวิเคราะห์คลิป',
+      isAdmin: AuthScope.of(context).isAdmin,
+      actions: [
+        if (_contentId != null)
+          IconButton(
+              onPressed: _loading ? null : _loadContent,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'โหลดผลวิเคราะห์ใหม่'),
+      ],
+      child: _loading && data == null
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? ErrorStateView(message: _error!, onRetry: _loadContent)
+              : data == null
+                  ? const EmptyStateView(
+                      title: 'ยังไม่มีผลวิเคราะห์',
+                      message: 'ไม่พบรายการผลวิเคราะห์นี้',
+                      icon: Icons.analytics_outlined)
+                  : RefreshIndicator(
+                      onRefresh: _loadContent,
+                      child: ListView(
+                          padding: const EdgeInsets.all(24),
+                          children: [
+                            if (_loading) const LinearProgressIndicator(),
+                            Text(data.title,
+                                style:
+                                    Theme.of(context).textTheme.headlineSmall),
+                            const SizedBox(height: 8),
+                            Text(
+                                data.saved && data.contentId != null
+                                    ? 'ผลวิเคราะห์บันทึกแล้ว · #${data.contentId}'
+                                    : 'ผลนี้ยังไม่มีรายการที่ยืนยันว่าบันทึกแล้ว',
+                                style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(height: 24),
+                            AnalysisReport(
+                                key: ValueKey('report-$_viewVersion'),
+                                data: data,
+                                repository: _repository),
+                            const SizedBox(height: 24),
+                            Wrap(spacing: 12, runSpacing: 12, children: [
+                              FilledButton.icon(
+                                  onPressed: () => _openRoute('/upload'),
+                                  icon: const Icon(Icons.upload_file_outlined),
+                                  label: const Text('วิเคราะห์คลิปใหม่')),
+                              OutlinedButton.icon(
+                                  onPressed: () => _openRoute('/history'),
+                                  icon: const Icon(Icons.bookmarks_outlined),
+                                  label: const Text('รายการไอเดียของฉัน')),
+                              OutlinedButton.icon(
+                                  onPressed: () => _openRoute('/dashboard'),
+                                  icon: const Icon(Icons.home_outlined),
+                                  label: const Text('กลับ Dashboard')),
+                            ]),
+                          ])),
+    );
   }
 }
 
 class AnalysisReport extends StatelessWidget {
-  const AnalysisReport(
-      {super.key,
-      required this.data,
-      this.repository,
-      this.onPlanDirtyChanged});
+  const AnalysisReport({super.key, required this.data, this.repository});
   final AnalysisResultViewData data;
   final ContentRepository? repository;
-  final ValueChanged<bool>? onPlanDirtyChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -233,6 +185,17 @@ class AnalysisReport extends StatelessWidget {
         if (advice.evidenceTopicId.isNotEmpty)
           advice.evidenceTopicId: advice.title,
     };
+    final referenceTopicLabels = actions != null
+        ? outcomeTopicLabels
+        : <String, String>{
+            for (final topic
+                in (bundle['topics'] as List? ?? const []).whereType<Map>())
+              if ((bundle['recommendations'] as List? ?? const [])
+                  .whereType<Map>()
+                  .any((item) => item['topic_id'] == topic['topic_id']))
+                '${topic['topic_id']}':
+                    '${topic['title_th'] ?? topic['canonical_topic']}',
+          };
     final openingKeywords = recommendation.hookKeywords
         .where(
             (word) => actions == null || adviceLabels.containsKey(word.keyword))
@@ -254,10 +217,6 @@ class AnalysisReport extends StatelessWidget {
             (topic['title_th'] ?? topic['canonical_topic']).toString())
         .toSet()
         .toList();
-    final canPlan = repository != null &&
-        data.saved &&
-        data.contentId != null &&
-        data.raw['analysis_id'] != null;
     final input = bundle['input'] as Map? ?? const {};
     final inputUnassessable =
         input.isNotEmpty && input['availability'] != 'available';
@@ -266,7 +225,6 @@ class AnalysisReport extends StatelessWidget {
             ((input['segments'] as List? ?? []).isEmpty ||
                 input['hook_seconds'] == null));
     final domain = classification?.displayCategory ?? recommendation.domain;
-    final evidence = recommendation.evidence;
     final duration = recommendation.duration;
     final medianDuration =
         duration.medianSeconds ?? duration.recommendedSeconds;
@@ -276,14 +234,6 @@ class AnalysisReport extends StatelessWidget {
         rangeHigh != null &&
         rangeLow > 0 &&
         rangeHigh >= rangeLow;
-    final hasReference = recommendation.datasetProfile.sampleSize > 0;
-    final supported = <String, KeywordScore>{
-      for (final item in [
-        ...recommendation.missingKeywords,
-        ...recommendation.hookKeywords
-      ])
-        if (item.hasDatasetEvidence) item.keyword: item,
-    };
     final revisionComparison = data.raw['revision_comparison'] is Map
         ? Map<String, dynamic>.from(data.raw['revision_comparison'] as Map)
         : null;
@@ -370,11 +320,6 @@ class AnalysisReport extends StatelessWidget {
                             text: data.rawTranscript.isEmpty
                                 ? data.transcript
                                 : data.rawTranscript),
-                        _Transcript(
-                            label: 'ข้อความหลังปรับศัพท์',
-                            text: data.cleanedTranscript.isEmpty
-                                ? data.transcript
-                                : data.cleanedTranscript),
                       ]),
                 ]),
           ]),
@@ -409,13 +354,7 @@ class AnalysisReport extends StatelessWidget {
               padding: EdgeInsets.only(bottom: 12),
               child: Text(
                   'งดคำแนะนำเฉพาะหมวด เพราะผลจำแนกยังไม่ผ่านเกณฑ์ตรวจรับ')),
-        if (canPlan)
-          ClipRevisionPlanner(
-              data: data,
-              repository: repository!,
-              onDirtyChanged: onPlanDirtyChanged,
-              withheld: withheld || inputUnassessable)
-        else if (actions != null)
+        if (actions != null)
           ActionableAdvicePanel(
               data: actions,
               bundle: bundle,
@@ -423,11 +362,6 @@ class AnalysisReport extends StatelessWidget {
         else
           const Text(
               'ผลรุ่นนี้ยังไม่มีคำแนะนำแบบลงมือทำ ข้อมูลคำแนะนำเดิมยังเปิดดูได้ในส่วนรายละเอียด'),
-        if (!canPlan)
-          const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                  'ยังบันทึกแผนไม่ได้จนกว่าจะมีผลวิเคราะห์ที่บันทึกและตรวจสอบต้นฉบับได้')),
         const Divider(),
         Text('ความยาวคลิปที่แนะนำ',
             style: Theme.of(context).textTheme.titleMedium),
@@ -447,61 +381,26 @@ class AnalysisReport extends StatelessWidget {
       ]),
       const SizedBox(height: 24),
       _Band(
-          title: '3. เพราะอะไรจึงแนะนำ',
+          title: '3. ผลตอบรับจากคลิปอ้างอิง',
           icon: Icons.manage_search_outlined,
           children: [
-            OutcomeAssessmentPanel(
-              assessment: data.outcomeAssessment,
-              repository: repository ?? ContentRepository(),
-              contentId: data.contentId,
-              analysisId: (data.raw['analysis_id'] as num?)?.toInt(),
-              assessmentFingerprint: data.outcomeAssessmentFingerprint,
-              topicLabels: outcomeTopicLabels,
+            if (data.outcomeAssessment.isAvailable &&
+                !data.outcomeAssessment.fixtureOnly &&
+                !withheld &&
+                !inputUnassessable)
+              OutcomeAssessmentPanel(
+                assessment: data.outcomeAssessment,
+                repository: repository ?? ContentRepository(),
+                contentId: data.contentId,
+                analysisId: (data.raw['analysis_id'] as num?)?.toInt(),
+                assessmentFingerprint: data.outcomeAssessmentFingerprint,
+                topicLabels: outcomeTopicLabels,
+              ),
+            ReferenceResponsePanel(
+              bundle: bundle,
+              recommendedTopics: referenceTopicLabels,
+              withheld: withheld || inputUnassessable,
             ),
-            const Divider(height: 36),
-            ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: const Text('เปิดดูหลักฐานและเวอร์ชัน'),
-                children: [
-                  Text(withheld
-                      ? 'ผลจำแนกยังไม่ผ่านเกณฑ์ ระบบจึงไม่เลือก Dataset มาอ้างอิงในรอบนี้'
-                      : hasReference
-                          ? 'เปรียบเทียบกับคลิปอ้างอิงหมวดเดียวกัน ${recommendation.datasetProfile.sampleSize} คลิป '
-                              'โดยดูจำนวนคลิปที่กล่าวถึง ความถี่ และผลตอบรับของคลิป'
-                          : 'ยังไม่มีคลิปอ้างอิงที่ผ่านเกณฑ์เพียงพอ จึงยังสรุปคำแนะนำไม่ได้'),
-                  const SizedBox(height: 8),
-                  const Text(
-                      'ความสัมพันธ์ในคลิปอ้างอิงไม่ยืนยันว่าเพิ่มหัวข้อแล้วจะทำให้ยอดวิวหรือยอดไลก์เพิ่มขึ้น'),
-                  if (evidence.warning?.isNotEmpty == true)
-                    Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(evidence.warning!)),
-                  if (bundle.isNotEmpty)
-                    RecommendationEvidencePanel(bundle: topicEvidence)
-                  else
-                    for (final keyword in supported.values)
-                      _KeywordEvidence(item: keyword),
-                  if (supported.isEmpty && bundle.isEmpty)
-                    const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                            'ยังไม่มีหลักฐานรายหัวข้อที่เปิดดูได้ในผลนี้')),
-                  ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text('หลักฐานความยาวคลิป'),
-                      children: [
-                        Align(
-                            alignment: Alignment.centerLeft,
-                            child: Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: Text(
-                                    'จำนวนตัวอย่าง ${duration.sampleSize} คลิป\n'
-                                    'ช่วงเปอร์เซ็นไทล์ ${duration.percentileLow}–${duration.percentileHigh}\n'
-                                    'Dataset IDs: ${evidence.durationDatasetRowIds.isEmpty ? "ยังไม่มี" : evidence.durationDatasetRowIds.join(", ")}\n'
-                                    '${evidence.durationExplanation}')))
-                      ]),
-                  AnalysisSettingsAudit(snapshot: data.analysisSettings),
-                ]),
           ]),
     ]);
   }
@@ -610,51 +509,4 @@ class _Transcript extends StatelessWidget {
         const SizedBox(height: 8),
         SelectableText(text.isEmpty ? 'ไม่มีข้อความถอดเสียงในผลนี้' : text),
       ]));
-}
-
-class _KeywordEvidence extends StatelessWidget {
-  const _KeywordEvidence({required this.item});
-  final KeywordScore item;
-  Future<void> _open(BuildContext context, String url) async {
-    final uri = Uri.tryParse(url);
-    try {
-      if (uri == null ||
-          !['https', 'http'].contains(uri.scheme) ||
-          uri.host.isEmpty ||
-          !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        throw StateError('invalid source');
-      }
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('เปิดต้นทางไม่สำเร็จ')));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          title: Text('หลักฐาน: ${item.keyword}'),
-          subtitle: Text(
-              '${item.supportCount}/${item.sampleSize} คลิป · กล่าวถึงรวม ${item.totalFrequency} ครั้ง'),
-          children: [
-            Align(
-                alignment: Alignment.centerLeft,
-                child: SelectableText(
-                    'Dataset IDs: ${item.supportingDatasetRowIds.join(", ")}')),
-            for (final source in item.supportingExamples)
-              ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(source.title),
-                  subtitle: Text(
-                      'ข้อมูล #${source.datasetId} · กล่าวถึง ${source.frequency} ครั้ง\n'
-                      'เก็บสถิติ: ${trendIdeaTime(source.statisticsCapturedAt)} · เผยแพร่: ${trendIdeaTime(source.publishedAt)}'),
-                  trailing: source.videoUrl.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: 'เปิดคลิปอ้างอิง #${source.datasetId}',
-                          onPressed: () => _open(context, source.videoUrl),
-                          icon: const Icon(Icons.open_in_new))),
-          ]);
 }

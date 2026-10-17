@@ -139,7 +139,7 @@ class AdminRepository {
       trainingMap(await _client.get('/admin/training/models/$id')));
   Future<void> activateTrainingModel(int id, int? activeId) async {
     await _client.post('/admin/training/models/$id/activate',
-        {'expected_active_model_id': activeId});
+        {'expected_active_model_id': activeId, 'risk_acknowledged': true});
   }
 
   Future<OutcomeTrainingOverview> outcomeTrainingOverview() async =>

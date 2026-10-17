@@ -15,7 +15,6 @@ import joblib
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
@@ -45,11 +44,12 @@ from app.services.dataset_eligibility import (
     production_transcript_query,
 )
 from app.services.classification_acceptance import (
-    POLICY_VERSION,
+    POLICY_VERSION, CONTRAST_POLICY_VERSION,
     MIN_UNKNOWN_TEST, MIN_UNKNOWN_CHANNELS, acceptance_summary,
     apply_acceptance_policy, evaluate_acceptance_policy, fit_acceptance_policy,
     partition_conflicts, is_validated_acceptance_policy,
 )
+from app.services.classification_features import FEATURE_VERSION, thai_transcript_features
 from app.services.taxonomy import (
     ACTIVE_LEAF_KEYS,
     MIN_VERIFIED_SAMPLES,
@@ -134,6 +134,7 @@ class ClassificationModelSpec:
         tuple[dict[str, float | int | str], Callable[[], Any]], ...
     ] = ()
     scope_policy_version: str = POLICY_VERSION
+    feature_version: str | None = None
 
 
 @lru_cache(maxsize=4)
@@ -729,31 +730,7 @@ def prepare_classification_dataset(
 
 
 def _word_char_features() -> FeatureUnion:
-    return FeatureUnion(
-        [
-            (
-                "word",
-                TfidfVectorizer(
-                    analyzer="word",
-                    ngram_range=(1, 2),
-                    min_df=1,
-                    max_features=40_000,
-                    sublinear_tf=True,
-                    strip_accents="unicode",
-                ),
-            ),
-            (
-                "char",
-                TfidfVectorizer(
-                    analyzer="char_wb",
-                    ngram_range=(3, 5),
-                    min_df=1,
-                    max_features=40_000,
-                    sublinear_tf=True,
-                ),
-            ),
-        ]
-    )
+    return thai_transcript_features()
 
 
 def _logistic_regression_pipeline(*, regularization_c: float) -> Pipeline:
@@ -810,6 +787,8 @@ def default_classification_model_specs(
     return (
         ClassificationModelSpec(
             model_key="taxonomy-tfidf-complement-nb",
+            scope_policy_version=CONTRAST_POLICY_VERSION,
+            feature_version=FEATURE_VERSION,
             model_type="tfidf_word_char_complement_nb",
             description="Word and character TF-IDF with Complement Naive Bayes",
             factory=lambda: Pipeline(
@@ -821,6 +800,8 @@ def default_classification_model_specs(
         ),
         ClassificationModelSpec(
             model_key="taxonomy-tfidf-logreg-tuned",
+            scope_policy_version=CONTRAST_POLICY_VERSION,
+            feature_version=FEATURE_VERSION,
             model_type="tfidf_word_char_tuned_logistic_regression",
             description=(
                 "Word and character TF-IDF with tuned balanced logistic regression"
@@ -842,6 +823,8 @@ def default_classification_model_specs(
         ),
         ClassificationModelSpec(
             model_key="taxonomy-tfidf-linear-svm-calibrated",
+            scope_policy_version=CONTRAST_POLICY_VERSION,
+            feature_version=FEATURE_VERSION,
             model_type="tfidf_word_char_calibrated_linear_svm",
             description="Word and character TF-IDF with calibrated balanced Linear SVM",
             factory=lambda: Pipeline(
@@ -865,6 +848,7 @@ def default_classification_model_specs(
         ),
         ClassificationModelSpec(
             model_key="taxonomy-multilingual-embeddings-logreg",
+            scope_policy_version=CONTRAST_POLICY_VERSION,
             model_type="multilingual_sentence_embeddings_logistic_regression",
             description=(
                 "Multilingual sentence embeddings with balanced logistic regression"
@@ -1886,6 +1870,7 @@ def train_and_evaluate_classification_models(
                     validation_rows, validation_result["predictions"], validation_result["confidences"],
                     labels=labels) if validation_rows else {},
                 "scope_policy": acceptance_summary(policy),
+                "feature_version": spec.feature_version,
                 "scope_validation": validation_result,
                 "test_raw": test_raw,
                 "test": test,
@@ -1950,6 +1935,7 @@ def train_and_evaluate_classification_models(
                 "model_key": model_key,
                 "model_version": version,
                 "model_type": result["model_type"],
+                "feature_version": result.get("feature_version"),
                 "selected_hyperparameters": dict(
                     (result.get("tuning") or {}).get(
                         "selected_parameters"
@@ -2267,10 +2253,13 @@ def classify_with_artifact(
     title: str | None = None,
     require_scope_validation: bool = True,
     allow_presentation: bool = False,
+    allow_admin_review: bool = False,
 ) -> dict[str, Any]:
     payload = load_classification_artifact(path)
     from app.services.classification_presentation import presentation_authorization
     grant = presentation_authorization(payload) if allow_presentation else {"authorized": False}
+    from app.services.classification_approval import admin_authorization
+    approval = admin_authorization(payload) if allow_admin_review else {"authorized": False}
     # Keep title for API compatibility, but user filenames are never model features.
     del title
     merged_text = str(text or "").strip()
@@ -2291,13 +2280,19 @@ def classify_with_artifact(
     )
     policy = payload.get("scope_policy")
     acceptance_labels = [raw_prediction] if isinstance(policy, dict) and (
-        policy.get("status") == "validated" or grant["authorized"]
+        policy.get("status") == "validated" or grant["authorized"] or approval["authorized"]
     ) else predictions
     predictions, acceptance = apply_acceptance_policy(
         policy, [merged_text], acceptance_labels, confidences,
         require_validation=require_scope_validation,
         allow_presentation=grant["authorized"],
+        allow_admin_review=approval["authorized"],
     )
+    if allow_admin_review:
+        acceptance[0].update(admin_authorization=approval)
+        if not approval["authorized"]:
+            predictions = [UNKNOWN_LEAF_KEY]
+            acceptance[0].update(accepted=False, enforced=True, reason=approval["reason"])
     if allow_presentation:
         acceptance[0].update(presentation_authorization=grant)
         if not grant["authorized"]:
@@ -2331,15 +2326,19 @@ def activate_classification_model(db: Session, model_id: int, *, user_id: int | 
     )
     if model is None:
         raise ClassificationTrainingError(f"classification model {model_id} not found")
-    if model.status != "qualified":
+    from app.services.classification_approval import APPROVED_STATUS, admin_authorization
+    if model.status not in ("qualified", APPROVED_STATUS):
         raise ClassificationTrainingError(
             f"classification model {model_id} is not qualified (status={model.status})"
         )
     payload = load_classification_artifact(str(model.artifact_path or ""))
     if bool(payload.get("smoke_test_only", False)):
         raise ClassificationTrainingError("smoke-test models cannot be activated")
-    if (not is_validated_acceptance_policy(payload.get("scope_policy"))
-            or not payload.get("scope_test_passed")):
+    approved = model.status == APPROVED_STATUS and admin_authorization(payload)["authorized"]
+    if model.status == APPROVED_STATUS and not approved:
+        raise ClassificationTrainingError("Invalid admin deployment approval")
+    if not approved and (not is_validated_acceptance_policy(payload.get("scope_policy"))
+                         or not payload.get("scope_test_passed")):
         raise ClassificationTrainingError("model has not passed validation-selected scope rejection and its test gate")
     if str(payload["model_key"]) != str(model.model_key):
         raise ClassificationTrainingError("artifact model key does not match database row")
@@ -2362,6 +2361,7 @@ def activate_classification_model(db: Session, model_id: int, *, user_id: int | 
                     "model_id": model.model_id,
                     "model_key": model.model_key,
                     "model_version": model.model_version,
+                    "admin_authorization": payload.get("admin_authorization"),
                 },
                 ensure_ascii=False,
                 sort_keys=True,

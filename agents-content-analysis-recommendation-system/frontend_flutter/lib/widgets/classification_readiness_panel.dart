@@ -7,7 +7,8 @@ class ClassificationReadinessPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = readiness['status'];
-    final ready = status == 'ready';
+    final approved = status == 'admin_approved';
+    final ready = status == 'ready' || approved;
     final reasons = (readiness['reason_codes'] as List? ?? [])
         .map((value) =>
             _reason(value.toString(), presentation: status == 'presentation'))
@@ -29,15 +30,17 @@ class ClassificationReadinessPanel extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                ready
-                    ? 'เกณฑ์รับผลจำแนกพร้อมใช้งาน'
-                    : status == 'presentation'
-                        ? 'เปิดใช้ชั่วคราวสำหรับสาธิต ยังไม่ผ่านเกณฑ์ 80%'
-                        : status == 'unvalidated'
-                            ? 'ยังไม่ยืนยันความพร้อม: ปิดการบังคับตรวจคลิปนอกขอบเขต'
-                            : status == 'blocked'
-                                ? 'ยังไม่พร้อมให้คำแนะนำเฉพาะหมวด'
-                                : 'ยังไม่มีข้อมูลตรวจความพร้อมของโมเดล',
+                approved
+                    ? 'Admin อนุมัติใช้งานตามผลประเมินจริง'
+                    : ready
+                        ? 'เกณฑ์รับผลจำแนกพร้อมใช้งาน'
+                        : status == 'presentation'
+                            ? 'เปิดใช้ชั่วคราวสำหรับสาธิต ยังไม่ผ่านเกณฑ์ 80%'
+                            : status == 'unvalidated'
+                                ? 'ยังไม่ยืนยันความพร้อม: ปิดการบังคับตรวจคลิปนอกขอบเขต'
+                                : status == 'blocked'
+                                    ? 'ยังไม่พร้อมให้คำแนะนำเฉพาะหมวด'
+                                    : 'ยังไม่มีข้อมูลตรวจความพร้อมของโมเดล',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
@@ -62,7 +65,7 @@ class ClassificationReadinessPanel extends StatelessWidget {
               Text(
                   'ไฟล์โมเดล: ${readiness['artifact_loadable'] == true ? 'โหลดได้' : 'ยังไม่พร้อม'}'),
               Text(
-                  'เกณฑ์ปฏิเสธนอกขอบเขต: ${readiness['scope_policy_valid'] == true ? 'ผ่าน Validation' : 'ยังไม่ผ่านการตรวจรับ'}'),
+                  'เกณฑ์ปฏิเสธนอกขอบเขต: ${approved ? 'ใช้เกณฑ์ที่เลือกจาก Validation' : readiness['scope_policy_valid'] == true ? 'ผ่าน Validation' : 'ยังไม่ผ่านการตรวจรับเดิม'}'),
             ]),
           ],
         ]),
@@ -82,6 +85,10 @@ String _formatExpiry(String value) {
 }
 
 String _reason(String code, {bool presentation = false}) => switch (code) {
+      'admin_approved' =>
+        'ไม่มีวันหมดอายุสำหรับการอนุมัตินี้ และยังตรวจคลิปนอกขอบเขตทุกครั้ง',
+      'admin_approval_invalid' =>
+        'หลักฐานการอนุมัติโมเดลไม่ถูกต้อง จึงงดใช้โมเดลนี้',
       'no_active_model' => 'ยังไม่มีโมเดลที่ผ่านเกณฑ์และเปิดใช้งาน',
       'artifact_unavailable' =>
         'ไฟล์โมเดลหาย โหลดไม่ได้ หรือไม่ตรงกับทะเบียนโมเดล',
@@ -91,7 +98,7 @@ String _reason(String code, {bool presentation = false}) => switch (code) {
         'ไฟล์นี้เป็นโมเดลทดลองระบบเท่านั้น ไม่ใช่รุ่นสำหรับวิเคราะห์จริง',
       'model_not_qualified' => presentation
           ? 'อนุญาตเฉพาะการสาธิตชั่วคราว ยังไม่ผ่านเกณฑ์ใช้งานปกติ'
-          : 'โมเดลนี้ยังไม่ผ่านเกณฑ์เปิดใช้งาน',
+          : 'ผลประเมินไม่ผ่านเกณฑ์เดิม แต่ Admin พิจารณาเปิดใช้ได้เมื่อมีหลักฐานครบ',
       'scope_policy_missing' =>
         'โมเดลนี้ยังไม่มีเกณฑ์ปฏิเสธคลิปนอกขอบเขต ระบบจึงงดคำแนะนำเฉพาะหมวดเมื่อบังคับตรวจรับผล',
       'scope_policy_not_validated' => presentation

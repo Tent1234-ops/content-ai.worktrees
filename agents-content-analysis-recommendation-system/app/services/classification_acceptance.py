@@ -205,13 +205,21 @@ def is_presentation_acceptance_policy(policy) -> bool:
             and is_validated_acceptance_policy({**policy, "status": "validated"}))
 
 
+def is_reviewed_acceptance_policy(policy) -> bool:
+    return (isinstance(policy, dict) and policy.get("status") == "admin_reviewed"
+            and policy.get("selection_split") == "validation"
+            and isinstance(policy.get("selected_validation"), dict)
+            and is_validated_acceptance_policy({**policy, "status": "validated"}))
+
+
 def apply_acceptance_policy(policy, texts, predictions, confidences, *, require_validation=True,
-                            allow_presentation=False):
+                            allow_presentation=False, allow_admin_review=False):
     if not (len(texts) == len(predictions) == len(confidences)):
         raise ValueError("Acceptance input counts do not match")
     version = policy.get("version", POLICY_VERSION) if isinstance(policy, dict) else POLICY_VERSION
     presentation = allow_presentation and is_presentation_acceptance_policy(policy)
-    if not is_validated_acceptance_policy(policy) and not presentation:
+    reviewed = allow_admin_review and is_reviewed_acceptance_policy(policy)
+    if not is_validated_acceptance_policy(policy) and not presentation and not reviewed:
         final = ["unknown"] * len(texts) if require_validation else list(predictions)
         return final, [{"accepted": False, "enforced": require_validation,
                         "reason": "scope_validation_unavailable", "policy_version": version}
@@ -249,6 +257,9 @@ def apply_acceptance_policy(policy, texts, predictions, confidences, *, require_
                                  contrast_margin_threshold=policy["contrast_margin_threshold"])
         if presentation:
             decisions[-1].update(presentation_only=True, validation_passed=False)
+        if reviewed:
+            decisions[-1].update(admin_reviewed=True,
+                                validation_passed=bool(policy["selected_validation"].get("passes")))
     return final, decisions
 
 

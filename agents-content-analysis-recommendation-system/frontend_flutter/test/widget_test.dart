@@ -189,7 +189,13 @@ void main() {
 
     expect(find.text('1. พบอะไรในคลิป'), findsOneWidget);
     expect(find.text('2. ควรเพิ่มอะไร'), findsOneWidget);
-    expect(find.text('3. เพราะอะไรจึงแนะนำ'), findsOneWidget);
+    expect(find.text('3. ผลตอบรับจากคลิปอ้างอิง'), findsOneWidget);
+    expect(find.text('เลือกนำไปปรับ'), findsNothing);
+    expect(find.text('บันทึกแผนปรับคลิป'), findsNothing);
+    expect(
+        find.text('ยังไม่มีหลักฐานผลตอบรับที่บันทึกไว้สำหรับประเด็นที่แนะนำ'),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('outcome-probability')), findsNothing);
     await tester.tap(find.text('คำสำคัญและข้อความถอดเสียง'));
     await tester.pumpAndSettle();
     for (final heading in <String>[

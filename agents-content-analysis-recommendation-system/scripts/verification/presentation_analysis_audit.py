@@ -28,14 +28,20 @@ def main() -> int:
     parser.add_argument("--clip", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--timeout-seconds", type=int, default=1800)
     args = parser.parse_args()
     clip, output = args.clip.resolve(), args.output.resolve()
-    if not clip.is_file() or output.exists():
-        raise SystemExit("Clip must exist and output must be a new path")
+    if not clip.is_file() or (output.exists() and not args.resume) or args.timeout_seconds <= 0:
+        raise SystemExit("Clip must exist, output must be new unless resuming, and timeout must be positive")
     output.parent.mkdir(parents=True, exist_ok=True)
     report = {"captured_at": datetime.now(timezone.utc).isoformat(),
               "evidence_type": "real regression upload, not fresh held-out evaluation",
               "clip": str(clip), "passed": False, "stages": []}
+    if args.resume:
+        report = json.loads(output.read_text(encoding="utf-8"))
+        if report.get("passed") or Path(report["clip"]).resolve() != clip or not report.get("job_id"):
+            raise SystemExit("Only the same unfinished clip job may be resumed")
     with SessionLocal() as db:
         admin = db.query(User).filter_by(role="admin", is_active=True).order_by(User.user_id).first()
         if admin is None:
@@ -56,13 +62,17 @@ def main() -> int:
         output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     try:
-        report["settings_before"] = call("GET", "/analyze/settings")
-        with clip.open("rb") as source:
-            job = call("POST", "/analyze/save", files={"file": (clip.name, source, "video/mp4")})
-        report["job_id"] = job["job_id"]
+        if not args.resume:
+            report["settings_before"] = call("GET", "/analyze/settings")
+            with clip.open("rb") as source:
+                job = call("POST", "/analyze/save", files={"file": (clip.name, source, "video/mp4")})
+            report["job_id"] = job["job_id"]
         persist()
+        deadline = time.monotonic() + args.timeout_seconds
         while True:
-            status = call("GET", f"/jobs/{job['job_id']}")
+            if time.monotonic() > deadline:
+                raise TimeoutError("Analysis job still pending; resume the same audit instead of uploading again")
+            status = call("GET", f"/jobs/{report['job_id']}")
             stage = status.get("stage") or status.get("status")
             if not report["stages"] or report["stages"][-1]["stage"] != stage:
                 report["stages"].append({"stage": stage, "at": datetime.now(timezone.utc).isoformat()})

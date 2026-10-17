@@ -6,13 +6,30 @@ import numpy as np
 from sqlalchemy import event
 
 from app.services.classification_features import (
-    classification_tokens, normalize_classification_text, thai_transcript_features,
+    FEATURE_VERSION, classification_tokens, normalize_classification_text, thai_transcript_features,
 )
+from app.services.classification_training import default_classification_model_specs
+from app.services.classification_acceptance import CONTRAST_POLICY_VERSION
 from scripts.develop_classification_scope import load_development_rows
 from tests import test_classification_training as fixtures
 
 
 class ClassificationFeatureTests(unittest.TestCase):
+    def test_admin_training_defaults_use_thai_features_and_normalized_scope(self):
+        joined = "\u0e01\u0e25\u0e49\u0e2d\u0e07\u0e16\u0e48\u0e32\u0e22\u0e20\u0e32\u0e1e autofocus lens"
+        spaced = "\u0e01\u0e25\u0e49\u0e2d\u0e07 \u0e16\u0e48\u0e32\u0e22 \u0e20\u0e32\u0e1e autofocus lens"
+        specs = default_classification_model_specs()
+        for spec in specs:
+            self.assertEqual(spec.scope_policy_version, CONTRAST_POLICY_VERSION)
+            if not spec.model_key.startswith("taxonomy-tfidf-"):
+                continue
+            with self.subTest(model=spec.model_key):
+                self.assertEqual(spec.feature_version, FEATURE_VERSION)
+                features = spec.factory().named_steps["features"].fit([joined, "portable computer"])
+                matrix = features.transform([joined, spaced]).toarray()
+                np.testing.assert_array_equal(matrix[0], matrix[1])
+                self.assertIsNone(features.transformer_list[0][1].strip_accents)
+
     def test_thai_spacing_does_not_change_features(self):
         joined = "\u0e17\u0e14\u0e2a\u0e2d\u0e1a\u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d\u0e41\u0e25\u0e30\u0e41\u0e1a\u0e15\u0e40\u0e15\u0e2d\u0e23\u0e35\u0e48 MacBook Air"
         spaced = "\u0e17\u0e14\u0e2a\u0e2d\u0e1a \u0e2b\u0e19\u0e49\u0e32\u0e08\u0e2d \u0e41\u0e25\u0e30 \u0e41\u0e1a\u0e15\u0e40\u0e15\u0e2d\u0e23\u0e35\u0e48 MacBook Air"

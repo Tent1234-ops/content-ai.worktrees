@@ -20,15 +20,22 @@ def presentation_authorization(payload: dict, *, now: datetime | None = None) ->
         issued = datetime.fromisoformat(grant["issued_at"])
         expires = datetime.fromisoformat(grant["expires_at"])
         current = now or datetime.now(timezone.utc)
+        version = grant.get("version")
+        max_hours = {"presentation-authorization-v1": 72,
+                     "presentation-authorization-v2": 168}.get(version, 0)
         valid = (
-            grant.get("version") == "presentation-authorization-v1"
+            max_hours > 0
             and grant.get("risk_acknowledged") is True
             and isinstance(grant.get("authorized_by"), int) and grant["authorized_by"] > 0
             and bool(str(grant.get("reason") or "").strip())
             and grant.get("model_key") == payload.get("model_key")
             and grant.get("model_version") == payload.get("model_version")
             and issued.tzinfo is not None and expires.tzinfo is not None
-            and 0 < (expires - issued).total_seconds() <= 72 * 3600
+            and 0 < (expires - issued).total_seconds() <= max_hours * 3600
+            and (version != "presentation-authorization-v2" or (
+                grant.get("deadline_at") == grant.get("expires_at")
+                and isinstance(grant.get("source_model_id"), int)
+                and grant["source_model_id"] > 0))
             and is_presentation_acceptance_policy(payload.get("scope_policy"))
             and payload.get("scope_test_passed") is False
         )

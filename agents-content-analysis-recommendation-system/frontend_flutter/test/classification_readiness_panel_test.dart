@@ -3,6 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('admin approval has no expiry and does not claim a passed score',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+            body: ClassificationReadinessPanel(readiness: {
+      'status': 'admin_approved',
+      'artifact_loadable': true,
+      'scope_policy_valid': false,
+      'reason_codes': ['admin_approved']
+    }))));
+    expect(find.text('Admin อนุมัติใช้งานตามผลประเมินจริง'), findsOneWidget);
+    expect(find.textContaining('ไม่มีวันหมดอายุ'), findsOneWidget);
+    expect(find.textContaining('ใช้สาธิตได้ถึง:'), findsNothing);
+    expect(find.textContaining('80%'), findsNothing);
+    expect(find.text('เกณฑ์รับผลจำแนกพร้อมใช้งาน'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('presentation remains visibly unqualified with an expiry',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(

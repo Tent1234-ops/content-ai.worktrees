@@ -1360,6 +1360,7 @@ def get_live_provider_health(db: Session, *, region: str) -> Dict[str, object]:
             "error": details.get("error"),
         }
         for platform, details in snapshot["platforms"].items()
+        if platform in ACTIVE_PLATFORMS
     }
     return {
         "run_id": snapshot.get("run_id"),

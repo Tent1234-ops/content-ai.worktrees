@@ -21,6 +21,7 @@ class TrainRequest(BaseModel):
 class ActivateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_active_model_id: int | None = Field(..., gt=0)
+    risk_acknowledged: bool = False
 
 
 class ChannelPreviewRequest(BaseModel):
@@ -77,7 +78,8 @@ def detail(model_id: int, db: Session = Depends(get_db)):
 @router.post("/models/{model_id}/activate")
 def activate(model_id: int, payload: ActivateRequest, db: Session = Depends(get_db), user: User = Depends(require_roles("admin"))):
     try:
-        return service.activate_evaluated_model(db, model_id, expected_active_model_id=payload.expected_active_model_id, user_id=user.user_id)
+        return service.activate_evaluated_model(db, model_id, expected_active_model_id=payload.expected_active_model_id,
+                                                user_id=user.user_id, risk_acknowledged=payload.risk_acknowledged)
     except service.TrainingConflict as exc:
         db.rollback()
         raise HTTPException(409, str(exc)) from exc

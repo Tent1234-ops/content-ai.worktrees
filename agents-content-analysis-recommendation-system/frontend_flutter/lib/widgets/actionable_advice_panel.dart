@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/actionable_recommendations.dart';
 import 'recommendation_evidence_panel.dart';
 
@@ -16,21 +15,6 @@ class ActionableAdvicePanel extends StatelessWidget {
   final bool withheld;
   final Set<String>? selectedIds;
   final void Function(String, bool)? onSelectionChanged;
-
-  Future<void> _copy(BuildContext context, String example) async {
-    try {
-      await Clipboard.setData(ClipboardData(text: example));
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('คัดลอกประโยคตัวอย่างแล้ว')));
-      }
-    } catch (_) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('คัดลอกไม่สำเร็จ กรุณาลองอีกครั้ง')));
-      }
-    }
-  }
 
   String get _emptyMessage => switch (data.status) {
         'withheld_unknown' => 'ยังไม่ยืนยันหมวดหมู่ จึงงดคำแนะนำเฉพาะสินค้า',
@@ -128,15 +112,6 @@ class ActionableAdvicePanel extends StatelessWidget {
               padding: const EdgeInsets.only(top: 6, bottom: 6),
               child: Text('${stepIndex + 1}. $step')),
         _AdviceField(label: 'ตัวอย่างประโยคก่อนทดสอบ', text: item.example),
-        Align(
-            alignment: Alignment.centerLeft,
-            child: IconButton(
-                key: ValueKey('copy-advice-${item.id}'),
-                tooltip: 'คัดลอกประโยคตัวอย่าง',
-                onPressed: item.example.isEmpty
-                    ? null
-                    : () => _copy(context, item.example),
-                icon: const Icon(Icons.content_copy))),
         _AdviceField(
             label: 'เหตุผล', text: '${item.reason}\n${item.relevanceReason}'),
         Align(

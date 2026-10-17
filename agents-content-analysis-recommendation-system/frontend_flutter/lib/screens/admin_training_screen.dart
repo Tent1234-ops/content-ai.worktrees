@@ -129,7 +129,8 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
         builder: (context) => AlertDialog(
               title: const Text('เปลี่ยนโมเดลที่ใช้งาน?'),
               content: Text(
-                  'จาก ${activeId == null ? 'ยังไม่มีโมเดล' : '#$activeId'} เป็น #${model.id} ${trainingModelName(model.key)}\nมีผลกับงานวิเคราะห์ใหม่หลังเปิดใช้งาน'),
+                  'จาก ${activeId == null ? 'ยังไม่มีโมเดล' : '#$activeId'} เป็น #${model.id} ${trainingModelName(model.key)}\nมีผลกับงานวิเคราะห์ใหม่หลังเปิดใช้งาน'
+                  '${model.requiresAcknowledgement ? '\n\nอนุมัติตามผลประเมินจริงโดยไม่กำหนดคะแนนขั้นต่ำ รุ่นที่อนุมัติจะได้รหัสใหม่และไม่หมดอายุ ผลจำแนกยังอาจผิดพลาด\n${_reviewMetrics(model)}' : ''}'),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(context, false),
@@ -149,8 +150,8 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
       await _repository.activateTrainingModel(model.id, activeId);
       await _load();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('เปิดใช้โมเดล #${model.id} แล้ว')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('เปิดใช้โมเดล #${_data?.activeModel?.id} แล้ว')));
       }
     } catch (e) {
       await _load();
@@ -248,6 +249,9 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
                             if (active != null)
                               ClassificationReadinessPanel(
                                   readiness: active.readiness),
+                            if (active?.activationReview.isNotEmpty == true)
+                              Text(
+                                  'ผล Validation ของรุ่นที่เปิดใช้\n${_reviewMetrics(active!)}'),
                             const SizedBox(height: 16),
                             if (_error != null)
                               Padding(
@@ -340,8 +344,8 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
       Text('เกณฑ์เปิดใช้งานโมเดลใหม่',
           style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: 8),
-      Text(
-          'คะแนน Accuracy, Macro F1 และ Recall ต่ำสุดต่อหมวด: ${trainingPercent(data.policy['promotion_threshold'])} ขึ้นไป'),
+      const Text(
+          'Admin เลือกเปิดใช้จากผลประเมินจริง ไม่มีคะแนนขั้นต่ำสำหรับเปิดใช้'),
       Text(
           'Unknown threshold สำหรับรอบใหม่: ${trainingPercent(data.policy['unknown_threshold'])} · Cross-validation ตามช่องสูงสุด ${data.policy['grouped_cv_folds']} รอบ'),
       const SizedBox(height: 8),
@@ -418,9 +422,13 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
                             DataCell(Text('${model.sampleCount}')),
                             DataCell(_metricsPair(model, 'grouped_cv')),
                             DataCell(_metricsPair(model, 'test')),
-                            DataCell(Text(model.isActive
-                                ? 'กำลังใช้งาน'
-                                : trainingStatus(model.status))),
+                            DataCell(SizedBox(
+                                width: 150,
+                                child: Text(
+                                    model.isActive
+                                        ? 'กำลังใช้งาน'
+                                        : trainingStatus(model.status),
+                                    maxLines: 2))),
                             DataCell(
                                 Row(mainAxisSize: MainAxisSize.min, children: [
                               IconButton(
@@ -525,10 +533,6 @@ class _ModelDetailsState extends State<_ModelDetails> {
                         child: Center(child: CircularProgressIndicator()));
                   }
                   final model = snapshot.data!;
-                  final reasons =
-                      (model.qualification['blocked_reasons'] as List? ?? [])
-                          .map((r) => trainingGateReason(r.toString()))
-                          .toList();
                   return SingleChildScrollView(
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -542,9 +546,22 @@ class _ModelDetailsState extends State<_ModelDetails> {
                             '${trainingStatus(model.status)} · Unknown threshold ${trainingPercent(model.unknownThreshold)}'),
                         if (!model.artifactAvailable)
                           const Text('ไม่พบไฟล์โมเดลในเครื่อง เปิดใช้ไม่ได้'),
-                        ...reasons.map((reason) => Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(reason))),
+                        if (model.activationReview.isNotEmpty)
+                          Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                  'ผล Validation ของเกณฑ์ที่จะใช้งาน\n${_reviewMetrics(model)}')),
+                        if ((model.qualification['blocked_reasons'] as List? ??
+                                [])
+                            .isNotEmpty)
+                          ExpansionTile(
+                              title: const Text(
+                                  'ผลตรวจตามเกณฑ์เดิม (ไม่ใช่ข้อจำกัดการเปิดใช้)'),
+                              children: [
+                                for (final reason in model
+                                    .qualification['blocked_reasons'] as List)
+                                  Text(trainingGateReason(reason.toString()))
+                              ]),
                         const Divider(height: 32),
                         ...model.metrics.map((metric) => Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -621,6 +638,15 @@ String _category(dynamic value) => switch (value) {
       'unknown' => 'นอกขอบเขต',
       _ => '$value'
     };
+
+String _reviewMetrics(TrainedModel model) {
+  final metrics = trainingMap(model.activationReview['selected_validation']);
+  final recalls = trainingMap(metrics['per_class_recall']);
+  return 'ทายหมวดถูก ${trainingPercent(metrics['in_scope_accuracy'])} · '
+      'ตรวจพบนอกขอบเขต ${trainingPercent(metrics['unknown_recall'])}\n'
+      '${recalls.entries.map((e) => '${_category(e.key)} ${trainingPercent(e.value)}').join(' · ')}';
+}
+
 String _split(dynamic value) => switch (value) {
       'grouped_cv' => 'ตรวจสอบข้ามช่อง (CV)',
       'validation' => 'ชุดตรวจสอบเดิม',

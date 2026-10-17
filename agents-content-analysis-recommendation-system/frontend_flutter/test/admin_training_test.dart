@@ -70,7 +70,7 @@ TrainingRun run(String status) => TrainingRun.fromJson({
     });
 
 class TrainingRepository extends AdminRepository {
-  bool ready = true, failLoad = false;
+  bool ready = true, failLoad = false, reviewable = false;
   int starts = 0, active = 14, polls = 0;
   int? activated;
   TrainingRun? latest;
@@ -122,7 +122,24 @@ class TrainingRepository extends AdminRepository {
         'total': 3,
         'items': [
           modelJson(14, active: active == 14, qualified: true),
-          modelJson(21),
+          {
+            ...modelJson(21),
+            if (reviewable) ...{
+              'can_activate': true,
+              'requires_admin_acknowledgement': true,
+              'activation_review': {
+                'selected_validation': {
+                  'in_scope_accuracy': 0.75,
+                  'unknown_recall': 0.7,
+                  'per_class_recall': {
+                    'phone': 0.7,
+                    'camera': 0.8,
+                    'laptop': 0.75
+                  }
+                }
+              }
+            }
+          },
           modelJson(22, active: active == 22, qualified: true)
         ]
       },
@@ -151,7 +168,8 @@ class TrainingRepository extends AdminRepository {
   @override
   Future<void> activateTrainingModel(int id, int? activeId) async {
     expect(activeId, active);
-    activated = active = id;
+    activated = id;
+    active = reviewable ? 31 : id;
   }
 
   @override
@@ -177,6 +195,26 @@ void main() {
     expect(trainingModelName(model.key), 'Tuned Logistic Regression');
     expect(model.metric('validation', 'accuracy'), isNull);
     expect(trainingPercent(null), '-');
+  });
+
+  testWidgets(
+      'admin can confirm measured performance below 80 and sees actual activated ID',
+      (tester) async {
+    final repository = TrainingRepository()..reviewable = true;
+    await open(tester, repository);
+    await tester.tap(find.text('เปรียบเทียบโมเดล'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('เปิดใช้โมเดล #21'));
+    await tester.tap(find.byTooltip('เปิดใช้โมเดล #21'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Phone 70.0%'), findsOneWidget);
+    expect(find.textContaining('ไม่กำหนดคะแนนขั้นต่ำ'), findsOneWidget);
+    expect(repository.activated, isNull);
+    await tester.tap(find.text('ยืนยันเปิดใช้'));
+    await tester.pumpAndSettle();
+    expect(repository.activated, 21);
+    expect(find.text('เปิดใช้โมเดล #31 แล้ว'), findsOneWidget);
+    expect(find.text('เปิดใช้โมเดล #21 แล้ว'), findsNothing);
   });
 
   testWidgets(
@@ -229,6 +267,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('เปิดใช้โมเดล #21'), findsNothing);
     await tester.tap(find.byTooltip('ดูผลประเมิน #21'));
+    await tester.pumpAndSettle();
+    await tester
+        .tap(find.text('ผลตรวจตามเกณฑ์เดิม (ไม่ใช่ข้อจำกัดการเปิดใช้)'));
     await tester.pumpAndSettle();
     expect(find.text('จำนวนข้อมูลหรือความหลากหลายของช่องยังไม่ครบ'),
         findsOneWidget);

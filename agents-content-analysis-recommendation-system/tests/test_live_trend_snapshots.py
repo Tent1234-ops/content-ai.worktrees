@@ -31,6 +31,7 @@ from app.services.live_trend_notifications import compare_live_trend_snapshot, l
 from app.services.live_trend_snapshots import (
     GLOBAL_SNAPSHOT_KIND,
     YOUTUBE_CATEGORY_SNAPSHOT_KIND,
+    get_live_provider_health,
     load_latest_live_snapshot,
     load_trend_item_detail,
     load_youtube_category_snapshot,
@@ -48,6 +49,19 @@ from app.services.view_metrics import (
 
 
 class LiveTrendSnapshotTests(unittest.TestCase):
+    def test_health_excludes_paused_provider_but_preserves_active_errors(self):
+        snapshot = {"platforms": {
+            "youtube": {"provider_status": "error", "error": "provider_quota"},
+            "google": {"provider_status": "ok"},
+            "tiktok": {"provider_status": "error"},
+        }}
+        with patch("app.services.live_trend_snapshots.load_latest_live_snapshot", return_value=snapshot):
+            health = get_live_provider_health(self.db, region="TH")
+        self.assertEqual(set(health["providers"]), {"youtube", "google"})
+        self.assertEqual(health["providers"]["youtube"]["status"], "error")
+        self.assertEqual(health["providers"]["youtube"]["error"], "provider_quota")
+        self.assertEqual(health["providers"]["google"]["status"], "ok")
+
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(self.engine)

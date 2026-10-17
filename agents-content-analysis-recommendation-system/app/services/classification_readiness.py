@@ -11,6 +11,7 @@ from app.services.classification_training import (
     classification_artifact_sha256, load_classification_artifact,
 )
 from app.services.classification_presentation import presentation_authorization, PRESENTATION_STATUS
+from app.services.classification_approval import admin_authorization, approval_preview, APPROVED_STATUS
 
 
 def classification_model_snapshot(model) -> dict:
@@ -60,6 +61,7 @@ def classification_model_snapshot(model) -> dict:
         return result
 
     policy = artifact.get("scope_policy")
+    result["activation_review"] = approval_preview(model, artifact)
     valid = is_validated_acceptance_policy(policy)
     readiness.update(artifact_usable=True, scope_policy_valid=valid,
                      scope_test_passed=bool(artifact.get("scope_test_passed")))
@@ -81,4 +83,10 @@ def classification_model_snapshot(model) -> dict:
         readiness["reason_codes"].append(grant["reason"])
         readiness["can_accept_predictions"] = grant["authorized"]
         readiness["status"] = "presentation" if grant["authorized"] else "blocked"
+    if model.status == APPROVED_STATUS:
+        grant = admin_authorization(artifact)
+        result["admin_authorization"] = grant
+        readiness.update(can_accept_predictions=grant["authorized"],
+                         status="admin_approved" if grant["authorized"] else "blocked",
+                         reason_codes=[grant["reason"]])
     return result

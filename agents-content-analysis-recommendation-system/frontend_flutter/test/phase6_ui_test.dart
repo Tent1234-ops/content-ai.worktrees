@@ -73,7 +73,7 @@ void main() {
 
   for (final brightness in Brightness.values) {
     testWidgets(
-        'three result stages and expandable evidence fit compact web in $brightness',
+        'three result stages without audit controls fit compact web in $brightness',
         (tester) async {
       await tester.binding.setSurfaceSize(const Size(700, 950));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -115,16 +115,12 @@ void main() {
       await tester.pumpAndSettle();
       final first = tester.getTopLeft(find.text('1. พบอะไรในคลิป')).dy;
       final second = tester.getTopLeft(find.text('2. ควรเพิ่มอะไร')).dy;
-      final third = tester.getTopLeft(find.text('3. เพราะอะไรจึงแนะนำ')).dy;
+      final third =
+          tester.getTopLeft(find.text('3. ผลตอบรับจากคลิปอ้างอิง')).dy;
       expect(first < second && second < third, isTrue);
       expect(find.textContaining('Dataset IDs: 8, 9'), findsNothing);
-      await tester.ensureVisible(find.text('เปิดดูหลักฐานและเวอร์ชัน'));
-      await tester.tap(find.text('เปิดดูหลักฐานและเวอร์ชัน'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('หลักฐาน: thermal control'));
-      await tester.tap(find.text('หลักฐาน: thermal control'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Dataset IDs: 8, 9'), findsOneWidget);
+      expect(find.text('เปิดดูหลักฐานและเวอร์ชัน'), findsNothing);
+      expect(find.text('หลักฐาน: thermal control'), findsNothing);
       expect(find.text('0.00'), findsNothing);
       expect(tester.takeException(), isNull);
     });

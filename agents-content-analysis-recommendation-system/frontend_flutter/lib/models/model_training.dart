@@ -32,14 +32,17 @@ class TrainedModel {
         metrics = trainingRows(json['metrics']),
         qualification = trainingMap(json['qualification']),
         readiness = trainingMap(json['readiness']),
+        activationReview = trainingMap(json['activation_review']),
+        requiresAcknowledgement =
+            json['requires_admin_acknowledgement'] == true,
         perCategory = trainingRows(json['per_category']),
         confusionMatrices = trainingRows(json['confusion_matrices']);
   final int id, sampleCount;
   final String key, version, status;
-  final bool isActive, canActivate, artifactAvailable;
+  final bool isActive, canActivate, artifactAvailable, requiresAcknowledgement;
   final double? unknownThreshold;
   final List<Map<String, dynamic>> metrics, perCategory, confusionMatrices;
-  final Map<String, dynamic> qualification, readiness;
+  final Map<String, dynamic> qualification, readiness, activationReview;
   Map<String, dynamic>? metric(String split, String name) {
     for (final row in metrics) {
       if (row['split'] == split && row['metric'] == name) return row;
@@ -92,8 +95,9 @@ String trainingStatus(String value) => switch (value) {
       'failed' => 'เทรนไม่สำเร็จ',
       'interrupted' => 'งานเทรนหยุดกลางทาง',
       'qualified' => 'ผ่านเกณฑ์ที่บันทึกไว้',
+      'admin_approved' => 'Admin อนุมัติใช้งาน',
       'presentation_only' => 'ใช้สาธิตชั่วคราว ยังไม่ผ่านเกณฑ์',
-      'evaluated_below_threshold' => 'ยังไม่ผ่านเกณฑ์',
+      'evaluated_below_threshold' => 'ประเมินแล้ว รอ Admin เลือกใช้',
       'smoke_test_only' => 'ทดลองเท่านั้น',
       _ => value,
     };

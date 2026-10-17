@@ -19,6 +19,7 @@ from app.services.classification import get_active_classification_model
 from app.services.classification_acceptance import SUPPORTED_POLICY_VERSIONS
 from app.services.classification_collection_plan import build_collection_plan
 from app.services.classification_readiness import classification_model_snapshot
+from app.services.classification_approval import APPROVED_STATUS, create_approved_model
 from app.services.classification_training import (
     DEFAULT_GROUPED_CV_FOLDS, MODEL_PROMOTION_THRESHOLD, UNKNOWN_CONFIDENCE_THRESHOLD,
     activate_classification_model, classification_artifact_sha256,
@@ -239,6 +240,13 @@ def model_summary(model: ClassificationModel, metrics: list[ModelEvaluationMetri
                        and qualification.get("scope_policy_version") in SUPPORTED_POLICY_VERSIONS)
     snapshot = classification_model_snapshot(model)
     readiness = snapshot["readiness"]
+    review = snapshot.get("activation_review")
+    review_available = (review is not None and readiness["artifact_usable"]
+                        and (model.status == "presentation_only" or bool(reload_check and reload_check.metric_value == 1))
+                        and (model.status != APPROVED_STATUS or readiness["can_accept_predictions"]))
+    normally_activatable = (model.status == "qualified" and evaluated and scope_evaluated
+                           and readiness["artifact_usable"] and readiness["scope_policy_valid"]
+                           and readiness["scope_test_passed"])
     return {
         "model_id": model.model_id, "model_key": model.model_key, "model_version": model.model_version,
         "model_type": model.model_type, "status": model.status, "is_active": bool(model.is_active),
@@ -246,9 +254,10 @@ def model_summary(model: ClassificationModel, metrics: list[ModelEvaluationMetri
         "unknown_threshold": snapshot.get("unknown_threshold", qualification.get("unknown_threshold")), "qualification": qualification,
         "artifact_available": artifact_exists,
         "readiness": readiness,
-        "can_activate": (model.status == "qualified" and evaluated and scope_evaluated
-                         and readiness["artifact_usable"] and readiness["scope_policy_valid"]
-                         and readiness["scope_test_passed"] and not model.is_active),
+        "activation_review": review,
+        "requires_admin_acknowledgement": review_available and model.status != APPROVED_STATUS,
+        "can_activate": ((normally_activatable or review_available)
+                         and (not model.is_active or model.status == "presentation_only")),
         "metrics": [
             {"split": r.dataset_split, "metric": r.metric_name, "value": r.metric_value, "sample_size": r.sample_size}
             for r in metrics if r.taxonomy_leaf_key in ("__overall__", "unknown")
@@ -289,11 +298,13 @@ def training_overview(db: Session) -> dict:
     active = get_active_classification_model(db)
     return {"dataset": training_dataset(db), "runs": list_training_runs(db),
             "models": list_models(db), "active_model": model_detail(db, active.model_id) if active else None,
-            "policy": {"promotion_threshold": MODEL_PROMOTION_THRESHOLD,
+            "policy": {"promotion_threshold": None, "activation_policy": "admin_review",
+                       "historical_evaluation_threshold": MODEL_PROMOTION_THRESHOLD,
                        "unknown_threshold": UNKNOWN_CONFIDENCE_THRESHOLD, "grouped_cv_folds": DEFAULT_GROUPED_CV_FOLDS}}
 
 
-def activate_evaluated_model(db: Session, model_id: int, *, expected_active_model_id: int | None, user_id: int) -> dict:
+def activate_evaluated_model(db: Session, model_id: int, *, expected_active_model_id: int | None,
+                             user_id: int, risk_acknowledged: bool = False) -> dict:
     config = get_or_create_admin_config(db)
     db.query(SystemConfig).filter(SystemConfig.config_id == config.config_id).with_for_update().one()
     active = get_active_classification_model(db)
@@ -311,4 +322,9 @@ def activate_evaluated_model(db: Session, model_id: int, *, expected_active_mode
     evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
     if evaluation.get("artifact_sha256") != classification_artifact_sha256(model.artifact_path):
         raise ValueError("Model artifact differs from the evaluated file; activation blocked")
+    if detail["requires_admin_acknowledgement"]:
+        if not risk_acknowledged:
+            raise ValueError("Admin must acknowledge the measured evaluation before deployment")
+        model = create_approved_model(db, model, user_id=user_id)
+        model_id = model.model_id
     return activate_classification_model(db, model_id, user_id=user_id)

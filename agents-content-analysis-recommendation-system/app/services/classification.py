@@ -206,7 +206,7 @@ def get_active_classification_model(db: Session) -> ClassificationModel | None:
         db.query(ClassificationModel)
         .filter(
             ClassificationModel.is_active.is_(True),
-            ClassificationModel.status.in_(("qualified", "presentation_only")),
+            ClassificationModel.status.in_(("qualified", "presentation_only", "admin_approved")),
         )
         .order_by(
             ClassificationModel.trained_at.desc(),
@@ -230,7 +230,7 @@ def _classify_with_active_model(
         if model_id is None:
             return None
         model = db.get(ClassificationModel, model_id)
-        if model is None or model.status not in ("qualified", "presentation_only"):
+        if model is None or model.status not in ("qualified", "presentation_only", "admin_approved"):
             raise ClassificationTrainingError("The queued classification model is no longer available")
         if classification_artifact_sha256(model.artifact_path) != model_snapshot["artifact_sha256"]:
             raise ClassificationTrainingError("The classification artifact changed after this job was queued")
@@ -243,6 +243,7 @@ def _classify_with_active_model(
             title=title,
             text=text,
             allow_presentation=model.status == "presentation_only",
+            allow_admin_review=model.status == "admin_approved",
             require_scope_validation=(
                 model_snapshot.get("scope_validation_required", settings.classification_require_scope_validation)
                 if model_snapshot else settings.classification_require_scope_validation

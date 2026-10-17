@@ -71,10 +71,10 @@ class _TrainingCollectionPanelState extends State<TrainingCollectionPanel> {
           style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: 8),
       Text(widget.plan['collection_ready'] == true
-          ? 'จำนวนข้อมูลครบสำหรับประเมิน ยังต้องผ่านคะแนนก่อนเปิดใช้โมเดล'
+          ? 'จำนวนข้อมูลครบสำหรับประเมิน Admin เลือกเปิดใช้จากผลประเมินจริง'
           : widget.plan['additional_minimum'] == 0
               ? 'จำนวนครบ แต่คุณภาพหรือการแบ่งชุดยังไม่ผ่านเกณฑ์'
-              : 'ยังขาดอย่างน้อย ${widget.plan['additional_minimum']} รายการสำหรับเกณฑ์เปิดใช้โมเดลใหม่'),
+              : 'ยังขาดอย่างน้อย ${widget.plan['additional_minimum']} รายการสำหรับการฝึกและประเมินโมเดลใหม่'),
       const SizedBox(height: 8),
       SingleChildScrollView(
           scrollDirection: Axis.horizontal,

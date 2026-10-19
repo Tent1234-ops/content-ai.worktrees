@@ -1,4 +1,4 @@
-# Download all topic-scoped clustering files from the review branch with backups.
+# Download automatic all-topic clustering files from the review branch with backups.
 # Run from agents-content-analysis-recommendation-system project root.
 [CmdletBinding()]
 param()
@@ -8,7 +8,7 @@ if (-not (Test-Path (Join-Path $root 'app/services/performance_clustering.py')) 
     -not (Test-Path (Join-Path $root 'frontend_flutter/pubspec.yaml'))) {
     throw 'Run this command from the agents-content-analysis-recommendation-system project root.'
 }
-$branch = 'feat/topic-scoped-performance-clustering'
+$branch = 'feat/automatic-topic-performance-overview'
 $prefix = 'https://raw.githubusercontent.com/Tent1234-ops/content-ai.worktrees/' + $branch + '/agents-content-analysis-recommendation-system/'
 $files = @(
     'app/services/performance_clustering_topics.py',
@@ -21,7 +21,12 @@ $files = @(
     'frontend_flutter/lib/screens/result_screen.dart',
     'frontend_flutter/test/performance_clustering_test.dart',
     'frontend_flutter/test/result_workspace_test.dart',
-    'tests/test_performance_clustering_topics.py'
+    'tests/test_performance_clustering_topics.py',
+    'app/services/performance_clustering_overview.py',
+    'frontend_flutter/lib/models/performance_overview.dart',
+    'frontend_flutter/lib/widgets/automatic_performance_clustering_panel.dart',
+    'tests/test_performance_clustering_overview.py',
+    'frontend_flutter/test/automatic_performance_clustering_test.dart'
 )
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $backup = Join-Path $root ('artifacts/topic-clustering-backup-' + $stamp)
@@ -51,7 +56,9 @@ try {
         Copy-Item -LiteralPath (Join-Path $staging $relative) -Destination $dest -Force
     }
     Write-Host ('Applied ' + $files.Count + ' files. Backups: ' + $backup) -ForegroundColor Green
-    Write-Host 'Restart the FastAPI and Flutter development servers, then run backend/Flutter tests.'
+    Write-Host 'Run: python -m pytest -q tests/test_performance_clustering*.py' 
+    Write-Host 'Run: cd frontend_flutter; flutter analyze; flutter test test/automatic_performance_clustering_test.dart test/performance_clustering_test.dart' 
+    Write-Host 'Restart the FastAPI and Flutter web servers to load automatic topic overview.'
 } finally {
     Remove-Item -LiteralPath $staging -Recurse -Force -ErrorAction SilentlyContinue
 }

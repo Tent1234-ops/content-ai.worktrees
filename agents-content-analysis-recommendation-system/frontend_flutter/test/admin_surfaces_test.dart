@@ -145,12 +145,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DrawerButton));
-    await tester.pumpAndSettle();
+    expect(find.byType(DrawerButton), findsNothing);
 
     expect(find.text('Admin Console'), findsNothing);
     expect(find.text('นำเข้า Transcript'), findsOneWidget);
     expect(find.text('ตรวจสอบ Dataset'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('บันทึกการทำงาน'), 200,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('บันทึกการทำงาน'), findsOneWidget);
   });
 

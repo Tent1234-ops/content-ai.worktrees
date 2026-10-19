@@ -21,6 +21,7 @@ _load_env_file()
 
 
 class Settings:
+    performance_minimum_views: int = max(0, min(2**53 - 1, int(os.getenv("PERFORMANCE_MINIMUM_VIEWS", "25000"))))
     app_name: str = os.getenv("APP_NAME", "Content AI Backend")
     app_version: str = os.getenv("APP_VERSION", "0.1.0")
     jwt_secret: str = os.getenv("JWT_SECRET", "change-this-secret-in-production")

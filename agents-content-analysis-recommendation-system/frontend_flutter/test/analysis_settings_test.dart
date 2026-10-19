@@ -9,6 +9,7 @@ import 'package:content_ai_web/state/auth_scope.dart';
 import 'package:content_ai_web/widgets/analysis_settings_audit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:content_ai_web/ui/app_theme.dart';
 
 Map<String, dynamic> settingsJson() => {
       'upload_max_duration_seconds': 180,
@@ -42,6 +43,25 @@ Map<String, dynamic> settingsJson() => {
     };
 
 void main() {
+  for (final width in [390.0, 768.0, 1280.0, 1600.0]) {
+    for (final brightness in Brightness.values) {
+      testWidgets('admin settings layout fits $width $brightness',
+          (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 1000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(MaterialApp(
+            theme: buildAppTheme(brightness),
+            home: AdminAnalysisSettingsScreen(repository: _AdminRepository())));
+        await tester.pumpAndSettle();
+        expect(find.byType(TextFormField), findsNWidgets(2));
+        final save = find.text('บันทึกการตั้งค่า');
+        await tester.ensureVisible(save);
+        await tester.pumpAndSettle();
+        expect(save, findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
   test('upload limit follows the server including duration tolerance', () {
     final settings = AnalysisSettings.fromJson(settingsJson());
     expect(settings.acceptsDuration(const Duration(seconds: 180)), isTrue);

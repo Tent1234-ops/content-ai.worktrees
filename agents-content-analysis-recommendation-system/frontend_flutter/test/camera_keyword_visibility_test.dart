@@ -2,6 +2,7 @@ import 'package:content_ai_web/models/recommendation_result.dart';
 import 'package:content_ai_web/screens/result_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'support/result_navigation.dart';
 
 void main() {
   testWidgets('supported keywords remain visible with actionable advice',
@@ -50,10 +51,11 @@ void main() {
         home: Scaffold(
             body: SingleChildScrollView(child: AnalysisReport(data: data)))));
     await tester.pumpAndSettle();
+    await selectResultTab(tester, 'recommendations');
     expect(find.text('คำสำคัญที่แนะนำให้เพิ่ม'), findsOneWidget);
     expect(find.text('คำสำคัญที่เสนอสำหรับช่วงเปิดคลิป'), findsOneWidget);
     expect(find.text('ภาพในสภาพแสงน้อย'), findsNWidgets(2));
-    expect(find.text('พบใน 5 จาก 25 คลิปอ้างอิง'), findsNWidgets(2));
+    expect(find.text('พบใน 5 จาก 25 คลิปอ้างอิง'), findsNothing);
     expect(find.text('ผม'), findsNothing);
     expect(find.text('low light'), findsNothing);
     expect(tester.takeException(), isNull);

@@ -115,14 +115,16 @@ void main() {
     expect(
         find.text('ข้อความถอดเสียงยังไม่สมบูรณ์ จึงยังสรุปประเด็นในคลิปไม่ได้'),
         findsOneWidget);
-    await tester.tap(find.text('คำสำคัญและข้อความถอดเสียง'));
-    await tester.pumpAndSettle();
     expect(find.text('ตรวจคำสำคัญไม่ได้ เพราะข้อความถอดเสียงไม่สมบูรณ์'),
         findsOneWidget);
     expect(
         find.text(
             'ตรวจช่วงเปิดไม่ได้ เพราะไม่มีข้อความถอดเสียงพร้อมเวลาที่เพียงพอ'),
         findsOneWidget);
+    final tab = find.byKey(const ValueKey('result-tab-recommendations'));
+    await tester.ensureVisible(tab);
+    await tester.tap(tab);
+    await tester.pumpAndSettle();
     expect(
         find.text(
             'งดข้อเสนอให้เพิ่มหัวข้อ เพราะข้อความถอดเสียงไม่สมบูรณ์ จึงยังสรุปไม่ได้ว่าผู้ใช้ไม่ได้พูดเรื่องนั้น'),

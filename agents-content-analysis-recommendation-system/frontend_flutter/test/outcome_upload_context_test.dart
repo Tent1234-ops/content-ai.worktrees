@@ -6,6 +6,9 @@ import 'package:content_ai_web/screens/upload_screen.dart';
 import 'package:content_ai_web/services/api_client.dart';
 import 'package:content_ai_web/state/auth_controller.dart';
 import 'package:content_ai_web/state/auth_scope.dart';
+import 'package:content_ai_web/ui/app_theme.dart';
+import 'package:content_ai_web/widgets/analysis_progress.dart';
+import 'package:content_ai_web/widgets/workspace_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -73,34 +76,42 @@ void main() {
     expect(client.sentFields, isEmpty);
   });
 
-  for (final width in [1440.0, 390.0]) {
-    testWidgets('context fields require declaration and fit at width $width',
-        (tester) async {
-      await tester.binding.setSurfaceSize(Size(width, 1000));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final controller = AuthController();
-      addTearDown(controller.dispose);
-      await tester.pumpWidget(AuthScope(
-          controller: controller,
-          child: MaterialApp(home: UploadScreen(repository: _Repository()))));
-      await tester.pumpAndSettle();
-      final format = find.byKey(const ValueKey('outcome-format-'));
-      await tester.ensureVisible(format);
-      await tester.tap(format);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('วิดีโอปกติ').last);
-      await tester.pumpAndSettle();
-      final age = find.byKey(const ValueKey('outcome-age-long_form-'));
-      await tester.ensureVisible(age);
-      await tester.tap(age);
-      await tester.pumpAndSettle();
-      expect(find.text('7 ถึงน้อยกว่า 30 วัน'), findsNothing);
-      await tester.tap(find.text('30 ถึงน้อยกว่า 90 วัน').last);
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('outcome-age-long_form-age_30_90d')),
-          findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+  for (final brightness in Brightness.values) {
+    for (final width in [390.0, 768.0, 1280.0, 1600.0]) {
+      testWidgets(
+          'context fields require declaration and fit at $width $brightness',
+          (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 1000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final controller = AuthController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(AuthScope(
+            controller: controller,
+            child: MaterialApp(
+                theme: buildAppTheme(brightness),
+                home: UploadScreen(repository: _Repository()))));
+        await tester.pumpAndSettle();
+        final format = find.byKey(const ValueKey('outcome-format-'));
+        await tester.ensureVisible(format);
+        expect(tester.widget<ChoiceChip>(format).selected, isTrue);
+        await tester.tap(find.text('วิดีโอปกติ').last);
+        await tester.pumpAndSettle();
+        final age =
+            find.byKey(const ValueKey('outcome-age-long_form-age_30_90d'));
+        await tester.ensureVisible(age);
+        expect(find.text('7 ถึงน้อยกว่า 30 วัน'), findsNothing);
+        await tester.tap(age);
+        await tester.pumpAndSettle();
+        expect(tester.widget<ChoiceChip>(age).selected, isTrue);
+        await tester.ensureVisible(format);
+        await tester.tap(format);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('outcome-age-long_form-age_30_90d')),
+            findsNothing);
+        expect(tester.widget<ChoiceChip>(format).selected, isTrue);
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
 
   testWidgets('no qualified model does not fabricate selectable contexts',
@@ -113,7 +124,55 @@ void main() {
             home: UploadScreen(repository: _Repository(available: false)))));
     await tester.pumpAndSettle();
     expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    expect(find.byType(ChoiceChip), findsNothing);
     expect(find.text('ยังไม่มีโมเดลประเมินผลตอบรับที่ผ่านการตรวจรับ'),
         findsOneWidget);
+  });
+
+  testWidgets('progress only marks stages actually reported by the job',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(
+        theme: buildAppTheme(Brightness.dark),
+        home: const Scaffold(
+            body: AnalysisProgress(
+          stage: 'classifying',
+          observedStages: {'queued', 'classifying'},
+          message: 'กำลังจำแนกหมวดหมู่คลิป...',
+        ))));
+    expect(
+        tester
+            .widget<StatusBadge>(find.byKey(const ValueKey('job-step-queued')))
+            .icon,
+        Icons.check_circle_outline);
+    expect(
+        tester
+            .widget<StatusBadge>(
+                find.byKey(const ValueKey('job-step-transcribing')))
+            .icon,
+        Icons.radio_button_unchecked);
+    expect(
+        tester
+            .widget<StatusBadge>(
+                find.byKey(const ValueKey('job-step-classifying')))
+            .icon,
+        Icons.radio_button_checked);
+    expect(
+        tester
+            .widget<LinearProgressIndicator>(
+                find.byType(LinearProgressIndicator))
+            .value,
+        isNull);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+            body: AnalysisProgress(
+      stage: 'extracting_audio',
+      observedStages: {'extracting_audio'},
+      message: 'แยกเสียง',
+      revision: true,
+    ))));
+    expect(find.byKey(const ValueKey('job-step-transcribing')), findsNothing);
   });
 }

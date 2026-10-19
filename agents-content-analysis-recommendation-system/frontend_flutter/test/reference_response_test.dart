@@ -218,7 +218,7 @@ void main() {
       expect(find.text('ไม่มีข้อมูล'), findsNWidgets(2));
       expect(find.text('หลักฐานที่เปิดดูได้ 3 คลิป · ยืนยันช่องได้ 3 ช่อง'),
           findsOneWidget);
-      expect(find.textContaining('ไม่ใช่เปอร์เซ็นต์ทำนาย'), findsOneWidget);
+      expect(find.textContaining('ไม่ใช่เปอร์เซ็นต์ทำนาย'), findsNothing);
       final more = find.text('ดูคลิปอ้างอิงอีก 1 คลิป');
       await tester.ensureVisible(more);
       await tester.tap(more);
@@ -310,7 +310,11 @@ void main() {
       child: AnalysisReport(data: data),
     ))));
     await tester.pumpAndSettle();
-    expect(find.text('3. ผลตอบรับจากคลิปอ้างอิง'), findsOneWidget);
+    final tab = find.byKey(const ValueKey('result-tab-evidence'));
+    await tester.ensureVisible(tab);
+    await tester.tap(tab);
+    await tester.pumpAndSettle();
+    expect(find.text('ผลตอบรับจากคลิปอ้างอิง'), findsOneWidget);
     expect(find.text('12,000'), findsOneWidget);
     expect(find.byKey(const ValueKey('outcome-probability')), findsNothing);
     expect(find.text('แผนปรับคลิปของฉัน'), findsNothing);

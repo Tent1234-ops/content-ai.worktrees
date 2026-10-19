@@ -16,8 +16,22 @@ from app.services.contents import get_user_content_detail, list_user_contents
 from app.services.usage_statistics import usage_statistics
 from app.services.clip_revision_plans import get_revision_plan, save_revision_plan
 from app.services.outcome_scenarios import simulate_outcome_scenario
+from app.core.config import settings
+from app.services.performance_clustering import performance_for_content
+from app.schemas.performance_clustering import PerformanceClusteringResponse
 
 router = APIRouter(prefix="/contents", tags=["contents"])
+
+
+@router.get("/{content_id}/performance-clustering", response_model=PerformanceClusteringResponse)
+def performance_clustering(
+    content_id: int,
+    minimum_views: int = Query(default=settings.performance_minimum_views, ge=0, le=2**53 - 1),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return performance_for_content(db, user_id=current_user.user_id,
+                                   content_id=content_id, minimum_views=minimum_views)
 
 
 @router.post("/{content_id}/outcome-scenario", response_model=OutcomeScenarioResponse)

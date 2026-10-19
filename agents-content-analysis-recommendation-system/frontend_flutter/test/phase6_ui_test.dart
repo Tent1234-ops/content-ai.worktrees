@@ -113,11 +113,18 @@ void main() {
           home: Scaffold(
               body: SingleChildScrollView(child: AnalysisReport(data: data)))));
       await tester.pumpAndSettle();
-      final first = tester.getTopLeft(find.text('1. พบอะไรในคลิป')).dy;
-      final second = tester.getTopLeft(find.text('2. ควรเพิ่มอะไร')).dy;
-      final third =
-          tester.getTopLeft(find.text('3. ผลตอบรับจากคลิปอ้างอิง')).dy;
-      expect(first < second && second < third, isTrue);
+      expect(find.text('พบอะไรในคลิป'), findsOneWidget);
+      for (final section in ['recommendations', 'evidence']) {
+        final tab = find.byKey(ValueKey('result-tab-$section'));
+        await tester.ensureVisible(tab);
+        await tester.tap(tab);
+        await tester.pumpAndSettle();
+        expect(
+            find.text(section == 'evidence'
+                ? 'ผลตอบรับจากคลิปอ้างอิง'
+                : 'ควรเพิ่มอะไร'),
+            findsOneWidget);
+      }
       expect(find.textContaining('Dataset IDs: 8, 9'), findsNothing);
       expect(find.text('เปิดดูหลักฐานและเวอร์ชัน'), findsNothing);
       expect(find.text('หลักฐาน: thermal control'), findsNothing);

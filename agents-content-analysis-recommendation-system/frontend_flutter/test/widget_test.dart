@@ -8,6 +8,7 @@ import 'package:content_ai_web/state/auth_controller.dart';
 import 'package:content_ai_web/state/auth_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'support/result_navigation.dart';
 
 void main() {
   test('classification result displays hierarchy and Unknown/Other', () {
@@ -187,23 +188,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('1. พบอะไรในคลิป'), findsOneWidget);
-    expect(find.text('2. ควรเพิ่มอะไร'), findsOneWidget);
-    expect(find.text('3. ผลตอบรับจากคลิปอ้างอิง'), findsOneWidget);
+    expect(find.text('พบอะไรในคลิป'), findsOneWidget);
     expect(find.text('เลือกนำไปปรับ'), findsNothing);
     expect(find.text('บันทึกแผนปรับคลิป'), findsNothing);
-    expect(
-        find.text('ยังไม่มีหลักฐานผลตอบรับที่บันทึกไว้สำหรับประเด็นที่แนะนำ'),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('outcome-probability')), findsNothing);
-    await tester.tap(find.text('คำสำคัญและข้อความถอดเสียง'));
-    await tester.pumpAndSettle();
     for (final heading in <String>[
       'คำสำคัญที่พบทั้งคลิป',
       'หัวข้อหลักที่ใช้เปรียบเทียบ',
       'คำสำคัญที่พบในช่วงเปิดคลิป',
-      'คำแนะนำที่บันทึกไว้เดิม',
-      'คำแนะนำช่วงเปิดที่บันทึกไว้เดิม',
     ]) {
       expect(find.text(heading), findsOneWidget);
     }
@@ -220,10 +211,11 @@ void main() {
       find.text('ยังไม่พบคำสำคัญจากเสียงพูดในช่วงเปิดคลิป'),
       findsOneWidget,
     );
-    expect(
-      find.text('ไม่มีคำแนะนำคำสำคัญบันทึกไว้'),
-      findsOneWidget,
-    );
+    await selectResultTab(tester, 'recommendations');
+    expect(find.text('ควรเพิ่มอะไร'), findsOneWidget);
+    expect(find.text('คำแนะนำที่บันทึกไว้เดิม'), findsOneWidget);
+    expect(find.text('คำแนะนำช่วงเปิดที่บันทึกไว้เดิม'), findsOneWidget);
+    expect(find.text('ไม่มีคำแนะนำคำสำคัญบันทึกไว้'), findsOneWidget);
     expect(
       find.text('ไม่มีคำแนะนำช่วงเปิดบันทึกไว้'),
       findsOneWidget,
@@ -232,6 +224,12 @@ void main() {
       find.text('ข้อมูลอ้างอิงยังไม่เพียงพอ'),
       findsAtLeastNWidgets(1),
     );
+    await selectResultTab(tester, 'evidence');
+    expect(find.text('ผลตอบรับจากคลิปอ้างอิง'), findsOneWidget);
+    expect(
+        find.text('ยังไม่มีหลักฐานผลตอบรับที่บันทึกไว้สำหรับประเด็นที่แนะนำ'),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('outcome-probability')), findsNothing);
   });
 
   testWidgets('analysis result keeps detected and suggested outputs separate',
@@ -263,13 +261,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('คำสำคัญและข้อความถอดเสียง'));
-    await tester.pumpAndSettle();
     expect(find.text('แบตเตอรี่'), findsOneWidget);
     expect(find.text('battery life'), findsAtLeastNWidgets(1));
     expect(find.text('ชิป'), findsOneWidget);
-    expect(find.text('camera quality'), findsAtLeastNWidgets(1));
-    expect(find.text('display quality'), findsOneWidget);
     expect(
       find.text('ยังไม่พบคำสำคัญจากเนื้อหาในคลิปนี้'),
       findsNothing,
@@ -278,6 +272,9 @@ void main() {
       find.text('ยังไม่พบคำสำคัญจากเสียงพูดในช่วงเปิดคลิป'),
       findsNothing,
     );
+    await selectResultTab(tester, 'recommendations');
+    expect(find.text('camera quality'), findsAtLeastNWidgets(1));
+    expect(find.text('display quality'), findsOneWidget);
   });
 }
 

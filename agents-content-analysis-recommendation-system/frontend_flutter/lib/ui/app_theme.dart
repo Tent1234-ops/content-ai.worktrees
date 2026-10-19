@@ -3,17 +3,30 @@ import 'package:flutter/material.dart';
 ThemeData buildAppTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final scheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xFF087FAD),
+    seedColor: const Color(0xFF008698),
     brightness: brightness,
-    primary: dark ? const Color(0xFF70C9EB) : const Color(0xFF006A92),
+    primary: dark ? const Color(0xFF7AD9E4) : const Color(0xFF006F80),
+    onPrimary: dark ? const Color(0xFF00363E) : Colors.white,
+    primaryContainer: dark ? const Color(0xFF183D43) : const Color(0xFFDDF3F5),
+    onPrimaryContainer:
+        dark ? const Color(0xFFB8F1F5) : const Color(0xFF00505D),
     secondary: dark ? const Color(0xFF83CEB1) : const Color(0xFF167357),
-    tertiary: const Color(0xFF99620E),
+    tertiary: dark ? const Color(0xFFE4BD76) : const Color(0xFF8B5B0D),
     surface: dark ? const Color(0xFF202326) : Colors.white,
+    surfaceContainerLowest: dark ? const Color(0xFF171A1D) : Colors.white,
+    surfaceContainerLow:
+        dark ? const Color(0xFF252A2E) : const Color(0xFFF1F5F7),
+    surfaceContainer: dark ? const Color(0xFF2B3136) : const Color(0xFFEBF0F3),
+    surfaceContainerHigh:
+        dark ? const Color(0xFF333A40) : const Color(0xFFE4EBEF),
     onSurface: dark ? const Color(0xFFF1F3F4) : const Color(0xFF20262B),
     onSurfaceVariant: dark ? const Color(0xFFB7C1C7) : const Color(0xFF54616B),
     outlineVariant: dark ? const Color(0xFF424B51) : const Color(0xFFDDE4E8),
   );
-  final base = ThemeData(useMaterial3: true, colorScheme: scheme);
+  final base = ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      fontFamilyFallback: const ['Noto Sans Thai', 'Tahoma', 'Arial']);
   final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
       borderSide: BorderSide(color: scheme.outlineVariant));
@@ -32,7 +45,7 @@ ThemeData buildAppTheme(Brightness brightness) {
           headlineMedium:
               base.textTheme.headlineMedium?.copyWith(letterSpacing: 0),
           headlineSmall: const TextStyle(
-              fontSize: 24,
+              fontSize: 28,
               fontWeight: FontWeight.w700,
               height: 1.4,
               letterSpacing: 0),
@@ -111,12 +124,16 @@ ThemeData buildAppTheme(Brightness brightness) {
     filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
             shape: shape,
-            minimumSize: const Size(44, 44),
+            minimumSize: const Size(48, 48),
+            animationDuration: const Duration(milliseconds: 160),
+            overlayColor: scheme.onPrimary.withValues(alpha: 0.12),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14))),
     outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
             shape: shape,
-            minimumSize: const Size(44, 44),
+            minimumSize: const Size(48, 48),
+            side: BorderSide(color: scheme.outlineVariant),
+            overlayColor: scheme.primary.withValues(alpha: 0.10),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14))),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(

@@ -17,6 +17,7 @@ from app.core.datetime_utils import utc_isoformat
 from app.database.models import DatasetContent, ReferenceVideoStatistic
 from app.services.actionable_recommendations import _aliases, template_catalog
 from app.services.recommendation_evidence import fingerprint, freeze_reference, locate_terms, text_hash
+from app.services.group_response_summary import summarize_group_responses
 from app.services.view_metrics import (YOUTUBE_PLAY_START_VIEW_V2, YOUTUBE_QUALIFIED_VIEW_V1,
                                       view_metrics_are_comparable)
 
@@ -248,6 +249,11 @@ def _record(row: DatasetContent, observations: list[ReferenceVideoStatistic], as
     if latest is not None and latest.views is not None and latest.views < 0:
         reasons.append("invalid_negative_views")
     format_group, format_source = _confirmed_format(row)
+    try:
+        metadata = json.loads(row.raw_metadata_json or "{}")
+    except (TypeError, ValueError):
+        metadata = {}
+    sampling_frame = metadata.get("outcome_sampling_frame") if isinstance(metadata, dict) else None
     metric_version = latest.view_metric_version if latest else None
     comparable = not reasons and topic_status != "unassessable"
     growth = _growth(observations, latest)
@@ -264,6 +270,8 @@ def _record(row: DatasetContent, observations: list[ReferenceVideoStatistic], as
         reasons.append("zero_views_for_rate_metrics")
     return {
         "dataset_id": int(row.dataset_id), "video_id": row.source_youtube_id,
+        "source_record_id": row.source_record_id,
+        "sampling_frame": sampling_frame, "collection_strategy": row.collection_strategy,
         "channel_id": row.source_channel_id, "channel_title": row.source_creator,
         "url": row.video_url or row.source_release_url,
         "taxonomy_leaf_key": row.taxonomy_leaf_key, "data_split": row.data_split,
@@ -448,6 +456,8 @@ def build_topic_comparisons(db: Session, result: dict, rows: Iterable[DatasetCon
                        "detected_count": len(detected), "not_detected_count": len(absent),
                        "unassessable_count": len(unassessable), "exclusions": dict(sorted(exclusions.items()))},
             "records": records, "metrics": metrics, "causal_claim": False,
+            "group_response_summary": summarize_group_responses(
+                records, category=result["domain"], as_of=as_of),
             "limitation": LIMITATION_TH,
         })
     if not any(item["records"] for item in output["items"]):

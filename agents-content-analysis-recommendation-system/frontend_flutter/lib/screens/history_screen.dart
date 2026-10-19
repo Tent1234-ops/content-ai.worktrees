@@ -6,6 +6,7 @@ import '../repositories/content_repository.dart';
 import '../state/auth_scope.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/state_widgets.dart';
+import '../widgets/workspace_widgets.dart';
 import '../widgets/usage_statistics_panel.dart';
 import 'result_screen.dart';
 
@@ -82,201 +83,177 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final auth = AuthScope.of(context);
     final filtered = _getFilteredAndSorted();
     final hasItems = _items.isNotEmpty;
-
     return AppShell(
       title: 'ไอเดียและประวัติ',
       currentRoute: '/history',
       isAdmin: auth.isAdmin,
+      actions: [
+        IconButton(
+            onPressed: _loading ? null : _load,
+            tooltip: 'โหลดประวัติล่าสุด',
+            icon: const Icon(Icons.refresh)),
+      ],
       child: _error != null
           ? ErrorStateView(message: _error!, onRetry: _load)
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
-                padding: const EdgeInsets.only(bottom: 24),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24),
                 children: [
-                  // Category filter
+                  PageHeader(
+                    title: 'ไอเดียและประวัติ',
+                    subtitle: _loading && !hasItems
+                        ? null
+                        : 'ผลวิเคราะห์ ${filtered.length} จาก ${_items.length} รายการ',
+                    action: FilledButton.icon(
+                      onPressed: () => Navigator.pushNamed(context, '/upload'),
+                      icon: const Icon(Icons.add),
+                      label: const Text('วิเคราะห์คลิปใหม่'),
+                    ),
+                  ),
+                  if (_loading) const LinearProgressIndicator(),
                   if (hasItems) ...[
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'ผลวิเคราะห์ ${filtered.length} จาก ${_items.length} รายการ',
-                                style: Theme.of(context).textTheme.labelMedium,
-                              ),
-                              if (_loading)
-                                const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              if (_domains.isNotEmpty)
-                                SizedBox(
-                                  width: 220,
-                                  child: DropdownButtonFormField<String>(
-                                    initialValue: _filterDomain,
-                                    decoration: const InputDecoration(
-                                        labelText: 'หมวดหมู่'),
-                                    items: [
-                                      const DropdownMenuItem(
-                                          value: 'all',
-                                          child: Text('ทุกหมวดหมู่')),
-                                      ..._domains
-                                          .map((domain) => DropdownMenuItem(
-                                                value: domain,
-                                                child: Text(domain),
-                                              )),
-                                    ],
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        setState(() => _filterDomain = value);
-                                      }
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(
+                        width: 300,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _filterDomain,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                              labelText: 'หมวดหมู่',
+                              prefixIcon: Icon(Icons.filter_list)),
+                          items: [
+                            const DropdownMenuItem(
+                                value: 'all', child: Text('ทุกหมวดหมู่')),
+                            ..._domains.map((domain) => DropdownMenuItem(
+                                value: domain,
+                                child: Text(domain,
+                                    overflow: TextOverflow.ellipsis))),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _filterDomain = value);
+                            }
+                          },
+                        ),
                       ),
                     ),
-                    const Divider(height: 1),
+                    const SizedBox(height: 24),
                   ],
-
-                  // Items list
-                  if (filtered.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: EmptyStateView(
-                        title: 'ไม่พบผลวิเคราะห์',
-                        message: 'ลองเปลี่ยนหมวดหมู่',
-                        icon: Icons.filter_list_off,
-                      ),
-                    )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 8),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, index) {
-                          final item = filtered[index];
-                          final keywords = item.recommendedKeywords;
-                          final keywordPreview = keywords.isEmpty
-                              ? '-'
-                              : keywords.take(3).join(', ') +
-                                  (keywords.length > 3
-                                      ? ' +${keywords.length - 3}'
-                                      : '');
-
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              leading: CircleAvatar(
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primaryContainer,
-                                child: Icon(Icons.video_camera_back,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onPrimaryContainer),
-                              ),
-                              title: Text(
-                                item.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Chip(
-                                        label: Text(_domainLabel(item.domain)),
-                                        side: const BorderSide(
-                                            color: Color(0xFFE0E0E0)),
-                                        backgroundColor: Colors.transparent,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Chip(
-                                        label: Text(_durationLabel(
-                                            item.recommendedDuration)),
-                                        side: const BorderSide(
-                                            color: Color(0xFFE0E0E0)),
-                                        backgroundColor: Colors.transparent,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'คำแนะนำ: $keywordPreview',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    outcomeStatusMessage(
-                                        item.outcomeAssessmentStatus),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                  if (item.transcriptPreview.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      item.transcriptPreview,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Colors.grey,
-                                          ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              onTap: () => Navigator.pushNamed(
-                                context,
-                                '/result',
-                                arguments:
-                                    ResultScreenArgs(contentId: item.contentId),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                  if (!_loading && filtered.isEmpty)
+                    EmptyStateView(
+                      title: 'ไม่พบผลวิเคราะห์',
+                      message: hasItems
+                          ? 'ลองเปลี่ยนหมวดหมู่'
+                          : 'ยังไม่มีคลิปที่วิเคราะห์และบันทึกไว้',
+                      icon: hasItems
+                          ? Icons.filter_list_off
+                          : Icons.video_library_outlined,
                     ),
+                  if (filtered.isNotEmpty)
+                    LayoutBuilder(builder: (context, constraints) {
+                      final columns = constraints.maxWidth >= 900 ? 2 : 1;
+                      final width =
+                          (constraints.maxWidth - (columns - 1) * 16) / columns;
+                      return Wrap(spacing: 16, runSpacing: 16, children: [
+                        for (final item in filtered)
+                          SizedBox(
+                              width: width,
+                              child: _HistoryCard(
+                                key: ValueKey('history-${item.contentId}'),
+                                item: item,
+                                onOpen: () => Navigator.pushNamed(
+                                    context, '/result',
+                                    arguments: ResultScreenArgs(
+                                        contentId: item.contentId)),
+                              )),
+                      ]);
+                    }),
                   if (hasItems) ...[
+                    const SizedBox(height: 32),
                     const Divider(),
                     const UsageStatisticsPanel(),
                   ],
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({super.key, required this.item, required this.onOpen});
+  final ContentHistoryItem item;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final keywords = item.recommendedKeywords;
+    final keywordPreview = keywords.isEmpty
+        ? '-'
+        : keywords.take(3).join(', ') +
+            (keywords.length > 3 ? ' +${keywords.length - 3}' : '');
+    final date = item.createdAt?.toLocal();
+    final stamp = date == null
+        ? 'ไม่พบวันที่บันทึก'
+        : '${date.day}/${date.month}/${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+        focusColor: theme.colorScheme.primary.withValues(alpha: 0.10),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.video_file_outlined,
+                  size: 28, color: theme.colorScheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Text(item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium)),
+              const SizedBox(width: 8),
+              const Icon(Icons.arrow_forward, size: 20),
+            ]),
+            const SizedBox(height: 16),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              StatusBadge(
+                  label: _domainLabel(item.domain),
+                  icon: Icons.category_outlined),
+              StatusBadge(
+                  label:
+                      'ความยาวแนะนำ: ${_durationLabel(item.recommendedDuration)}',
+                  icon: Icons.timer_outlined,
+                  color: theme.colorScheme.onSurfaceVariant),
+            ]),
+            const SizedBox(height: 16),
+            Text('คำแนะนำ: $keywordPreview',
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 8),
+            Text(outcomeStatusMessage(item.outcomeAssessmentStatus),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall),
+            if (item.transcriptPreview.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(item.transcriptPreview,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall),
+            ],
+            const Divider(height: 28),
+            Text(stamp, style: theme.textTheme.bodySmall),
+          ]),
+        ),
+      ),
     );
   }
 }
@@ -291,5 +268,5 @@ String _domainLabel(String value) => switch (value.toLowerCase()) {
 
 String _durationLabel(String value) {
   final seconds = int.tryParse(value.trim());
-  return seconds == null ? value : '$seconds วินาที';
+  return seconds == null || seconds <= 0 ? 'ไม่มีข้อมูล' : '$seconds วินาที';
 }

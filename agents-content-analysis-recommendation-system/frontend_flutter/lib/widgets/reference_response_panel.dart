@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../models/actionable_recommendations.dart';
 import '../models/reference_response.dart';
 
 String _number(int? value) => value == null
@@ -21,10 +22,12 @@ class ReferenceResponsePanel extends StatelessWidget {
     super.key,
     required this.bundle,
     required this.recommendedTopics,
+    this.adviceByTopic = const {},
     this.withheld = false,
   });
   final Map<String, dynamic> bundle;
   final Map<String, String> recommendedTopics;
+  final Map<String, ActionableAdvice> adviceByTopic;
   final bool withheld;
 
   @override
@@ -43,17 +46,29 @@ class ReferenceResponsePanel extends StatelessWidget {
       key: const ValueKey('reference-response-panel'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('คลิปอ้างอิงในหมวดเดียวกันที่กล่าวถึงประเด็นที่แนะนำ'),
-        const SizedBox(height: 8),
-        Text(
-          'เป็นตัวอย่างที่ระบบคัดไว้ ไม่ใช่ตัวแทนคลิปทั้งหมดบน YouTube '
-          'ยอดสะสมขึ้นกับช่องและอายุคลิปด้วย จึงไม่ใช่เปอร์เซ็นต์ทำนายหรือหลักฐานว่าเพิ่มประเด็นแล้วจะได้ยอดเพิ่ม',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        for (final topic in topics) ...[
-          const SizedBox(height: 24),
+        for (final (index, topic) in topics.indexed) ...[
+          if (index > 0) const SizedBox(height: 24),
           Text(topic.title, style: Theme.of(context).textTheme.titleMedium),
+          if (topic.groups.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 8, bottom: 8),
+              child: Text('ยังไม่มีสรุปสัดส่วนที่ตรวจสอบได้ในผลนี้ '
+                  'ข้อมูลรูปแบบ อายุคลิป หรือกลุ่มอ้างอิงอาจไม่ครบ'),
+            ),
+          for (final group in topic.groups)
+            _GroupResponse(
+              group: group,
+              topicTitle: topic.title,
+              advice: adviceByTopic[topic.id],
+            ),
           const SizedBox(height: 4),
+          if (topic.groups.isNotEmpty) ...[
+            Text('คลิปต้นแบบประกอบคำแนะนำ',
+                style: Theme.of(context).textTheme.titleSmall),
+            Text('เป็นอีกชุดข้อมูล ไม่ใช่ตัวหารของสัดส่วนด้านบน',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+          ],
           Text('หลักฐานที่เปิดดูได้ ${topic.clips.length} คลิป · '
               'ยืนยันช่องได้ ${topic.knownChannelCount} ช่อง'),
           if (topic.clips.isEmpty)
@@ -79,22 +94,60 @@ class ReferenceResponsePanel extends StatelessWidget {
   }
 }
 
+Future<void> _openSource(BuildContext context, Uri url) async {
+  try {
+    if (await launchUrl(url, mode: LaunchMode.externalApplication)) return;
+  } catch (_) {
+    // Unsupported launchers and failed navigation share the same retry state.
+  }
+  if (context.mounted) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('เปิดคลิปต้นทางไม่สำเร็จ')));
+  }
+}
+
+class _GroupResponse extends StatelessWidget {
+  const _GroupResponse({
+    required this.group,
+    required this.topicTitle,
+    this.advice,
+  });
+  final ReferenceResponseGroup group;
+  final String topicTitle;
+  final ActionableAdvice? advice;
+
+  String get _summary {
+    final proposal = advice?.proposal.trim() ?? '';
+    final condition = advice?.condition.trim() ?? '';
+    final suggestion = proposal.isEmpty
+        ? 'หากเกี่ยวข้องกับสิ่งที่ทดสอบจริง ลองเพิ่มประเด็นนี้พร้อมตัวอย่างการใช้งาน'
+        : 'ระบบเสนอให้ลอง$proposal';
+    return 'ในกลุ่มคลิปอ้างอิงหมวด ${group.categoryLabel} '
+        'ที่กล่าวถึง “$topicTitle” มีคลิปที่มียอดวิวสะสมมากกว่า '
+        '${_number(group.thresholdViews)} ครั้ง ณ วันที่เก็บสถิติ '
+        'จำนวน ${group.passingCount} จาก ${group.sampleSize} คลิป '
+        'คิดเป็น ${group.percentage}% จากทั้งหมด ${group.channelCount} ช่อง '
+        'สำหรับคลิปของคุณ $suggestion '
+        '${condition.isEmpty ? '' : 'ทั้งนี้ $condition '}'
+        'แล้วติดตามผลตอบรับหลังเผยแพร่';
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          _summary,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.6),
+        ),
+      );
+}
+
 class _ReferenceClip extends StatelessWidget {
   const _ReferenceClip({required this.clip});
   final ReferenceResponseClip clip;
 
   Future<void> _open(BuildContext context) async {
-    try {
-      if (await launchUrl(clip.sourceUrl, mode: LaunchMode.externalApplication)) {
-        return;
-      }
-    } catch (_) {
-      // Unsupported launchers and failed navigation share the same retry state.
-    }
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('เปิดคลิปต้นทางไม่สำเร็จ')));
-    }
+    await _openSource(context, clip.sourceUrl);
   }
 
   @override

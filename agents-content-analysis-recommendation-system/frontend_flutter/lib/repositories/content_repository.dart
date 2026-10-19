@@ -3,12 +3,23 @@ import '../models/content_history.dart';
 import '../models/clip_revision_plan.dart';
 import '../models/recommendation_result.dart';
 import '../models/outcome_prediction.dart';
+import '../models/performance_clustering.dart';
 import '../services/api_client.dart';
 
 class ContentRepository {
   ContentRepository({ApiClient? client}) : _client = client ?? ApiClient();
 
   final ApiClient _client;
+
+  Future<PerformanceComparison> getPerformanceComparison(int contentId,
+      {int? minimumViews}) async {
+    final query = minimumViews == null ? '' : '?minimum_views=$minimumViews';
+    final response = await _client
+        .get('/contents/$contentId/performance-clustering$query')
+        .timeout(const Duration(seconds: 30));
+    return PerformanceComparison.fromJson(
+        Map<String, dynamic>.from(response as Map));
+  }
 
   Future<ClipRevisionPlan> getRevisionPlan(int contentId) async =>
       ClipRevisionPlan.fromJson(Map<String, dynamic>.from(

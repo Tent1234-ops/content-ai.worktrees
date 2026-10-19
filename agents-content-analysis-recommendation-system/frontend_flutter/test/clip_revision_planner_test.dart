@@ -266,8 +266,7 @@ void main() {
     expect(find.text('คัดลอกประโยคตัวอย่างแล้ว'), findsNothing);
   });
 
-  testWidgets(
-      'summary comes first while raw keywords and evidence are collapsed',
+  testWidgets('summary shows keywords while evidence is in a separate tab',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
@@ -275,11 +274,8 @@ void main() {
                 child: AnalysisReport(data: fixture())))));
     expect(find.textContaining('ในข้อความถอดเสียงพบประเด็น: แบตเตอรี่'),
         findsOneWidget);
-    expect(find.text('RAW KEYWORD'), findsNothing);
-    expect(find.text('เวอร์ชันและเวลาของหลักฐาน'), findsNothing);
-    await tester.tap(find.text('คำสำคัญและข้อความถอดเสียง'));
-    await tester.pumpAndSettle();
     expect(find.text('RAW KEYWORD'), findsOneWidget);
+    expect(find.text('เวอร์ชันและเวลาของหลักฐาน'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -296,10 +292,9 @@ void main() {
       await tester.pumpWidget(MaterialApp(
           home: Scaffold(
               body: SingleChildScrollView(child: AnalysisReport(data: data)))));
-      await tester.tap(find.text('คำสำคัญและข้อความถอดเสียง'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('ข้อความถอดเสียง'));
-      await tester.tap(find.text('ข้อความถอดเสียง'));
+      final tab = find.byKey(const ValueKey('result-tab-transcript'));
+      await tester.ensureVisible(tab);
+      await tester.tap(tab);
       await tester.pumpAndSettle();
       expect(find.text('ORIGINAL SPEECH'), findsOneWidget);
       expect(find.text('ข้อความหลังปรับศัพท์'), findsNothing);

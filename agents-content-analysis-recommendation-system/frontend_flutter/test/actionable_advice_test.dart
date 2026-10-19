@@ -207,6 +207,10 @@ void main() {
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
             body: SingleChildScrollView(child: AnalysisReport(data: result)))));
+    final tab = find.byKey(const ValueKey('result-tab-recommendations'));
+    await tester.ensureVisible(tab);
+    await tester.tap(tab);
+    await tester.pumpAndSettle();
     expect(find.text('OLD RAW SUGGESTION'), findsNothing);
     expect(find.text('OLD HOOK'), findsNothing);
     expect(find.text('เปิดดูหลักฐานและเวอร์ชัน'), findsNothing);

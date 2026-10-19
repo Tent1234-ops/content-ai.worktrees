@@ -21,8 +21,11 @@ void main() {
 
   test('Known labels preserve their existing coverage', () {
     final leaf = DatasetReviewTaxonomyLeaf.fromJson({
-      'leaf_key': 'phone', 'category_level_3': 'Phone',
-      'verified_sample_count': 80, 'minimum_sample_count': 30, 'ready': true,
+      'leaf_key': 'phone',
+      'category_level_3': 'Phone',
+      'verified_sample_count': 80,
+      'minimum_sample_count': 30,
+      'ready': true,
     });
     expect(leaf.coverageLabels, ['Phone 80/30']);
   });

@@ -15,6 +15,7 @@ import '../widgets/trend_detail_panel.dart';
 import '../widgets/trend_catalog.dart';
 import '../widgets/dashboard_personal_dialog.dart';
 import '../widgets/trend_history_panel.dart';
+import '../widgets/workspace_widgets.dart';
 import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -565,9 +566,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                   onRefresh: _loadAll,
                   child: Center(
                       child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1440),
+                          constraints: const BoxConstraints(maxWidth: 1360),
                           child: ListView(
-                            padding: const EdgeInsets.all(16),
+                            key: const Key('dashboard-scroll'),
+                            padding: const EdgeInsets.all(24),
                             children: [
                               if (_loading) const LinearProgressIndicator(),
                               if (_sectionErrors.isNotEmpty) ...[
@@ -713,43 +715,37 @@ class _DashboardIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        children: [
-          const Icon(Icons.trending_up),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Content AI',
-                    style: Theme.of(context).textTheme.headlineMedium),
-                Text('เทรนด์วิดีโอและคำค้นในประเทศไทย',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, '/upload'),
-                  icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('วิเคราะห์คลิปของฉัน'),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  activePlatforms.isEmpty
-                      ? 'ยังไม่มีข้อมูลเทรนด์ในขณะนี้'
-                      : '$totalTrends รายการจาก ${_formatPlatformList(activePlatforms)}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                if (generatedAt.isNotEmpty)
-                  Text(
-                    'ตรวจล่าสุด ${_formatDateTime(generatedAt)}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-              ],
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PageHeader(
+          title: 'Content AI',
+          subtitle: 'เทรนด์วิดีโอและคำค้นในประเทศไทย',
+          action: FilledButton.icon(
+            onPressed: () => Navigator.pushNamed(context, '/upload'),
+            icon: const Icon(Icons.upload_file_outlined),
+            label: const Text('วิเคราะห์คลิปของฉัน'),
           ),
-        ],
-      ),
+        ),
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            StatusBadge(
+              icon: Icons.trending_up,
+              label: activePlatforms.isEmpty
+                  ? 'ยังไม่มีข้อมูลเทรนด์ในขณะนี้'
+                  : '$totalTrends รายการจาก ${_formatPlatformList(activePlatforms)}',
+            ),
+            if (generatedAt.isNotEmpty)
+              StatusBadge(
+                icon: Icons.schedule,
+                label: 'ตรวจล่าสุด ${_formatDateTime(generatedAt)}',
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -777,11 +773,10 @@ class _TrendFilters extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final scheme = Theme.of(context).colorScheme;
           final stacked = constraints.maxWidth < 760;
-          final controlsWidth = stacked
-              ? constraints.maxWidth
-              : math.min(560.0, constraints.maxWidth);
-          return Column(
+          final controlsWidth = stacked ? constraints.maxWidth : 360.0;
+          final platformControl = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -791,27 +786,84 @@ class _TrendFilters extends StatelessWidget {
               const SizedBox(height: 8),
               SizedBox(
                 width: controlsWidth,
-                child: TabBar(
-                  controller: platformTabController,
-                  onTap: (index) {
-                    const platforms = ['youtube', 'google'];
-                    onPlatformChanged(platforms[index]);
-                  },
-                  tabs: const [
-                    Tab(icon: Icon(Icons.play_circle_outline), text: 'YouTube'),
-                    Tab(icon: Icon(Icons.search), text: 'Google'),
-                  ],
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: TabBar(
+                    controller: platformTabController,
+                    dividerHeight: 0,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    indicatorPadding: const EdgeInsets.all(4),
+                    indicator: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    labelColor: scheme.onPrimaryContainer,
+                    unselectedLabelColor: scheme.onSurfaceVariant,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    onTap: (index) {
+                      const platforms = ['youtube', 'google'];
+                      onPlatformChanged(platforms[index]);
+                    },
+                    tabs: const [
+                      Tab(
+                        height: 48,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.play_circle_outline, size: 20),
+                            SizedBox(width: 8),
+                            Flexible(child: Text('YouTube')),
+                          ],
+                        ),
+                      ),
+                      Tab(
+                        height: 48,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.search, size: 20),
+                            SizedBox(width: 8),
+                            Flexible(child: Text('Google')),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+            ],
+          );
+          final categoryControl = _FilterDropdown(
+            width: stacked
+                ? constraints.maxWidth
+                : math.min(320.0, constraints.maxWidth - controlsWidth - 16),
+            label: 'หมวดหมู่',
+            value: category,
+            values: categories,
+            onChanged: onCategoryChanged,
+          );
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                platformControl,
+                if (showCategories) ...[
+                  const SizedBox(height: 12),
+                  categoryControl,
+                ],
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              platformControl,
               if (showCategories) ...[
-                const SizedBox(height: 16),
-                _FilterDropdown(
-                  width: controlsWidth,
-                  label: 'หมวดหมู่',
-                  value: category,
-                  values: categories,
-                  onChanged: onCategoryChanged,
-                ),
+                const SizedBox(width: 16),
+                categoryControl,
               ],
             ],
           );
@@ -847,6 +899,9 @@ class _FilterDropdown extends StatelessWidget {
         menuMaxHeight: 360,
         decoration: InputDecoration(
           labelText: label,
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           border: const OutlineInputBorder(),
         ),
         items: values
@@ -902,16 +957,14 @@ class _TrendDashboardSections extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            children: [
-              LinearProgressIndicator(),
-              SizedBox(height: 12),
-              Text('กำลังโหลดอันดับของหมวดหมู่จากฐานข้อมูล'),
-            ],
-          ),
+      return const Padding(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          children: [
+            LinearProgressIndicator(),
+            SizedBox(height: 12),
+            Text('กำลังโหลดอันดับของหมวดหมู่จากฐานข้อมูล'),
+          ],
         ),
       );
     }

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:content_ai_web/models/recommendation_result.dart';
 import 'package:content_ai_web/screens/result_screen.dart';
 import 'package:content_ai_web/ui/app_theme.dart';
+import 'support/result_navigation.dart';
 
 void main() {
   testWidgets('accepted presentation result still displays its warning',
@@ -62,13 +63,13 @@ void main() {
         home: Scaffold(
             body: SingleChildScrollView(child: AnalysisReport(data: data)))));
     await tester.pumpAndSettle();
+    await selectResultTab(tester, 'recommendations');
     expect(find.textContaining('งดคำแนะนำเฉพาะหมวด'), findsOneWidget);
     expect(find.textContaining('ยังไม่มั่นใจพอ'), findsNothing);
     expect(find.text('ยังไม่ยืนยันหมวดหมู่สำหรับสร้างคำแนะนำ'), findsOneWidget);
     expect(find.textContaining('ยังไม่มีข้อมูลคลิปอ้างอิงในหมวดนี้เพียงพอ'),
         findsNothing);
-    await tester.tap(find.text('ผลทายก่อนตรวจรับ'));
-    await tester.pumpAndSettle();
+    await selectResultTab(tester, 'evidence');
     expect(find.textContaining('99.0%'), findsOneWidget);
     expect(find.textContaining('ไม่ใช้เลือกคลิปอ้างอิง'), findsOneWidget);
     expect(tester.takeException(), isNull);

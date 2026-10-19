@@ -75,7 +75,7 @@ class _TrendCatalogState extends State<TrendCatalog> {
         Text(widget.title, style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 4),
         Text(widget.subtitle, style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         if (visible.isEmpty)
           Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
@@ -98,7 +98,7 @@ class _TrendCatalogState extends State<TrendCatalog> {
             final width = (constraints.maxWidth - (columns - 1) * 16) / columns;
             return Wrap(
               spacing: 16,
-              runSpacing: 20,
+              runSpacing: 16,
               children: visible
                   .map((item) => SizedBox(
                         width: width,
@@ -145,12 +145,14 @@ class _VideoTrendCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final duration = item.durationSeconds;
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: EdgeInsets.zero,
       elevation: 0,
+      color: scheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        side: BorderSide(color: scheme.outlineVariant),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -158,6 +160,9 @@ class _VideoTrendCard extends StatelessWidget {
         children: [
           InkWell(
             onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: scheme.primary.withValues(alpha: 0.06),
+            focusColor: scheme.primary.withValues(alpha: 0.12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -237,22 +242,37 @@ class _SearchTrendRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Column(children: [
-        InkWell(
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: scheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
           onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          hoverColor: scheme.primary.withValues(alpha: 0.06),
+          focusColor: scheme.primary.withValues(alpha: 0.12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.all(12),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               SizedBox(
-                  width: 48,
-                  child: Text('#${item.rank}',
-                      style: Theme.of(context).textTheme.titleMedium)),
+                  width: 40,
+                  child: Text(item.rank > 0 ? '#${item.rank}' : '-',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: scheme.primary,
+                          ))),
               Expanded(
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                     Text(item.title,
-                        style: Theme.of(context).textTheme.titleMedium),
+                        style: Theme.of(context).textTheme.titleSmall),
                     const SizedBox(height: 6),
                     Text(
                         item.searchVolume == null
@@ -264,8 +284,9 @@ class _SearchTrendRow extends StatelessWidget {
             ]),
           ),
         ),
-        const Divider(height: 1),
-      ]);
+      ),
+    );
+  }
 }
 
 class _ThumbnailFallback extends StatelessWidget {

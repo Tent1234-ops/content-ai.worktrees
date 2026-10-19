@@ -7,6 +7,7 @@ class ContentHistoryItem {
     required this.recommendedKeywords,
     required this.recommendedDuration,
     required this.outcomeAssessmentStatus,
+    this.createdAt,
   });
 
   final int contentId;
@@ -16,10 +17,12 @@ class ContentHistoryItem {
   final List<String> recommendedKeywords;
   final String recommendedDuration;
   final String outcomeAssessmentStatus;
+  final DateTime? createdAt;
 
   factory ContentHistoryItem.fromJson(Map<String, dynamic> json) {
     return ContentHistoryItem(
       contentId: (json['content_id'] as num?)?.toInt() ?? 0,
+      createdAt: _parseCreatedAt(json['created_at']?.toString() ?? ''),
       title: json['title']?.toString() ?? '-',
       domain: json['domain']?.toString() ?? '-',
       transcriptPreview: json['transcript_preview']?.toString() ?? '',
@@ -31,5 +34,13 @@ class ContentHistoryItem {
       outcomeAssessmentStatus: json['outcome_assessment_status']?.toString() ??
           'legacy_not_assessed',
     );
+  }
+
+  static DateTime? _parseCreatedAt(String value) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null || parsed.isUtc) return parsed;
+    // The API's timezone-naive database timestamps are stored in UTC.
+    return DateTime.utc(parsed.year, parsed.month, parsed.day, parsed.hour,
+        parsed.minute, parsed.second, parsed.millisecond, parsed.microsecond);
   }
 }

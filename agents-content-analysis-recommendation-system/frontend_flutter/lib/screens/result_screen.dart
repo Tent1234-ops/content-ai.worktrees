@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/common_models.dart';
 import '../models/actionable_recommendations.dart';
 import '../models/recommendation_result.dart';
+import '../models/reference_response.dart';
 import '../repositories/content_repository.dart';
 import '../state/auth_scope.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/revision_comparison_panel.dart';
-import '../widgets/current_trend_ideas_panel.dart';
 import '../widgets/actionable_advice_panel.dart';
 import '../widgets/outcome_assessment_panel.dart';
 import '../widgets/reference_response_panel.dart';
 import '../widgets/state_widgets.dart';
+import '../widgets/workspace_widgets.dart';
+import '../widgets/performance_clustering_panel.dart';
 
 class ResultScreenArgs {
   const ResultScreenArgs({this.initialData, this.contentId});
@@ -79,6 +82,7 @@ class _ResultScreenState extends State<ResultScreen> {
     final data = _data;
     return AppShell(
       title: 'ผลวิเคราะห์คลิป',
+      currentRoute: '/result',
       isAdmin: AuthScope.of(context).isAdmin,
       actions: [
         if (_contentId != null)
@@ -99,19 +103,21 @@ class _ResultScreenState extends State<ResultScreen> {
                   : RefreshIndicator(
                       onRefresh: _loadContent,
                       child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.all(24),
                           children: [
                             if (_loading) const LinearProgressIndicator(),
-                            Text(data.title,
-                                style:
-                                    Theme.of(context).textTheme.headlineSmall),
-                            const SizedBox(height: 8),
-                            Text(
-                                data.saved && data.contentId != null
+                            PageHeader(
+                              title: data.title,
+                              action: StatusBadge(
+                                label: data.saved && data.contentId != null
                                     ? 'ผลวิเคราะห์บันทึกแล้ว · #${data.contentId}'
                                     : 'ผลนี้ยังไม่มีรายการที่ยืนยันว่าบันทึกแล้ว',
-                                style: Theme.of(context).textTheme.bodySmall),
-                            const SizedBox(height: 24),
+                                icon: data.saved && data.contentId != null
+                                    ? Icons.cloud_done_outlined
+                                    : Icons.info_outline,
+                              ),
+                            ),
                             AnalysisReport(
                                 key: ValueKey('report-$_viewVersion'),
                                 data: data,
@@ -136,13 +142,42 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 }
 
-class AnalysisReport extends StatelessWidget {
+class AnalysisReport extends StatefulWidget {
   const AnalysisReport({super.key, required this.data, this.repository});
   final AnalysisResultViewData data;
   final ContentRepository? repository;
 
   @override
+  State<AnalysisReport> createState() => _AnalysisReportState();
+}
+
+class _AnalysisReportState extends State<AnalysisReport>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
+  bool _evidenceVisited = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 4, vsync: this);
+    _tabs.addListener(_selectTab);
+  }
+
+  void _selectTab() => setState(() {
+        if (_tabs.index == 3) _evidenceVisited = true;
+      });
+
+  @override
+  void dispose() {
+    _tabs.removeListener(_selectTab);
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final data = widget.data;
+    final repository = widget.repository;
     final recommendation = data.recommendation;
     final classification = recommendation.classification;
     final withheld = classification?.isUnknown == true;
@@ -237,94 +272,81 @@ class AnalysisReport extends StatelessWidget {
     final revisionComparison = data.raw['revision_comparison'] is Map
         ? Map<String, dynamic>.from(data.raw['revision_comparison'] as Map)
         : null;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (revisionComparison != null) ...[
-        RevisionComparisonPanel(
-            data: revisionComparison,
-            onOpenParent: repository == null
-                ? null
-                : () {
-                    final parent = revisionComparison['parent'] as Map?;
-                    final contentId = (parent?['content_id'] as num?)?.toInt();
-                    if (contentId != null) {
-                      Navigator.pushNamed(context, '/result',
-                          arguments: ResultScreenArgs(contentId: contentId));
-                    }
-                  }),
+    final rawRecommendation = data.raw['recommendation'] as Map?;
+    final rawClassification = rawRecommendation?['classification'] as Map?;
+    final hasConfidence = rawClassification?['confidence'] is num &&
+        classification != null &&
+        classification.confidence.isFinite;
+    final backedTopics = withheld || inputUnassessable
+        ? <String>{}
+        : referenceResponses(bundle, recommendedTopics: referenceTopicLabels)
+            .where((topic) => topic.clips.isNotEmpty)
+            .map((topic) => topic.id)
+            .toSet();
+    final backedAdviceCount = actions == null
+        ? backedTopics.length
+        : actions.items
+            .where((item) => backedTopics.contains(item.evidenceTopicId))
+            .length;
+    final durationText = withheld
+        ? 'งดแนะนำความยาวจนกว่าจะยืนยันหมวดหมู่ได้'
+        : duration.hasSufficientEvidence &&
+                medianDuration != null &&
+                medianDuration > 0
+            ? 'ค่ากลาง $medianDuration วินาที · ${hasDurationRange ? 'ช่วง $rangeLow–$rangeHigh วินาที' : 'ไม่ได้บันทึกช่วงความยาว'}'
+            : 'ข้อมูลอ้างอิงยังไม่เพียงพอ';
+    final panels = <Widget>[
+      _Band(title: 'พบอะไรในคลิป', icon: Icons.fact_check_outlined, children: [
+        Text(inputUnassessable
+            ? 'ข้อความถอดเสียงยังไม่สมบูรณ์ จึงยังสรุปประเด็นในคลิปไม่ได้'
+            : foundTopics.isNotEmpty
+                ? 'ในข้อความถอดเสียงพบประเด็น: ${foundTopics.join(' / ')}'
+                : actions == null
+                    ? 'ผลรุ่นนี้ไม่มีสรุปหัวข้อแบบใหม่ สามารถเปิดดูข้อมูลที่บันทึกไว้ด้านล่าง'
+                    : 'ยังไม่มีข้อมูลเพียงพอที่จะสรุปประเด็นในคลิปนี้'),
+        if (bundle['origin'] == 'historical_legacy_no_snapshot')
+          const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: Text(
+                  'ผลเก่าไม่มีหลักฐานบันทึกครบ แสดงข้อมูลเดิมโดยไม่คำนวณคำแนะนำใหม่')),
+        _Words(
+            title: 'คำสำคัญที่พบในช่วงเปิดคลิป',
+            words: recommendation.hookTerms,
+            empty: hookUnassessable
+                ? 'ตรวจช่วงเปิดไม่ได้ เพราะไม่มีข้อความถอดเสียงพร้อมเวลาที่เพียงพอ'
+                : 'ยังไม่พบคำสำคัญจากเสียงพูดในช่วงเปิดคลิป'),
+        _Words(
+            title: 'หัวข้อหลักที่ใช้เปรียบเทียบ',
+            words: recommendation.comparableKeywords,
+            empty: 'ยังไม่พบหัวข้อที่ระบบรู้จักสำหรับใช้เปรียบเทียบ'),
+        if (revisionComparison != null) ...[
+          const SizedBox(height: 24),
+          RevisionComparisonPanel(
+              data: revisionComparison,
+              onOpenParent: repository == null
+                  ? null
+                  : () {
+                      final parent = revisionComparison['parent'] as Map?;
+                      final contentId =
+                          (parent?['content_id'] as num?)?.toInt();
+                      if (contentId != null) {
+                        Navigator.pushNamed(context, '/result',
+                            arguments: ResultScreenArgs(contentId: contentId));
+                      }
+                    }),
+        ],
+      ]),
+      _Band(title: 'ควรเพิ่มอะไร', icon: Icons.lightbulb_outline, children: [
+        if (actions != null)
+          ActionableAdvicePanel(
+              data: actions,
+              bundle: bundle,
+              showReason: true,
+              withheld: withheld || inputUnassessable)
+        else
+          const Text(
+              'ผลรุ่นนี้ยังไม่มีคำแนะนำแบบลงมือทำ ข้อมูลคำแนะนำเดิมยังเปิดดูได้ในส่วนรายละเอียด'),
         const SizedBox(height: 24),
-      ],
-      _Band(
-          title: '1. พบอะไรในคลิป',
-          icon: Icons.fact_check_outlined,
-          children: [
-            Text('หมวดหมู่ของคลิป: $domain',
-                style: Theme.of(context).textTheme.titleMedium),
-            if (classification != null)
-              Text(
-                  classification.isUnknown
-                      ? 'ยังไม่ยืนยันหมวดหมู่สำหรับสร้างคำแนะนำ'
-                      : 'ความมั่นใจของโมเดล ${(classification.confidence * 100).toStringAsFixed(0)}% ไม่ใช่คะแนนคุณภาพคลิป',
-                  style: Theme.of(context).textTheme.bodySmall),
-            if (classification?.warning.isNotEmpty == true)
-              Text(classification!.warning),
-            const SizedBox(height: 12),
-            Text(inputUnassessable
-                ? 'ข้อความถอดเสียงยังไม่สมบูรณ์ จึงยังสรุปประเด็นในคลิปไม่ได้'
-                : foundTopics.isNotEmpty
-                    ? 'ในข้อความถอดเสียงพบประเด็น: ${foundTopics.join(' / ')}'
-                    : actions == null
-                        ? 'ผลรุ่นนี้ไม่มีสรุปหัวข้อแบบใหม่ สามารถเปิดดูข้อมูลที่บันทึกไว้ด้านล่าง'
-                        : 'ยังไม่มีข้อมูลเพียงพอที่จะสรุปประเด็นในคลิปนี้'),
-            if (bundle['origin'] == 'historical_legacy_no_snapshot')
-              const Padding(
-                  padding: EdgeInsets.only(top: 12),
-                  child: Text(
-                      'ผลเก่าไม่มีหลักฐานบันทึกครบ แสดงข้อมูลเดิมโดยไม่คำนวณคำแนะนำใหม่')),
-            if (classification?.isUnknown == true &&
-                classification!.rawTaxonomyLeafKey.isNotEmpty)
-              ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: const Text('ผลทายก่อนตรวจรับ'),
-                  children: [
-                    Text('${classification.rawTaxonomyLeafKey} · '
-                        'ความมั่นใจภายในโมเดล ${(classification.confidence * 100).toStringAsFixed(1)}%'),
-                    const Text(
-                        'ผลนี้ยังไม่ผ่านเกณฑ์ จึงไม่ใช้เลือกคลิปอ้างอิงหรือสร้างคำแนะนำ'),
-                  ]),
-            ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: const Text('คำสำคัญและข้อความถอดเสียง'),
-                children: [
-                  _Words(
-                      title: 'คำสำคัญที่พบทั้งคลิป',
-                      words: recommendation.contentKeywords,
-                      empty: inputUnassessable
-                          ? 'ตรวจคำสำคัญไม่ได้ เพราะข้อความถอดเสียงไม่สมบูรณ์'
-                          : 'ยังไม่พบคำสำคัญจากเนื้อหาในคลิปนี้'),
-                  _Words(
-                      title: 'คำสำคัญที่พบในช่วงเปิดคลิป',
-                      words: recommendation.hookTerms,
-                      empty: hookUnassessable
-                          ? 'ตรวจช่วงเปิดไม่ได้ เพราะไม่มีข้อความถอดเสียงพร้อมเวลาที่เพียงพอ'
-                          : 'ยังไม่พบคำสำคัญจากเสียงพูดในช่วงเปิดคลิป'),
-                  _Words(
-                      title: 'หัวข้อหลักที่ใช้เปรียบเทียบ',
-                      words: recommendation.comparableKeywords,
-                      empty: 'ยังไม่พบหัวข้อที่ระบบรู้จักสำหรับใช้เปรียบเทียบ'),
-                  ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text('ข้อความถอดเสียง'),
-                      children: [
-                        _Transcript(
-                            label: 'ข้อความต้นฉบับ',
-                            text: data.rawTranscript.isEmpty
-                                ? data.transcript
-                                : data.rawTranscript),
-                      ]),
-                ]),
-          ]),
-      const SizedBox(height: 24),
-      _Band(title: '2. ควรเพิ่มอะไร', icon: Icons.lightbulb_outline, children: [
         if (!withheld && !inputUnassessable) ...[
           _Suggestions(
               title: actions == null
@@ -354,36 +376,33 @@ class AnalysisReport extends StatelessWidget {
               padding: EdgeInsets.only(bottom: 12),
               child: Text(
                   'งดคำแนะนำเฉพาะหมวด เพราะผลจำแนกยังไม่ผ่านเกณฑ์ตรวจรับ')),
-        if (actions != null)
-          ActionableAdvicePanel(
-              data: actions,
-              bundle: bundle,
-              withheld: withheld || inputUnassessable)
-        else
-          const Text(
-              'ผลรุ่นนี้ยังไม่มีคำแนะนำแบบลงมือทำ ข้อมูลคำแนะนำเดิมยังเปิดดูได้ในส่วนรายละเอียด'),
-        const Divider(),
-        Text('ความยาวคลิปที่แนะนำ',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Text(withheld
-            ? 'งดแนะนำความยาวจนกว่าจะยืนยันหมวดหมู่ได้'
-            : duration.hasSufficientEvidence &&
-                    medianDuration != null &&
-                    medianDuration > 0
-                ? 'ค่ากลาง $medianDuration วินาที · ${hasDurationRange ? 'ช่วง $rangeLow–$rangeHigh วินาที' : 'ไม่ได้บันทึกช่วงความยาว'}'
-                : 'ข้อมูลอ้างอิงยังไม่เพียงพอ'),
-        Text(
-            'มีข้อมูลความยาว ${duration.sampleSize} คลิป · ขั้นต่ำ ${duration.minimumSampleSize} คลิป',
-            style: Theme.of(context).textTheme.bodySmall),
-        const Divider(),
-        CurrentTrendIdeasPanel(data: recommendation.currentTrendIdeas),
       ]),
-      const SizedBox(height: 24),
+      _Transcript(
+          label: 'ข้อความต้นฉบับ',
+          text: data.rawTranscript.isEmpty
+              ? data.transcript
+              : data.rawTranscript),
       _Band(
-          title: '3. ผลตอบรับจากคลิปอ้างอิง',
+          title: 'ผลตอบรับจากคลิปอ้างอิง',
           icon: Icons.manage_search_outlined,
           children: [
+            if (_evidenceVisited &&
+                repository != null &&
+                data.contentId != null &&
+                !withheld &&
+                !inputUnassessable)
+              PerformanceClusteringPanel(
+                  contentId: data.contentId!, repository: repository),
+            if (classification?.isUnknown == true &&
+                classification!.rawTaxonomyLeafKey.isNotEmpty) ...[
+              Text('ผลทายก่อนตรวจรับ',
+                  style: Theme.of(context).textTheme.titleSmall),
+              Text('${classification.rawTaxonomyLeafKey}'
+                  '${hasConfidence ? ' · ความมั่นใจภายในโมเดล ${(classification.confidence * 100).toStringAsFixed(1)}%' : ''}'),
+              const Text(
+                  'ผลนี้ยังไม่ผ่านเกณฑ์ จึงไม่ใช้เลือกคลิปอ้างอิงหรือสร้างคำแนะนำ'),
+              const SizedBox(height: 24),
+            ],
             if (data.outcomeAssessment.isAvailable &&
                 !data.outcomeAssessment.fixtureOnly &&
                 !withheld &&
@@ -399,9 +418,113 @@ class AnalysisReport extends StatelessWidget {
             ReferenceResponsePanel(
               bundle: bundle,
               recommendedTopics: referenceTopicLabels,
+              adviceByTopic: {
+                for (final advice in actions?.items ?? <ActionableAdvice>[])
+                  advice.evidenceTopicId: advice,
+              },
               withheld: withheld || inputUnassessable,
             ),
           ]),
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Semantics(
+        container: true,
+        child: Column(
+          key: const ValueKey('result-summary'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SectionHeading(
+                title: 'สรุปผลวิเคราะห์', icon: Icons.analytics_outlined),
+            Wrap(spacing: 16, runSpacing: 8, children: [
+              Text('หมวดหมู่ของคลิป: $domain',
+                  key: const ValueKey('result-category'),
+                  style: Theme.of(context).textTheme.titleLarge),
+              StatusBadge(
+                  label: withheld ? 'Unknown/Other' : 'ผลจำแนกที่บันทึกไว้',
+                  icon: withheld ? Icons.help_outline : Icons.category_outlined,
+                  color:
+                      withheld ? Theme.of(context).colorScheme.tertiary : null),
+            ]),
+            if (withheld)
+              const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text('ยังไม่ยืนยันหมวดหมู่สำหรับสร้างคำแนะนำ')),
+            if (classification?.warning.isNotEmpty == true)
+              Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(classification!.warning)),
+            const SizedBox(height: 20),
+            LayoutBuilder(builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 900
+                  ? 3
+                  : constraints.maxWidth >= 600
+                      ? 2
+                      : 1;
+              final width =
+                  (constraints.maxWidth - (columns - 1) * 24) / columns;
+              return Wrap(spacing: 24, runSpacing: 16, children: [
+                if (hasConfidence)
+                  SizedBox(
+                    width: width,
+                    child: _SummaryMetric(
+                        label: withheld
+                            ? 'ความมั่นใจภายในโมเดล'
+                            : 'ความมั่นใจของโมเดล',
+                        value:
+                            '${(classification.confidence * 100).toStringAsFixed(0)}%',
+                        icon: Icons.model_training,
+                        detail: 'ความมั่นใจของตัวจำแนก ไม่ใช่คะแนนคุณภาพคลิป'),
+                  ),
+                SizedBox(
+                  width: width,
+                  child: _SummaryMetric(
+                      label: 'คำแนะนำที่มีหลักฐานรองรับ',
+                      value: '$backedAdviceCount ข้อ',
+                      icon: Icons.fact_check_outlined,
+                      valueKey: const ValueKey('result-backed-advice-count')),
+                ),
+                SizedBox(
+                  width: width,
+                  child: _SummaryMetric(
+                      label: 'ความยาวคลิปที่แนะนำ',
+                      value: durationText,
+                      icon: Icons.timer_outlined,
+                      valueKey: const ValueKey('result-duration')),
+                ),
+              ]);
+            }),
+            _Words(
+                title: 'คำสำคัญที่พบทั้งคลิป',
+                words: recommendation.contentKeywords,
+                empty: inputUnassessable
+                    ? 'ตรวจคำสำคัญไม่ได้ เพราะข้อความถอดเสียงไม่สมบูรณ์'
+                    : 'ยังไม่พบคำสำคัญจากเนื้อหาในคลิปนี้'),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      TabBar(
+        key: const ValueKey('result-tabs'),
+        controller: _tabs,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        tabs: const [
+          Tab(key: ValueKey('result-tab-overview'), text: 'ภาพรวม'),
+          Tab(key: ValueKey('result-tab-recommendations'), text: 'คำแนะนำ'),
+          Tab(key: ValueKey('result-tab-transcript'), text: 'ข้อความถอดเสียง'),
+          Tab(key: ValueKey('result-tab-evidence'), text: 'หลักฐานอ้างอิง'),
+        ],
+      ),
+      const SizedBox(height: 24),
+      // Keep simulation and evidence state when switching between tabs.
+      for (final (index, panel) in panels.indexed)
+        Offstage(
+          offstage: _tabs.index != index,
+          child: TickerMode(
+            enabled: _tabs.index == index,
+            child: ExcludeFocus(excluding: _tabs.index != index, child: panel),
+          ),
+        ),
     ]);
   }
 }
@@ -416,26 +539,47 @@ class _Band extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
       container: true,
       explicitChildNodes: true,
-      child: ColoredBox(
-          color: Theme.of(context).colorScheme.surface,
-          child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(children: [
-                      Icon(icon, color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: Semantics(
-                              header: true,
-                              child: Text(title,
-                                  style:
-                                      Theme.of(context).textTheme.titleLarge)))
-                    ]),
-                    const Divider(height: 32),
-                    ...children,
-                  ]))));
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Semantics(
+            header: true, child: SectionHeading(title: title, icon: icon)),
+        ...children,
+      ]));
+}
+
+class _SummaryMetric extends StatelessWidget {
+  const _SummaryMetric(
+      {required this.label,
+      required this.value,
+      required this.icon,
+      this.detail,
+      this.valueKey});
+  final String label, value;
+  final IconData icon;
+  final String? detail;
+  final Key? valueKey;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+                child:
+                    Text(label, style: Theme.of(context).textTheme.bodySmall)),
+          ]),
+          const SizedBox(height: 6),
+          Text(value,
+              key: valueKey, style: Theme.of(context).textTheme.titleMedium),
+          if (detail != null) ...[
+            const SizedBox(height: 4),
+            Text(detail!, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ],
+      );
 }
 
 class _Words extends StatelessWidget {
@@ -484,16 +628,8 @@ class _Suggestions extends StatelessWidget {
                 const Icon(Icons.add_circle_outline, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(labels[word.keyword] ?? word.keyword,
-                          style: Theme.of(context).textTheme.titleSmall),
-                      if (word.hasDatasetEvidence)
-                        Text(
-                            'พบใน ${word.supportCount} จาก ${word.sampleSize} คลิปอ้างอิง',
-                            style: Theme.of(context).textTheme.bodySmall),
-                    ])),
+                    child: Text(labels[word.keyword] ?? word.keyword,
+                        style: Theme.of(context).textTheme.titleSmall)),
               ])),
       ]));
 }
@@ -501,12 +637,38 @@ class _Suggestions extends StatelessWidget {
 class _Transcript extends StatelessWidget {
   const _Transcript({required this.label, required this.text});
   final String label, text;
+
+  Future<void> _copy(BuildContext context) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('คัดลอกข้อความถอดเสียงแล้ว')));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('คัดลอกข้อความถอดเสียงไม่สำเร็จ')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(label, style: Theme.of(context).textTheme.titleSmall),
+        Row(children: [
+          Expanded(
+              child:
+                  SectionHeading(title: label, icon: Icons.subject_outlined)),
+          IconButton(
+              key: const ValueKey('result-copy-transcript'),
+              tooltip: 'คัดลอกข้อความถอดเสียง',
+              onPressed: text.isEmpty ? null : () => _copy(context),
+              icon: const Icon(Icons.copy_outlined)),
+        ]),
         const SizedBox(height: 8),
-        SelectableText(text.isEmpty ? 'ไม่มีข้อความถอดเสียงในผลนี้' : text),
+        SelectableText(text.isEmpty ? 'ไม่มีข้อความถอดเสียงในผลนี้' : text,
+            key: const ValueKey('result-transcript-text'),
+            style:
+                Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.8)),
       ]));
 }

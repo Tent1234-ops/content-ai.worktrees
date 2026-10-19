@@ -10,12 +10,155 @@ import 'package:content_ai_web/screens/upload_screen.dart';
 import 'package:content_ai_web/screens/dashboard_screen.dart';
 import 'package:content_ai_web/state/auth_controller.dart';
 import 'package:content_ai_web/state/auth_scope.dart';
+import 'package:content_ai_web/ui/app_theme.dart';
+import 'package:content_ai_web/widgets/trend_catalog.dart';
+import 'package:content_ai_web/widgets/workspace_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  for (final width in [390.0, 768.0, 1280.0, 1600.0]) {
+    for (final brightness in Brightness.values) {
+      testWidgets(
+          'dashboard $width ${brightness.name} keeps real platform gates',
+          (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final auth = AuthController(repository: _GuestAuthRepository());
+        await auth.initialize();
+        addTearDown(auth.dispose);
+        final snapshot = _stableSnapshotJson();
+        final platforms = snapshot['platforms'] as Map<String, dynamic>;
+        const thumbnail = 'https://i.ytimg.com/vi/test-fixture/hqdefault.jpg';
+        platforms['youtube']['items'][0]['thumbnail_url'] = thumbnail;
+        final repository = _FakeDashboardRepository(snapshotJson: snapshot);
+        final router = AppRouter(auth);
+        final theme = buildAppTheme(brightness);
+        await tester.pumpWidget(AuthScope(
+          controller: auth,
+          child: MaterialApp(
+            theme: theme,
+            onGenerateRoute: router.onGenerateRoute,
+            home: DashboardScreen(repository: repository),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        final list = find.byKey(const Key('dashboard-scroll'));
+        final mainScrollable =
+            find.descendant(of: list, matching: find.byType(Scrollable)).first;
+        final tabs = find.byType(TabBar);
+        final dropdown = find.byType(DropdownButtonFormField<String>);
+        expect(tester.widget<ListView>(list).padding, const EdgeInsets.all(24));
+        expect(tester.getSize(list).width, lessThanOrEqualTo(1360));
+        expect(find.byType(PageHeader), findsOneWidget);
+        expect(find.byType(StatusBadge), findsNWidgets(2));
+        expect(find.text('6 รายการจาก YouTube และ Google'), findsOneWidget);
+        final checkedAt =
+            DateTime.parse(snapshot['generated_at'] as String).toLocal();
+        final time = '${checkedAt.hour.toString().padLeft(2, '0')}:'
+            '${checkedAt.minute.toString().padLeft(2, '0')}';
+        expect(
+            find.text('ตรวจล่าสุด ${checkedAt.day}/${checkedAt.month} $time'),
+            findsOneWidget);
+        final indicator =
+            tester.widget<TabBar>(tabs).indicator! as BoxDecoration;
+        expect(indicator.color, theme.colorScheme.primaryContainer);
+        if (tester.getSize(list).width - 48 >= 760) {
+          expect(tester.getRect(dropdown).left,
+              greaterThan(tester.getRect(tabs).right));
+          expect(tester.getRect(dropdown).top,
+              lessThan(tester.getRect(tabs).bottom));
+        } else {
+          expect(tester.getRect(dropdown).top,
+              greaterThan(tester.getRect(tabs).bottom));
+        }
+
+        await tester.scrollUntilVisible(
+            find.text('Stable YouTube video 1'), 200,
+            scrollable: mainScrollable);
+        await tester.pumpAndSettle();
+        final catalog = find.byType(TrendCatalog);
+        expect(tester.widget<TrendCatalog>(catalog).platform, 'youtube');
+        expect(
+            find.byWidgetPredicate((widget) =>
+                widget is Image &&
+                widget.image is NetworkImage &&
+                (widget.image as NetworkImage).url == thumbnail),
+            findsOneWidget);
+        expect(find.text('1,234 ครั้ง'), findsWidgets);
+        expect(find.byTooltip('ดูบน YouTube'), findsWidgets);
+        expect(find.byTooltip('เปิด Google Trends'), findsNothing);
+        final ink = tester.widget<InkWell>(find
+            .descendant(
+              of: catalog,
+              matching: find.byType(InkWell),
+            )
+            .first);
+        expect(
+            ink.hoverColor, theme.colorScheme.primary.withValues(alpha: 0.06));
+        expect(
+            ink.focusColor, theme.colorScheme.primary.withValues(alpha: 0.12));
+        expect(tester.takeException(), isNull);
+
+        tester.state<ScrollableState>(mainScrollable).position.jumpTo(0);
+        await tester.pumpAndSettle();
+        await tester.tap(dropdown);
+        await tester.pumpAndSettle();
+        expect(find.text('เกม (50)'), findsOneWidget);
+        await tester.tap(find.text('บันเทิง (50)').last);
+        await tester.pumpAndSettle();
+        expect(repository.categoryReads, 2);
+        expect(tester.widget<TrendCatalog>(catalog).trends.first.title,
+            'Category 24 video 1');
+
+        await tester.tap(find.text('Google'));
+        await tester.pumpAndSettle();
+        expect(dropdown, findsNothing);
+        expect(tester.widget<TrendCatalog>(catalog).platform, 'google');
+        expect(find.text('Google search trend'), findsOneWidget);
+        expect(
+            find.text('ปริมาณการค้นหาโดยประมาณ 50,000+ ครั้ง'), findsOneWidget);
+        expect(find.byTooltip('เปิด Google Trends'), findsOneWidget);
+        expect(find.byTooltip('ดูบน YouTube'), findsNothing);
+        expect(find.text('Test creator channel'), findsNothing);
+        expect(find.text('1,234 ครั้ง'), findsNothing);
+        expect(find.byType(Image), findsNothing);
+        expect(tester.takeException(), isNull);
+
+        await tester.tap(find.text('YouTube'));
+        await tester.pumpAndSettle();
+        expect(dropdown, findsOneWidget);
+        expect(tester.widget<TrendCatalog>(catalog).trends.first.title,
+            'Stable YouTube video 1');
+        expect(repository.categoryReads, 2);
+        expect(repository.publicReads, 1);
+        expect(repository.privateReads, 0);
+        expect(find.byTooltip('หัวข้อที่ติดตาม'), findsNothing);
+        expect(find.byTooltip('การแจ้งเตือนเทรนด์'), findsNothing);
+        final follow = find.byTooltip('ติดตามหัวข้อ').first;
+        await tester.scrollUntilVisible(follow, 200,
+            scrollable: mainScrollable);
+        await Scrollable.ensureVisible(tester.element(follow), alignment: 0.5);
+        await tester.pumpAndSettle();
+        await tester.tap(follow);
+        await tester.pumpAndSettle();
+        expect(find.byType(LoginScreen), findsOneWidget);
+        expect(
+            tester
+                .widget<LoginScreen>(find.byType(LoginScreen))
+                .destination
+                .route,
+            '/dashboard');
+        expect(repository.privateReads, 0);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+  }
+
   testWidgets('guest reads only public APIs, polls and can sign in to analyze',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 900));
@@ -50,7 +193,11 @@ void main() {
 
     final analyze = find.widgetWithText(FilledButton, 'วิเคราะห์คลิปของฉัน');
     await tester.scrollUntilVisible(analyze, -500,
-        scrollable: find.byType(Scrollable).first);
+        scrollable: find
+            .descendant(
+                of: find.byType(RefreshIndicator).first,
+                matching: find.byType(Scrollable))
+            .first);
     await Scrollable.ensureVisible(tester.element(analyze), alignment: 0.5);
     await tester.pumpAndSettle();
     await tester.tap(analyze);

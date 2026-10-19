@@ -10,6 +10,8 @@ import '../services/video_metadata_reader.dart';
 import '../state/auth_scope.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/state_widgets.dart';
+import '../widgets/workspace_widgets.dart';
+import '../widgets/analysis_progress.dart';
 import 'result_screen.dart';
 
 class UploadScreen extends StatefulWidget {
@@ -34,6 +36,8 @@ class _UploadScreenState extends State<UploadScreen> {
   int? _selectedFileSize;
   Duration? _selectedDuration;
   String _statusMessage = '';
+  String _jobStage = '';
+  final Set<String> _observedStages = {};
   String? _suggestedTopic;
   bool _hasReadRouteArgs = false;
   Map<String, dynamic>? _revisionContext;
@@ -173,7 +177,9 @@ class _UploadScreenState extends State<UploadScreen> {
     setState(() {
       _loading = true;
       _error = null;
-      _statusMessage = 'กำลังอัปโหลดวิดีโอ...';
+      _statusMessage = 'กำลังตรวจการตั้งค่า...';
+      _jobStage = 'preparing';
+      _observedStages.clear();
     });
 
     try {
@@ -193,6 +199,12 @@ class _UploadScreenState extends State<UploadScreen> {
             'กรุณาเลือกบริบทอ้างอิงที่พร้อมใช้งาน หรือเลือกไม่ประเมินผลตอบรับ');
         return;
       }
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = 'กำลังอัปโหลดวิดีโอ...';
+        _jobStage = 'uploading';
+        _observedStages.add('uploading');
+      });
       final jobId = revision == null
           ? await _repository.startAnalyzeAndSaveVideo(
               fileName: _selectedFileName!,
@@ -268,6 +280,8 @@ class _UploadScreenState extends State<UploadScreen> {
       }
 
       setState(() {
+        _jobStage = job.stage.isEmpty ? job.status : job.stage;
+        _observedStages.add(_jobStage);
         if (job.message.isNotEmpty) {
           _statusMessage = _localizedJobMessage(job.message, job.stage);
         } else if (job.status == 'queued') {
@@ -314,6 +328,8 @@ class _UploadScreenState extends State<UploadScreen> {
       _error = null;
       _revisionCanRetry = false;
       _statusMessage = 'กำลังส่งงานเดิมใหม่...';
+      _jobStage = 'retrying';
+      _observedStages.clear();
     });
     try {
       final accepted = await _repository.retryRevisionJob(jobId);
@@ -376,6 +392,8 @@ class _UploadScreenState extends State<UploadScreen> {
       _selectedFileSize = null;
       _selectedDuration = null;
       _statusMessage = '';
+      _jobStage = '';
+      _observedStages.clear();
       _error = null;
       _revisionCanRetry = false;
     });
@@ -402,255 +420,169 @@ class _UploadScreenState extends State<UploadScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = AuthScope.of(context);
+    final theme = Theme.of(context);
     final hasFile = _selectedFileName != null;
-
+    final canPick =
+        !_loading && !_settingsLoading && _settings?.asrReady == true;
     return AppShell(
       title: 'วิเคราะห์คลิปของฉัน',
       currentRoute: '/upload',
       isAdmin: auth.isAdmin,
       child: RefreshIndicator(
         onRefresh: () async {
+          if (_loading) return;
           _clearSelection();
           await _loadSettings();
         },
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ListView(
-            children: [
-              if (_settingsLoading) const LinearProgressIndicator(),
-              if (_settingsError != null)
-                ErrorStateView(
-                    message: _settingsError!, onRetry: _loadSettings),
-              if (_settings != null)
-                Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      'อัปโหลดสูงสุด ${_settings!.uploadMaxDurationSeconds} วินาที · '
-                      'Whisper ${_settings!.asrModel} · ช่วงเปิดคลิป ${_settings!.hookDurationSeconds} วินาที',
-                    )),
-              // Header Card
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.video_camera_back_outlined,
-                            size: 28,
-                            color: Theme.of(context).primaryColor,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'วิเคราะห์คลิปของคุณ',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'อัปโหลดวิดีโอเพื่อรับคำแนะนำจากเนื้อหาจริง',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Divider(height: 1),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'ผลที่ระบบวิเคราะห์',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      const _AnalysisFeature(
-                        icon: Icons.subtitles_outlined,
-                        title: 'ข้อความถอดเสียง',
-                        description: 'ถอดจากเสียงตลอดทั้งคลิป',
-                      ),
-                      const SizedBox(height: 8),
-                      const _AnalysisFeature(
-                        icon: Icons.category_outlined,
-                        title: 'หมวดหมู่เนื้อหา',
-                        description: 'จำแนกด้วยโมเดลที่กำลังใช้งาน',
-                      ),
-                      const SizedBox(height: 8),
-                      const _AnalysisFeature(
-                        icon: Icons.key_outlined,
-                        title: 'หัวข้อที่พบและหัวข้อที่ควรเพิ่ม',
-                        description: 'เปรียบเทียบกับคลิปอ้างอิงในหมวดเดียวกัน',
-                      ),
-                      const SizedBox(height: 8),
-                      const _AnalysisFeature(
-                        icon: Icons.lightbulb_outline,
-                        title: 'คำแนะนำช่วงเปิดคลิป',
-                        description: 'อ้างอิงช่วงเปิดคลิปตามค่าที่ผู้ดูแลกำหนด',
-                      ),
-                      const SizedBox(height: 8),
-                      const _AnalysisFeature(
-                        icon: Icons.schedule_outlined,
-                        title: 'ความยาวคลิปที่แนะนำ',
-                        description: 'คำนวณจากข้อมูลอ้างอิงที่มีเพียงพอ',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          children: [
+            const PageHeader(title: 'วิเคราะห์คลิปของคุณ'),
+            if (_settingsLoading) const LinearProgressIndicator(),
+            if (_settingsError != null)
+              ErrorStateView(message: _settingsError!, onRetry: _loadSettings),
+            if (_settings != null) ...[
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                StatusBadge(
+                    label:
+                        'สูงสุด ${_settings!.uploadMaxDurationSeconds} วินาที',
+                    icon: Icons.timer_outlined),
+                StatusBadge(
+                    label: 'Whisper ${_settings!.asrModel}',
+                    icon: Icons.graphic_eq),
+                StatusBadge(
+                    label:
+                        'ช่วงเปิดคลิป ${_settings!.hookDurationSeconds} วินาที',
+                    icon: Icons.play_circle_outline),
+              ]),
               const SizedBox(height: 24),
-              if (_suggestedTopic != null)
-                Card(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'หัวข้อเทรนด์ที่เลือกมา',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'หัวข้อ: "$_suggestedTopic" ระบบจะตรวจความเกี่ยวข้องจากเนื้อหาในคลิปอีกครั้ง',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (_suggestedTopic != null) const SizedBox(height: 16),
-              if (_revisionContext != null) ...[
-                _RevisionUploadContext(data: _revisionContext!),
-                const SizedBox(height: 16),
-              ],
-              if (_revisionContext == null && _settings != null) ...[
-                const Text('บริบทประเมินผลตอบรับ',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 12),
-                _outcomeContextFields(),
-                const SizedBox(height: 24),
-              ],
-
-              // Upload Section
-              if (!hasFile) ...[
-                FilledButton.icon(
-                  onPressed: _loading ||
-                          _settingsLoading ||
-                          _settings?.asrReady != true
-                      ? null
-                      : _pickFile,
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('เลือกไฟล์วิดีโอ'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ] else ...[
-                // Selected File Card
-                Card(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+            ],
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: hasFile
+                      ? Column(
+                          key: const ValueKey('selected-video'),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Icon(Icons.check_circle),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
+                            Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    _selectedFileName!,
-                                    style:
-                                        Theme.of(context).textTheme.titleSmall,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _statusMessage,
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
-                              ),
+                                  Icon(Icons.video_file_outlined,
+                                      size: 36,
+                                      color: theme.colorScheme.primary),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                        Text(_selectedFileName!,
+                                            style: theme.textTheme.titleMedium,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                            '${((_selectedFileSize ?? 0) / (1024 * 1024)).toStringAsFixed(1)} MB'
+                                            ' · ${_selectedDuration == null ? '-' : _formatDuration(_selectedDuration!)}'),
+                                      ])),
+                                  IconButton(
+                                      tooltip: 'นำไฟล์ออก',
+                                      onPressed:
+                                          _loading ? null : _clearSelection,
+                                      icon: const Icon(Icons.close)),
+                                ]),
+                            const SizedBox(height: 16),
+                            const Align(
+                                alignment: Alignment.centerLeft,
+                                child: StatusBadge(
+                                    label: 'ตรวจความยาวแล้ว',
+                                    icon: Icons.check_circle_outline)),
+                            const SizedBox(height: 24),
+                            FilledButton.icon(
+                              onPressed: canPick ? _uploadAndAnalyze : null,
+                              icon: const Icon(Icons.auto_awesome_outlined),
+                              label: Text(_loading
+                                  ? 'กำลังวิเคราะห์'
+                                  : 'เริ่มวิเคราะห์'),
                             ),
-                            if (!_loading)
-                              IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: _clearSelection,
-                                tooltip: 'ยกเลิกไฟล์ที่เลือก',
-                              ),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                                onPressed: canPick
+                                    ? () {
+                                        _clearSelection();
+                                        _pickFile();
+                                      }
+                                    : null,
+                                icon: const Icon(Icons.swap_horiz),
+                                label: const Text('เปลี่ยนไฟล์')),
                           ],
+                        )
+                      : SizedBox(
+                          key: const ValueKey('choose-video'),
+                          width: double.infinity,
+                          child: Column(children: [
+                            Icon(Icons.video_camera_back_outlined,
+                                size: 56, color: theme.colorScheme.primary),
+                            const SizedBox(height: 16),
+                            Text('วิดีโอของคุณ',
+                                style: theme.textTheme.titleLarge),
+                            const SizedBox(height: 24),
+                            FilledButton.icon(
+                                onPressed: canPick ? _pickFile : null,
+                                icon: const Icon(Icons.upload_file),
+                                label: const Text('เลือกไฟล์วิดีโอ')),
+                          ]),
                         ),
-                      ],
-                    ),
-                  ),
                 ),
-                const SizedBox(height: 16),
-
-                // Upload Progress
-                if (_loading) ...[
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _statusMessage,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      const LinearProgressIndicator(),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ] else ...[
-                  FilledButton.icon(
-                    onPressed: _uploadAndAnalyze,
-                    icon: const Icon(Icons.analytics_outlined),
-                    label: const Text('เริ่มวิเคราะห์'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: _clearSelection,
-                    child: const Text('เลือกไฟล์อื่น'),
-                  ),
-                ],
-              ],
-
-              const SizedBox(height: 16),
-
-              // Error State
-              if (_error != null)
-                ErrorStateView(
-                  message: _error!,
-                  onRetry: _revisionCanRetry
-                      ? _retryRevision
-                      : hasFile
-                          ? _uploadAndAnalyze
-                          : _pickFile,
-                ),
-
-              const SizedBox(height: 16),
+              ),
+            ),
+            if (_loading) ...[
+              const SizedBox(height: 24),
+              AnalysisProgress(
+                  stage: _jobStage,
+                  observedStages: _observedStages,
+                  message: _statusMessage,
+                  revision: _revisionContext != null),
             ],
-          ),
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              ErrorStateView(
+                  message: _error!,
+                  onRetry: _loading
+                      ? null
+                      : _revisionCanRetry
+                          ? _retryRevision
+                          : hasFile
+                              ? _uploadAndAnalyze
+                              : _pickFile),
+            ],
+            if (_suggestedTopic != null) ...[
+              const SizedBox(height: 24),
+              const SectionHeading(
+                  title: 'หัวข้อเทรนด์ที่เลือกมา', icon: Icons.trending_up),
+              const SizedBox(height: 8),
+              Text(_suggestedTopic!),
+            ],
+            if (_revisionContext != null) ...[
+              const SizedBox(height: 24),
+              _RevisionUploadContext(data: _revisionContext!),
+            ],
+            if (_revisionContext == null && _settings != null) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              const SectionHeading(
+                  title: 'บริบทประเมินผลตอบรับ', icon: Icons.tune),
+              const SizedBox(height: 16),
+              _outcomeContextFields(),
+            ],
+            const SizedBox(height: 24),
+          ],
         ),
       ),
     );
@@ -674,47 +606,40 @@ class _UploadScreenState extends State<UploadScreen> {
       'age_90_365d': '90 ถึงน้อยกว่า 365 วัน',
       'age_365d_plus': '365 วันขึ้นไป',
     };
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      DropdownButtonFormField<String>(
-        key: ValueKey('outcome-format-$_confirmedFormat'),
-        initialValue:
-            formats.contains(_confirmedFormat) ? _confirmedFormat : '',
-        isExpanded: true,
-        decoration: const InputDecoration(labelText: 'รูปแบบคลิปที่ยืนยัน'),
-        items: [
-          const DropdownMenuItem(value: '', child: Text('ไม่ประเมินผลตอบรับ')),
-          for (final format in formats)
-            DropdownMenuItem(
-                value: format,
-                child: Text(
-                    format == 'short_form' ? 'YouTube Shorts' : 'วิดีโอปกติ')),
-        ],
-        onChanged: _loading
-            ? null
-            : (value) => setState(() {
-                  _confirmedFormat = value ?? '';
-                  _referenceAgeContext = '';
-                }),
-      ),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final format in ['', ...formats])
+          ChoiceChip(
+            key: ValueKey('outcome-format-$format'),
+            label: Text(format.isEmpty
+                ? 'ไม่ประเมินผลตอบรับ'
+                : format == 'short_form'
+                    ? 'YouTube Shorts'
+                    : 'วิดีโอปกติ'),
+            selected: _confirmedFormat == format,
+            onSelected: _loading
+                ? null
+                : (_) => setState(() {
+                      _confirmedFormat = format;
+                      _referenceAgeContext = '';
+                    }),
+          ),
+      ]),
       if (_confirmedFormat.isNotEmpty) ...[
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: ValueKey('outcome-age-$_confirmedFormat-$_referenceAgeContext'),
-          initialValue:
-              ages.contains(_referenceAgeContext) ? _referenceAgeContext : '',
-          isExpanded: true,
-          decoration: const InputDecoration(
-              labelText: 'อายุคลิปอ้างอิง ณ เวลาเก็บยอดวิว'),
-          items: [
-            const DropdownMenuItem(
-                value: '', child: Text('เลือกช่วงอายุคลิปอ้างอิง')),
-            for (final age in ages)
-              DropdownMenuItem(value: age, child: Text(ageLabels[age] ?? age)),
-          ],
-          onChanged: _loading
-              ? null
-              : (value) => setState(() => _referenceAgeContext = value ?? ''),
-        ),
+        const SizedBox(height: 16),
+        const Text('อายุคลิปอ้างอิง ณ เวลาเก็บยอดวิว'),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final age in ages)
+            ChoiceChip(
+              key: ValueKey('outcome-age-$_confirmedFormat-$age'),
+              label: Text(ageLabels[age] ?? age),
+              selected: _referenceAgeContext == age,
+              onSelected: _loading
+                  ? null
+                  : (_) => setState(() => _referenceAgeContext = age),
+            ),
+        ]),
       ],
     ]);
   }
@@ -805,44 +730,5 @@ extension on _UploadScreenState {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
-  }
-}
-
-class _AnalysisFeature extends StatelessWidget {
-  const _AnalysisFeature({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: Theme.of(context).primaryColor),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                description,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }

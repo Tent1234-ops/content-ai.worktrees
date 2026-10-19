@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../models/analysis_settings.dart';
 import '../repositories/admin_repository.dart';
 import '../widgets/app_shell.dart';
+import '../widgets/workspace_widgets.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/trend_settings_panel.dart';
 
@@ -145,6 +146,8 @@ class _AdminAnalysisSettingsScreenState
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
+                                  const PageHeader(
+                                      title: 'การตั้งค่าวิเคราะห์คลิป'),
                                   if (_error != null)
                                     Padding(
                                         padding:

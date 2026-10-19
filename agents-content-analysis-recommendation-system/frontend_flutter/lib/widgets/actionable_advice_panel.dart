@@ -9,10 +9,12 @@ class ActionableAdvicePanel extends StatelessWidget {
       required this.bundle,
       this.selectedIds,
       this.onSelectionChanged,
+      this.showReason = true,
       this.withheld = false});
   final ActionableRecommendations data;
   final Map<String, dynamic> bundle;
   final bool withheld;
+  final bool showReason;
   final Set<String>? selectedIds;
   final void Function(String, bool)? onSelectionChanged;
 
@@ -86,46 +88,65 @@ class ActionableAdvicePanel extends StatelessWidget {
         topic['topic_id'].toString(): topic
     };
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      for (final (index, item) in data.items.indexed) ...[
-        if (index > 0) const Divider(height: 32),
-        Semantics(
-            header: true,
-            child: Text('${index + 1}. ${item.title}',
-                style: Theme.of(context).textTheme.titleMedium)),
-        const SizedBox(height: 16),
-        if (selectedIds != null)
-          CheckboxListTile(
-              key: ValueKey('select-advice-${item.id}'),
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('เลือกนำไปปรับ'),
-              value: selectedIds!.contains(item.id),
-              onChanged: onSelectionChanged == null
-                  ? null
-                  : (value) => onSelectionChanged!(item.id, value ?? false)),
-        _AdviceField(label: 'สิ่งที่พบ', text: item.finding),
-        _AdviceField(label: 'สิ่งที่เสนอ', text: item.proposal),
-        _AdviceField(label: 'เงื่อนไขก่อนทำ', text: item.condition),
-        Text('วิธีเพิ่มเนื้อหา', style: Theme.of(context).textTheme.titleSmall),
-        for (final (stepIndex, step) in item.steps.indexed)
-          Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 6),
-              child: Text('${stepIndex + 1}. $step')),
-        _AdviceField(label: 'ตัวอย่างประโยคก่อนทดสอบ', text: item.example),
-        _AdviceField(
-            label: 'เหตุผล', text: '${item.reason}\n${item.relevanceReason}'),
-        Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              key: ValueKey('advice-evidence-${item.id}'),
-              onPressed: topics[item.evidenceTopicId] == null
-                  ? null
-                  : () =>
-                      _evidence(context, item, topics[item.evidenceTopicId]!),
-              icon: const Icon(Icons.fact_check_outlined),
-              label: const Text('ดูข้อความและคลิปอ้างอิง'),
-            )),
-      ],
+      for (final (index, item) in data.items.indexed)
+        Card(
+          key: ValueKey('advice-card-${item.id}'),
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Semantics(
+                    header: true,
+                    child: Text('${index + 1}. ${item.title}',
+                        style: Theme.of(context).textTheme.titleMedium)),
+                const SizedBox(height: 16),
+                if (selectedIds != null)
+                  CheckboxListTile(
+                      key: ValueKey('select-advice-${item.id}'),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text('เลือกนำไปปรับ'),
+                      value: selectedIds!.contains(item.id),
+                      onChanged: onSelectionChanged == null
+                          ? null
+                          : (value) =>
+                              onSelectionChanged!(item.id, value ?? false)),
+                _AdviceField(label: 'สิ่งที่เสนอ', text: item.proposal),
+                _AdviceField(label: 'สิ่งที่พบ', text: item.finding),
+                _AdviceField(label: 'เงื่อนไขก่อนทำ', text: item.condition),
+                Text('วิธีเพิ่มเนื้อหา',
+                    style: Theme.of(context).textTheme.titleSmall),
+                for (final (stepIndex, step) in item.steps.indexed)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 6, bottom: 6),
+                      child: Text('${stepIndex + 1}. $step')),
+                _AdviceField(
+                    label: 'ตัวอย่างประโยคก่อนทดสอบ', text: item.example),
+                if (showReason) ...[
+                  const Divider(height: 24),
+                  _AdviceField(
+                      label: 'เหตุผล',
+                      text: [item.reason, item.relevanceReason]
+                          .where((text) => text.trim().isNotEmpty)
+                          .join('\n')),
+                ],
+                Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      key: ValueKey('advice-evidence-${item.id}'),
+                      onPressed: topics[item.evidenceTopicId] == null
+                          ? null
+                          : () => _evidence(
+                              context, item, topics[item.evidenceTopicId]!),
+                      icon: const Icon(Icons.fact_check_outlined),
+                      label: const Text('ดูข้อความและคลิปอ้างอิง'),
+                    )),
+              ],
+            ),
+          ),
+        ),
       if (data.limitation.isNotEmpty)
         Padding(
             padding: const EdgeInsets.only(top: 20),

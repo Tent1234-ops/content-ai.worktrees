@@ -14,6 +14,7 @@ import '../widgets/reference_response_panel.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/workspace_widgets.dart';
 import '../widgets/performance_clustering_panel.dart';
+import '../widgets/automatic_performance_clustering_panel.dart';
 
 class ResultScreenArgs {
   const ResultScreenArgs({this.initialData, this.contentId});
@@ -395,10 +396,15 @@ class _AnalysisReportState extends State<AnalysisReport>
                 data.contentId != null &&
                 !withheld &&
                 !inputUnassessable)
-              if (performanceTopics.isNotEmpty || !hasModernTopicComparison)
-                PerformanceClusteringPanel(
-                    contentId: data.contentId!, repository: repository,
+              if (performanceTopics.isNotEmpty)
+                AutomaticPerformanceClusteringPanel(
+                    contentId: data.contentId!,
+                    repository: repository,
                     topics: performanceTopics)
+              else if (!hasModernTopicComparison)
+                PerformanceClusteringPanel(
+                    contentId: data.contentId!,
+                    repository: repository)
               else
                 const Text('ยังไม่มีหัวข้อที่มีหลักฐานผ่านเกณฑ์เพียงพอสำหรับจัดกลุ่มผลงาน'),
             if (classification?.isUnknown == true &&

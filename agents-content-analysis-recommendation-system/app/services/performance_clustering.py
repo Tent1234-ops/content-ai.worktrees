@@ -243,9 +243,13 @@ def cluster_and_compare(records, *, user_transcript, category, minimum_views=250
 
 
 def performance_for_content(db, *, user_id, content_id, minimum_views, now=None,
-                            topic_id=None, group_index=None):
+                            topic_id=None, group_index=None, _content=None,
+                            _reference_rows=None):
     now = now or datetime.utcnow()
-    content = get_user_content_detail(db, user_id=user_id, content_id=content_id)
+    # Internal overview may reuse this user's checked analysis and one shared
+    # reference query; HTTP callers cannot supply these private arguments.
+    content = _content if _content is not None else get_user_content_detail(
+        db, user_id=user_id, content_id=content_id)
     if content is None:
         raise HTTPException(status_code=404, detail="Content not found")
     recommendation = content.get("recommendation") or {}
@@ -264,7 +268,8 @@ def performance_for_content(db, *, user_id, content_id, minimum_views, now=None,
         if cohort is None:
             raise HTTPException(status_code=422, detail="Saved topic/group evidence is unavailable or invalid")
         allowed = {r["dataset_id"]: r for r in cohort["passing_records"]}
-        rows = reference_transcript_rows(db, domain=category, now=now)
+        rows = (_reference_rows if _reference_rows is not None else
+                reference_transcript_rows(db, domain=category, now=now))
         by_id = {row.dataset_id: row for row in rows if row.dataset_id in allowed}
         records = []
         for saved in cohort["passing_records"]:

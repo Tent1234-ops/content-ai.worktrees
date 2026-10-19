@@ -40,3 +40,41 @@ class PerformanceClusteringResponse(BaseModel):
     data_fingerprint: str | None = None
     view_metric_version: str | None = None
     format_counts: dict[str, int] = Field(default_factory=dict)
+
+
+
+class PerformanceOverviewGroup(BaseModel):
+    topic_id: str
+    topic_title: str
+    group_index: int = Field(ge=0)
+    format: str
+    age_group: str
+    as_of: str
+    threshold_views: int = Field(ge=0)
+    topic_sample_size: int = Field(ge=0)
+    passing_count: int = Field(ge=0)
+    eligible_count: int = Field(ge=0)
+    clustering_status: str
+    similarity_status: str
+    low_score: float | None = Field(default=None, ge=0, le=1)
+    high_score: float | None = Field(default=None, ge=0, le=1)
+    closest_group: Literal["low", "high"] | None = None
+    reason: str | None = None
+    k_used: int = Field(ge=0)
+
+
+class PerformanceOverviewResponse(BaseModel):
+    schema_version: Literal["performance-clustering-overview-v1"]
+    content_id: int
+    analysis_id: int | None = None
+    category: str
+    as_of: str
+    status: str
+    topic_count: int = Field(ge=0)
+    group_count: int = Field(ge=0)
+    ready_count: int = Field(ge=0)
+    high_count: int = Field(ge=0)
+    low_count: int = Field(ge=0)
+    inconclusive_count: int = Field(ge=0)
+    groups: list[PerformanceOverviewGroup]
+    limitation: str

@@ -4,12 +4,21 @@ import '../models/clip_revision_plan.dart';
 import '../models/recommendation_result.dart';
 import '../models/outcome_prediction.dart';
 import '../models/performance_clustering.dart';
+import '../models/performance_overview.dart';
 import '../services/api_client.dart';
 
 class ContentRepository {
   ContentRepository({ApiClient? client}) : _client = client ?? ApiClient();
 
   final ApiClient _client;
+
+  Future<PerformanceOverview> getAutomaticPerformanceOverview(int contentId) async {
+    final response = await _client
+        .get('/contents/$contentId/performance-clustering/overview')
+        .timeout(const Duration(seconds: 90));
+    return PerformanceOverview.fromJson(
+        Map<String, dynamic>.from(response as Map));
+  }
 
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
       {int? minimumViews, String? topicId, int? groupIndex}) async {

@@ -66,7 +66,7 @@ class Repository extends ContentRepository {
   Completer<PerformanceComparison>? pending;
   @override
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
-      {int? minimumViews}) async {
+      {int? minimumViews, String? topicId, int? groupIndex}) async {
     reads.add(minimumViews);
     if (fail) throw StateError('test offline');
     if (pending != null) return pending!.future;

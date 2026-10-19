@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/performance_clustering.dart';
+import '../models/reference_response.dart';
 import '../repositories/content_repository.dart';
 import 'state_widgets.dart';
 import 'workspace_widgets.dart';
@@ -26,9 +27,11 @@ Color _tone(BuildContext context, String level) => level == 'high'
 
 class PerformanceClusteringPanel extends StatefulWidget {
   const PerformanceClusteringPanel(
-      {super.key, required this.contentId, required this.repository});
+      {super.key, required this.contentId, required this.repository,
+       this.topics = const []});
   final int contentId;
   final ContentRepository repository;
+  final List<ReferenceResponseTopic> topics;
   @override
   State<PerformanceClusteringPanel> createState() =>
       _PerformanceClusteringPanelState();
@@ -42,9 +45,12 @@ class _PerformanceClusteringPanelState
   String? _error, _thresholdError;
   String _filter = 'all';
   int _limit = 6, _request = 0;
+  String? _topicId;
+  int _groupIndex = 0;
   @override
   void initState() {
     super.initState();
+    _topicId = widget.topics.isEmpty ? null : widget.topics.first.id;
     _load();
   }
 
@@ -53,6 +59,8 @@ class _PerformanceClusteringPanelState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.contentId != widget.contentId ||
         oldWidget.repository != widget.repository) {
+      _topicId = widget.topics.isEmpty ? null : widget.topics.first.id;
+      _groupIndex = 0;
       _load();
     }
   }
@@ -74,7 +82,9 @@ class _PerformanceClusteringPanelState
     try {
       final result = await widget.repository.getPerformanceComparison(
           widget.contentId,
-          minimumViews: minimumViews);
+          minimumViews: widget.topics.isEmpty ? minimumViews : null,
+          topicId: widget.topics.isEmpty ? null : _topicId,
+          groupIndex: widget.topics.isEmpty ? null : _groupIndex);
       if (!mounted || request != _request) return;
       setState(() {
         _data = result;
@@ -131,6 +141,7 @@ class _PerformanceClusteringPanelState
     final visible = data.videos
         .where((v) => _filter == 'all' || v['performance_level'] == _filter)
         .toList();
+    final selectedTopic = widget.topics.where((t) => t.id == _topicId).firstOrNull;
     return Column(
         key: const ValueKey('performance-clustering-panel'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -139,8 +150,46 @@ class _PerformanceClusteringPanelState
               title: 'วิเคราะห์กลุ่มผลงาน · $category',
               icon: Icons.scatter_plot_outlined),
           Text(
-              'ข้อมูลอ้างอิงล่าสุด · คำนวณ ${_date(data.raw['as_of'])} (เวลาท้องถิ่น)',
+              widget.topics.isEmpty
+                 ? 'ข้อมูลอ้างอิงล่าสุด · คำนวณ ${_date(data.raw['as_of'])}'
+                 : 'ใช้กลุ่มที่ผ่าน Benchmark ในหลักฐานอ้างอิงเดิม · คำนวณ ${_date(data.raw['as_of'])}',
               style: Theme.of(context).textTheme.bodySmall),
+          if (widget.topics.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('performance-topic-selector'),
+              value: _topicId,
+              decoration: const InputDecoration(labelText: 'หัวข้อหลักฐานอ้างอิง'),
+              items: [for (final topic in widget.topics)
+                DropdownMenuItem(value: topic.id, child: Text(topic.title,
+                  overflow: TextOverflow.ellipsis))],
+              onChanged: (value) {
+                if (value == null || value == _topicId) return;
+                setState(() { _topicId = value; _groupIndex = 0; });
+                _load();
+              },
+            ),
+            if (selectedTopic != null && selectedTopic.groups.length > 1) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                key: ValueKey('performance-group-selector-$_topicId'),
+                value: _groupIndex,
+                decoration: const InputDecoration(labelText: 'กลุ่มอ้างอิงเดิม (รูปแบบและอายุคลิป)'),
+                items: [for (final (index, group) in selectedTopic.groups.indexed)
+                  DropdownMenuItem(value: index,
+                    child: Text('${group.formatLabel} · ${group.ageLabel} · ${group.passingCount}/${group.sampleSize} คลิป',
+                      overflow: TextOverflow.ellipsis))],
+                onChanged: (value) {
+                  if (value == null || value == _groupIndex) return;
+                  setState(() => _groupIndex = value);
+                  _load();
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text('ใช้เฉพาะคลิปที่ผ่านเกณฑ์ยอดวิวตามหลักฐานของหัวข้อนี้ ไม่ใช้คลิปทั้งหมวด',
+              style: Theme.of(context).textTheme.bodySmall),
+          ],
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, constraints) {
             final columns = constraints.maxWidth >= 600 ? 3 : 1;
@@ -173,6 +222,7 @@ class _PerformanceClusteringPanelState
             ]);
           }),
           const SizedBox(height: 16),
+          if (widget.topics.isEmpty)
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
                 child: TextField(

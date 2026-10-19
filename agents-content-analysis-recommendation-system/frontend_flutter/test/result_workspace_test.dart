@@ -105,7 +105,7 @@ class _Repository extends ContentRepository {
 
   @override
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
-      {int? minimumViews}) async {
+      {int? minimumViews, String? topicId, int? groupIndex}) async {
     performanceReads.add(contentId);
     return PerformanceComparison.fromJson(performance.fixture());
   }

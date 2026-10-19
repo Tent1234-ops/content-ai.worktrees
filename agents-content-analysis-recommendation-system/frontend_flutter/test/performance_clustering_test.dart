@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:content_ai_web/models/performance_clustering.dart';
+import 'package:content_ai_web/models/reference_response.dart';
 import 'package:content_ai_web/repositories/content_repository.dart';
 import 'package:content_ai_web/ui/app_theme.dart';
 import 'package:content_ai_web/widgets/performance_clustering_panel.dart';
@@ -62,12 +63,16 @@ class Repository extends ContentRepository {
   Repository(this.value);
   Map<String, dynamic> value;
   final List<int?> reads = [];
+  final List<String?> topicReads = [];
+  final List<int?> groupReads = [];
   bool fail = false;
   Completer<PerformanceComparison>? pending;
   @override
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
       {int? minimumViews, String? topicId, int? groupIndex}) async {
     reads.add(minimumViews);
+    topicReads.add(topicId);
+    groupReads.add(groupIndex);
     if (fail) throw StateError('test offline');
     if (pending != null) return pending!.future;
     return PerformanceComparison.fromJson(value);
@@ -75,7 +80,8 @@ class Repository extends ContentRepository {
 }
 
 Future<void> mount(WidgetTester tester, Repository repository,
-    {Brightness brightness = Brightness.light}) async {
+    {Brightness brightness = Brightness.light,
+     List<ReferenceResponseTopic> topics = const []}) async {
   await tester.pumpWidget(MaterialApp(
       theme: buildAppTheme(brightness),
       home: Scaffold(
@@ -83,11 +89,50 @@ Future<void> mount(WidgetTester tester, Repository repository,
               child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: PerformanceClusteringPanel(
-                      contentId: 41, repository: repository))))));
+                      contentId: 41, repository: repository, topics: topics))))));
   await tester.pumpAndSettle();
 }
 
 void main() {
+  testWidgets('selecting saved evidence topic sends topic/group not free threshold',
+      (tester) async {
+    final now = DateTime.utc(2026, 10, 19);
+    ReferenceResponseGroup group(int sourceIndex) => ReferenceResponseGroup(
+      category: 'phone', format: 'long_form', ageGroup: 'age_90_365d',
+      metricVersion: 'youtube_play_start_view_v2', thresholdViews: 14374,
+      benchmarkSize: 30, benchmarkChannels: 30, sourceGroupIndex: sourceIndex,
+      observedFrom: now, observedUntil: now, members: const []);
+    final topics = [
+      ReferenceResponseTopic(id: 'charging', title: 'ความเร็วในการชาร์จ',
+        clips: const [], groups: [group(3), group(7)]),
+      ReferenceResponseTopic(id: 'battery', title: 'แบตเตอรี่',
+        clips: const [], groups: [group(9)]),
+    ];
+    final repo = Repository(fixture()..['selection'] = {
+      'topic_sample_size': 29, 'passing_count': 16});
+    await mount(tester, repo, topics: topics);
+    expect(repo.topicReads, ['charging']);
+    expect(repo.groupReads, [3]);
+    expect(find.byKey(const ValueKey('performance-minimum-views')), findsNothing);
+    expect(find.text('คลิปในหัวข้อ'), findsOneWidget);
+    expect(find.text('ผ่าน Benchmark'), findsOneWidget);
+    expect(find.text('29'), findsOneWidget);
+    expect(find.text('16'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('performance-group-selector-charging')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('0/0 คลิป').last);
+    await tester.pumpAndSettle();
+    expect(repo.groupReads.last, 7);
+
+    await tester.tap(find.byKey(const ValueKey('performance-topic-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('แบตเตอรี่').last);
+    await tester.pumpAndSettle();
+    expect(repo.topicReads.last, 'battery');
+    expect(repo.groupReads.last, 9);
+  });
+
   test('parser rejects malformed KPI data and never substitutes zero scores',
       () {
     final absent = fixture();

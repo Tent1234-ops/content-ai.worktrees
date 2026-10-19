@@ -392,7 +392,10 @@ class _AnalysisReportState extends State<AnalysisReport>
                 !withheld &&
                 !inputUnassessable)
               PerformanceClusteringPanel(
-                  contentId: data.contentId!, repository: repository),
+                  contentId: data.contentId!, repository: repository,
+                  topics: referenceResponses(bundle,
+                    recommendedTopics: referenceTopicLabels)
+                    .where((topic) => topic.groups.isNotEmpty).toList()),
             if (classification?.isUnknown == true &&
                 classification!.rawTaxonomyLeafKey.isNotEmpty) ...[
               Text('ผลทายก่อนตรวจรับ',

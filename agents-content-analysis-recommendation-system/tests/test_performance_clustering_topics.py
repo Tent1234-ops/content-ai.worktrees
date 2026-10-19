@@ -1,6 +1,12 @@
 """Frozen per-topic passing cohorts must agree with the saved evidence summary."""
 import copy
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+from fastapi import HTTPException
+
+from app.services.performance_clustering import performance_for_content
+from app.services.recommendation_evidence import text_hash
 from datetime import datetime, timedelta, timezone
 
 from app.services.group_response_summary import summarize_group_responses
@@ -86,6 +92,67 @@ class TopicScopedCohortTests(unittest.TestCase):
         invalid["topic_comparisons"]["items"][0]["group_response_summary"]["groups"][0][
             "threshold_views"] = 0
         self.assertIsNone(saved_topic_cohort(invalid, "phone", "charge_topic", 0))
+
+
+    def test_api_uses_saved_passing_kpis_not_current_category(self):
+        transcript = "camera lens sensor autofocus photography video battery charging performance " * 3
+        sha = text_hash(transcript)
+        saved = {
+            "dataset_id": 1, "video_id": "clip0000001",
+            "channel_id": "channel-1", "channel_title": "Channel 1",
+            "published_at": "2026-01-01T00:00:00Z",
+            "transcript_sha256": sha,
+            "latest_observation": {
+                "views": 14375, "likes": 35, "observed_at": "2026-10-19T12:00:00Z",
+                "observation_id": 9, "view_metric_version": "youtube_play_start_view_v2",
+            },
+        }
+        cohort = {
+            "passing_records": [saved], "topic_title": "ความเร็วในการชาร์จ",
+            "group_index": 0, "topic_id": "charging", "threshold_views": 14374,
+            "format": "long_form", "age_group": "age_90_365d",
+            "as_of": "2026-10-19T12:00:00Z", "sample_size": 29, "passing_count": 16,
+        }
+        content = {"analysis_id": 7, "raw_transcript": transcript,
+            "recommendation": {
+                "classification": {"taxonomy_leaf_key": "phone", "is_unknown": False,
+                                   "acceptance": {"accepted": True}},
+                "evidence_bundle": {"input": {"availability": "available"}},
+            }}
+        row = SimpleNamespace(dataset_id=1, source_youtube_id="clip0000001",
+                              transcript=transcript, transcript_sha256=sha,
+                              title="Reference", transcript_scope="full_video")
+        with patch("app.services.performance_clustering.get_user_content_detail", return_value=content), \
+             patch("app.services.performance_clustering.saved_topic_cohort", return_value=cohort), \
+             patch("app.services.performance_clustering.reference_transcript_rows", return_value=[row]), \
+             patch("app.services.performance_clustering.cluster_and_compare",
+                   return_value={"reference_count": 1, "eligible_count": 1}) as calculation:
+            result = performance_for_content(None, user_id=1, content_id=51,
+                minimum_views=25000, topic_id="charging", group_index=0)
+        passed = calculation.call_args.args[0]
+        self.assertEqual(len(passed), 1)
+        self.assertEqual(passed[0]["views"], 14375)
+        self.assertEqual(passed[0]["likes"], 35)
+        self.assertEqual(calculation.call_args.kwargs["minimum_views"], 14375)
+        self.assertEqual(result["minimum_views"], 14374)
+        self.assertEqual(result["selection"]["topic_sample_size"], 29)
+        self.assertEqual(result["selection"]["passing_count"], 16)
+
+    def test_api_rejects_missing_topic_without_category_fallback(self):
+        content = {"analysis_id": 7, "raw_transcript": "phone transcript",
+            "recommendation": {
+                "classification": {"taxonomy_leaf_key": "phone", "is_unknown": False,
+                                   "acceptance": {"accepted": True}},
+                "evidence_bundle": {"input": {"availability": "available"}},
+            }}
+        with patch("app.services.performance_clustering.get_user_content_detail", return_value=content), \
+             patch("app.services.performance_clustering.saved_topic_cohort", return_value=None), \
+             patch("app.services.performance_clustering.reference_transcript_rows") as category_rows:
+            with self.assertRaises(HTTPException) as raised:
+                performance_for_content(None, user_id=1, content_id=51,
+                    minimum_views=25000, topic_id="not-a-saved-topic", group_index=0)
+            self.assertEqual(raised.exception.status_code, 422)
+            category_rows.assert_not_called()
 
 
 if __name__ == "__main__":

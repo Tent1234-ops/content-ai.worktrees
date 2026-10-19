@@ -84,7 +84,9 @@ class _PerformanceClusteringPanelState
           widget.contentId,
           minimumViews: widget.topics.isEmpty ? minimumViews : null,
           topicId: widget.topics.isEmpty ? null : _topicId,
-          groupIndex: widget.topics.isEmpty ? null : _groupIndex);
+          groupIndex: widget.topics.isEmpty ? null : widget.topics
+              .firstWhere((topic) => topic.id == _topicId)
+              .groups[_groupIndex].sourceGroupIndex);
       if (!mounted || request != _request) return;
       setState(() {
         _data = result;

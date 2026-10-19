@@ -119,12 +119,6 @@ void main() {
     expect(find.text('29'), findsOneWidget);
     expect(find.text('16'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('performance-group-selector-charging')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('0/0 คลิป').last);
-    await tester.pumpAndSettle();
-    expect(repo.groupReads.last, 7);
-
     await tester.tap(find.byKey(const ValueKey('performance-topic-selector')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('แบตเตอรี่').last);

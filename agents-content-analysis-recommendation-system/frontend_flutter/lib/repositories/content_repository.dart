@@ -12,8 +12,12 @@ class ContentRepository {
   final ApiClient _client;
 
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
-      {int? minimumViews}) async {
-    final query = minimumViews == null ? '' : '?minimum_views=$minimumViews';
+      {int? minimumViews, String? topicId, int? groupIndex}) async {
+    final params = <String, String>{};
+    if (minimumViews != null) params['minimum_views'] = '$minimumViews';
+    if (topicId != null) params['topic_id'] = topicId;
+    if (groupIndex != null) params['group_index'] = '$groupIndex';
+    final query = params.isEmpty ? '' : '?${Uri(queryParameters: params).query}';
     final response = await _client
         .get('/contents/$contentId/performance-clustering$query')
         .timeout(const Duration(seconds: 30));

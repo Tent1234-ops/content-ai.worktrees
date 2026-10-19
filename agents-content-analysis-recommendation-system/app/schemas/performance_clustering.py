@@ -25,6 +25,7 @@ class PerformanceClusteringResponse(BaseModel):
     reference_count: int = Field(ge=0)
     eligible_count: int = Field(ge=0)
     minimum_views: int = Field(ge=0)
+    selection: dict[str, Any] | None = None
     excluded_counts: dict[str, int]
     channel_count: int = Field(ge=0)
     policy: dict[str, Any]

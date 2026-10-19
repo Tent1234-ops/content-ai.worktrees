@@ -160,12 +160,14 @@ class ReferenceResponseGroup {
     required this.thresholdViews,
     required this.benchmarkSize,
     required this.benchmarkChannels,
+    this.sourceGroupIndex = 0,
     required this.observedFrom,
     required this.observedUntil,
     required this.members,
   });
   final String category, format, ageGroup, metricVersion;
   final int thresholdViews, benchmarkSize, benchmarkChannels;
+  final int sourceGroupIndex;
   final DateTime observedFrom, observedUntil;
   final List<ReferenceResponseMember> members;
   int get sampleSize => members.length;
@@ -219,7 +221,7 @@ List<ReferenceResponseGroup> referenceResponseGroups(
     records[id] = row;
   }
   final groups = <ReferenceResponseGroup>[];
-  for (final group in _rows(summary['groups'])) {
+  for (final (sourceGroupIndex, group) in _rows(summary['groups']).indexed) {
     final threshold = _count(group['threshold_views']);
     final from = _date(group['observed_from']);
     final until = _date(group['observed_until']);
@@ -327,6 +329,7 @@ List<ReferenceResponseGroup> referenceResponseGroups(
         thresholdViews: threshold,
         benchmarkSize: benchmark.length,
         benchmarkChannels: benchmarkChannels,
+        sourceGroupIndex: sourceGroupIndex,
         observedFrom: from,
         observedUntil: until,
         members: List.unmodifiable(members)));

@@ -231,6 +231,10 @@ class _AnalysisReportState extends State<AnalysisReport>
                 '${topic['topic_id']}':
                     '${topic['title_th'] ?? topic['canonical_topic']}',
           };
+    final performanceTopics = referenceResponses(bundle,
+      recommendedTopics: referenceTopicLabels)
+      .where((topic) => topic.groups.isNotEmpty).toList();
+    final hasModernTopicComparison = bundle['topic_comparisons'] is Map;
     final openingKeywords = recommendation.hookKeywords
         .where(
             (word) => actions == null || adviceLabels.containsKey(word.keyword))
@@ -391,8 +395,12 @@ class _AnalysisReportState extends State<AnalysisReport>
                 data.contentId != null &&
                 !withheld &&
                 !inputUnassessable)
-              PerformanceClusteringPanel(
-                  contentId: data.contentId!, repository: repository),
+              if (performanceTopics.isNotEmpty || !hasModernTopicComparison)
+                PerformanceClusteringPanel(
+                    contentId: data.contentId!, repository: repository,
+                    topics: performanceTopics)
+              else
+                const Text('ยังไม่มีหัวข้อที่มีหลักฐานผ่านเกณฑ์เพียงพอสำหรับจัดกลุ่มผลงาน'),
             if (classification?.isUnknown == true &&
                 classification!.rawTaxonomyLeafKey.isNotEmpty) ...[
               Text('ผลทายก่อนตรวจรับ',

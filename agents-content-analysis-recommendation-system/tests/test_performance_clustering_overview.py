@@ -99,7 +99,7 @@ class AutomaticOverviewTests(unittest.TestCase):
              patch("app.services.performance_clustering_overview.saved_topic_cohort",
                    side_effect=self.mock_cohort), \
              patch("app.services.performance_clustering_overview.reference_transcript_rows",
-                   return_value=rows) as read, \\
+                   return_value=rows) as read, \
              patch("app.services.performance_clustering_overview.performance_for_content",
                    side_effect=self.calculated) as calculate:
             result = performance_overview_for_content(None, user_id=12, content_id=51)

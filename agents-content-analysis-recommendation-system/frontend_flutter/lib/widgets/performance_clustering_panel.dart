@@ -198,9 +198,9 @@ class _PerformanceClusteringPanelState
             final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
             return Wrap(spacing: 12, runSpacing: 12, children: [
               for (final metric in [
-                ('คลิปอ้างอิง', data.referenceCount),
-                ('ใช้จัดกลุ่มได้', data.eligibleCount),
-                ('ยอดวิวขั้นต่ำ', data.minimumViews)
+                (widget.topics.isEmpty ? 'คลิปอ้างอิง' : 'คลิปในหัวข้อ', widget.topics.isEmpty ? data.referenceCount : (data.raw['selection']?['topic_sample_size'] ?? 0)),
+                (widget.topics.isEmpty ? 'ใช้จัดกลุ่มได้' : 'ผ่าน Benchmark', widget.topics.isEmpty ? data.eligibleCount : (data.raw['selection']?['passing_count'] ?? 0)),
+                (widget.topics.isEmpty ? 'ยอดวิวขั้นต่ำ' : 'ใช้จัดกลุ่มจริง', widget.topics.isEmpty ? data.minimumViews : data.eligibleCount)
               ])
                 SizedBox(
                     width: width,
@@ -244,6 +244,11 @@ class _PerformanceClusteringPanelState
                 tooltip: 'คำนวณตามยอดวิวขั้นต่ำ',
                 icon: const Icon(Icons.filter_alt_outlined)),
           ]),
+          if (widget.topics.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('เกณฑ์หลักฐานเดิม: มากกว่า ${_number(data.minimumViews)} วิว (ไม่ใช่เกณฑ์แบ่ง Low/High)',
+                style: Theme.of(context).textTheme.bodySmall)),
           if (data.exclusions.isNotEmpty)
             Padding(
                 padding: const EdgeInsets.only(top: 12),

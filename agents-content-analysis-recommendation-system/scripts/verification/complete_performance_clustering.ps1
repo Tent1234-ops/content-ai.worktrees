@@ -143,7 +143,7 @@ try {
     $Results.passed = $false
     Write-Error $Failure -ErrorAction Continue
 } finally {
-    $Results.failure = $Failure
+    $Results['failure'] = $Failure
     $reportFile = Join-Path $ReportRoot 'closeout-summary.json'
     $Results | ConvertTo-Json -Depth 8 | Set-Content -Path $reportFile -Encoding UTF8
     Write-Host "Closeout report: $reportFile"

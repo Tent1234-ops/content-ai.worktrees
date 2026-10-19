@@ -21,7 +21,9 @@ class PerformanceOverviewGroup {
         passingCount < 0 || eligibleCount < 0 ||
         passingCount > topicSampleSize || eligibleCount > passingCount ||
         (closestGroup != null && !{'high', 'low'}.contains(closestGroup)) ||
-        (similarityStatus != 'ready' && closestGroup != null)) {
+        (similarityStatus != 'ready' && closestGroup != null) ||
+        (similarityStatus == 'ready' &&
+            (closestGroup == null || lowScore == null || highScore == null))) {
       throw const FormatException('Invalid automatic topic performance group');
     }
   }

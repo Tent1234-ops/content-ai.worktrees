@@ -204,8 +204,6 @@ class _GroupSummary extends StatelessWidget {
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
     final neutral = theme.colorScheme.onSurfaceVariant;
-    String textScore(double? score) =>
-        score == null ? 'ยังคำนวณไม่ได้' : '${(score * 100).toStringAsFixed(2)}%';
     return Card(
       key: ValueKey('automatic-topic-${group.topicId}-${group.groupIndex}'),
       margin: EdgeInsets.zero,

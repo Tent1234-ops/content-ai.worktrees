@@ -18,9 +18,20 @@ from app.services.clip_revision_plans import get_revision_plan, save_revision_pl
 from app.services.outcome_scenarios import simulate_outcome_scenario
 from app.core.config import settings
 from app.services.performance_clustering import performance_for_content
-from app.schemas.performance_clustering import PerformanceClusteringResponse
+from app.services.performance_clustering_overview import performance_overview_for_content
+from app.schemas.performance_clustering import PerformanceClusteringResponse, PerformanceOverviewResponse
 
 router = APIRouter(prefix="/contents", tags=["contents"])
+
+
+@router.get("/{content_id}/performance-clustering/overview", response_model=PerformanceOverviewResponse)
+def automatic_performance_overview(
+    content_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return performance_overview_for_content(
+        db, user_id=current_user.user_id, content_id=content_id)
 
 
 @router.get("/{content_id}/performance-clustering", response_model=PerformanceClusteringResponse)

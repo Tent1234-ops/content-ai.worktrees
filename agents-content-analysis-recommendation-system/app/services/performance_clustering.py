@@ -254,6 +254,9 @@ def performance_for_content(db, *, user_id, content_id, minimum_views, now=None,
     context = (recommendation.get("evidence_bundle") or {}).get("input") or {}
     accepted = (classification.get("acceptance") or {}).get("accepted")
     if topic_id is not None:
+        if (category not in {"phone", "camera", "laptop"} or
+                classification.get("is_unknown") is not False or accepted is not True):
+            raise HTTPException(status_code=422, detail="Classification is not accepted")
         # Never substitute a whole-category cohort when the requested saved topic
         # cohort is missing, invalid, or contains too few KPI-complete videos.
         cohort = saved_topic_cohort(recommendation.get("evidence_bundle") or {},

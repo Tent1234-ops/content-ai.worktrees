@@ -22,7 +22,7 @@ class ContentRepository {
     final query = params.isEmpty ? '' : '?${Uri(queryParameters: params).query}';
     final response = await _client
         .get('/contents/$contentId/performance-clustering$query')
-        .timeout(const Duration(seconds: 30));
+        .timeout(Duration(seconds: comparisonMethod == 'embedding_centroid' ? 180 : 30));
     return PerformanceComparison.fromJson(
         Map<String, dynamic>.from(response as Map));
   }

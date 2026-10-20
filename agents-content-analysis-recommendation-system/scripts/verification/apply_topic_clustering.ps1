@@ -18,6 +18,7 @@ $files = @(
     'app/schemas/performance_clustering.py',
     'frontend_flutter/lib/repositories/content_repository.dart',
     'frontend_flutter/lib/models/reference_response.dart',
+    'frontend_flutter/lib/models/performance_clustering.dart',
     'frontend_flutter/lib/widgets/performance_clustering_panel.dart',
     'frontend_flutter/lib/screens/result_screen.dart',
     'frontend_flutter/test/performance_clustering_test.dart',

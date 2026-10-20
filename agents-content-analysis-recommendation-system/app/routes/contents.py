@@ -29,12 +29,14 @@ def performance_clustering(
     minimum_views: int = Query(default=settings.performance_minimum_views, ge=0, le=2**53 - 1),
     topic_id: str | None = Query(default=None, min_length=1, max_length=100),
     group_index: int | None = Query(default=None, ge=0, le=100),
+    comparison_method: str = Query(default="tfidf", pattern="^(tfidf|embedding_centroid)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return performance_for_content(db, user_id=current_user.user_id,
                                    content_id=content_id, minimum_views=minimum_views,
-                                   topic_id=topic_id, group_index=group_index)
+                                   topic_id=topic_id, group_index=group_index,
+                                   comparison_method=comparison_method)
 
 
 @router.post("/{content_id}/outcome-scenario", response_model=OutcomeScenarioResponse)

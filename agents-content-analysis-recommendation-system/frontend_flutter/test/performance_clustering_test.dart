@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:content_ai_web/models/performance_clustering.dart';
+import 'package:content_ai_web/models/reference_response.dart';
 import 'package:content_ai_web/repositories/content_repository.dart';
 import 'package:content_ai_web/ui/app_theme.dart';
 import 'package:content_ai_web/widgets/performance_clustering_panel.dart';
@@ -35,9 +36,13 @@ Map<String, dynamic> fixture({String status = 'ready'}) => {
         'status': status,
         'low_score': 0.35,
         'high_score': 0.78,
+        'low_distance': 0.65,
+        'high_distance': 0.22,
+        'method': 'sentence_embedding_text_centroid_cosine',
+        'margin': 0.43,
         'closest_group': status == 'ready' ? 'high' : null,
-        'reason': status == 'ready' ? null : 'similar_scores',
-        'k_used': 4
+        'reason': status == 'ready' ? null : 'similar_text_distances',
+        'k_used': 0
       },
       'reference_videos': [
         for (var i = 1; i <= 8; i++)
@@ -62,12 +67,21 @@ class Repository extends ContentRepository {
   Repository(this.value);
   Map<String, dynamic> value;
   final List<int?> reads = [];
+  final List<String?> topicReads = [];
+  final List<int?> groupReads = [];
+  final List<String> comparisonReads = [];
   bool fail = false;
   Completer<PerformanceComparison>? pending;
   @override
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
-      {int? minimumViews}) async {
+      {int? minimumViews,
+      String? topicId,
+      int? groupIndex,
+      String comparisonMethod = 'embedding_centroid'}) async {
     reads.add(minimumViews);
+    topicReads.add(topicId);
+    groupReads.add(groupIndex);
+    comparisonReads.add(comparisonMethod);
     if (fail) throw StateError('test offline');
     if (pending != null) return pending!.future;
     return PerformanceComparison.fromJson(value);
@@ -75,7 +89,8 @@ class Repository extends ContentRepository {
 }
 
 Future<void> mount(WidgetTester tester, Repository repository,
-    {Brightness brightness = Brightness.light}) async {
+    {Brightness brightness = Brightness.light,
+    List<ReferenceResponseTopic> topics = const []}) async {
   await tester.pumpWidget(MaterialApp(
       theme: buildAppTheme(brightness),
       home: Scaffold(
@@ -83,11 +98,61 @@ Future<void> mount(WidgetTester tester, Repository repository,
               child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: PerformanceClusteringPanel(
-                      contentId: 41, repository: repository))))));
+                      contentId: 41,
+                      repository: repository,
+                      topics: topics))))));
   await tester.pumpAndSettle();
 }
 
 void main() {
+  testWidgets(
+      'selecting saved evidence topic sends topic/group not free threshold',
+      (tester) async {
+    final now = DateTime.utc(2026, 10, 19);
+    ReferenceResponseGroup group(int sourceIndex) => ReferenceResponseGroup(
+        category: 'phone',
+        format: 'long_form',
+        ageGroup: 'age_90_365d',
+        metricVersion: 'youtube_play_start_view_v2',
+        thresholdViews: 14374,
+        benchmarkSize: 30,
+        benchmarkChannels: 30,
+        sourceGroupIndex: sourceIndex,
+        observedFrom: now,
+        observedUntil: now,
+        members: const []);
+    final topics = [
+      ReferenceResponseTopic(
+          id: 'charging',
+          title: 'ความเร็วในการชาร์จ',
+          clips: const [],
+          groups: [group(3), group(7)]),
+      ReferenceResponseTopic(
+          id: 'battery',
+          title: 'แบตเตอรี่',
+          clips: const [],
+          groups: [group(9)]),
+    ];
+    final repo = Repository(fixture()
+      ..['selection'] = {'topic_sample_size': 29, 'passing_count': 16});
+    await mount(tester, repo, topics: topics);
+    expect(repo.topicReads, ['charging']);
+    expect(repo.groupReads, [3]);
+    expect(
+        find.byKey(const ValueKey('performance-minimum-views')), findsNothing);
+    expect(find.text('คลิปในหัวข้อ'), findsOneWidget);
+    expect(find.text('ผ่าน Benchmark'), findsOneWidget);
+    expect(find.text('29'), findsOneWidget);
+    expect(find.text('16'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('performance-topic-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('แบตเตอรี่').last);
+    await tester.pumpAndSettle();
+    expect(repo.topicReads.last, 'battery');
+    expect(repo.groupReads.last, 9);
+  });
+
   test('parser rejects malformed KPI data and never substitutes zero scores',
       () {
     final absent = fixture();
@@ -112,8 +177,10 @@ void main() {
         await mount(tester, repo, brightness: brightness);
         expect(repo.reads, [null]);
         expect(find.text('วิเคราะห์กลุ่มผลงาน · Camera'), findsOneWidget);
-        expect(find.text('35.00%'), findsOneWidget);
-        expect(find.text('78.00%'), findsOneWidget);
+        expect(repo.comparisonReads, ['embedding_centroid']);
+        expect(find.text('0.6500'), findsOneWidget);
+        expect(find.text('0.2200'), findsOneWidget);
+        expect(find.text('35.00%'), findsNothing);
         expect(find.text('ยอดวิวเฉลี่ย 150,000'), findsOneWidget);
         final filter = tester.widget<IconButton>(
             find.widgetWithIcon(IconButton, Icons.filter_alt_outlined));
@@ -158,7 +225,7 @@ void main() {
   testWidgets('inconclusive scores do not force a group or advice',
       (tester) async {
     await mount(tester, Repository(fixture(status: 'inconclusive')));
-    expect(find.text('คะแนนความคล้ายสองกลุ่มใกล้กัน จึงยังสรุปไม่ได้'),
+    expect(find.text('ระยะห่างไปยังสองกลุ่มใกล้กัน จึงยังไม่เลือกกลุ่ม'),
         findsOneWidget);
     expect(find.text('เนื้อหาใกล้เคียงกลุ่ม High มากกว่า'), findsNothing);
     expect(find.text('กันสั่น'), findsNothing);
@@ -217,5 +284,42 @@ void main() {
     repo.pending!.complete(PerformanceComparison.fromJson(fixture()));
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  test('signed cosine and distances up to two survive parsing', () {
+    final value = fixture();
+    (value['content_similarity'] as Map).addAll(<String, dynamic>{
+      'low_score': -0.8,
+      'low_distance': 1.8,
+    });
+    final parsed = PerformanceComparison.fromJson(value);
+    expect(parsed.lowScore, -0.8);
+    expect(parsed.lowDistance, 1.8);
+    expect(parsed.closest, 'high');
+    (value['content_similarity'] as Map)['high_distance'] = null;
+    expect(PerformanceComparison.fromJson(value).closest, isNull);
+  });
+
+  testWidgets('legacy comparison is optional and preserves selected threshold',
+      (tester) async {
+    final repo = Repository(fixture());
+    await mount(tester, repo);
+    await tester
+        .tap(find.byKey(const ValueKey('performance-comparison-method')));
+    await tester.pumpAndSettle();
+    repo.value['content_similarity'] = {
+      'method': 'tfidf_cosine_similarity',
+      'status': 'ready',
+      'low_score': 0.35,
+      'high_score': 0.78,
+      'closest_group': 'high',
+      'k_used': 4
+    };
+    await tester.tap(find.text('TF-IDF + Top-K').last);
+    await tester.pumpAndSettle();
+    expect(repo.comparisonReads, ['embedding_centroid', 'tfidf']);
+    expect(repo.reads, [null, 25000]);
+    expect(find.text('78.00%'), findsOneWidget);
+    expect(find.byKey(const ValueKey('distance-high')), findsNothing);
   });
 }

@@ -22,6 +22,10 @@ from app.services.nlp import filter_tokens, tokenize_text
 from app.services.recommendation_evidence import fingerprint, locate_terms, text_hash
 from app.services.topic_comparisons import _confirmed_format, _load_observations
 from app.services.view_metrics import YOUTUBE_PLAY_START_VIEW_V2, YOUTUBE_QUALIFIED_VIEW_V1
+from app.services.performance_clustering_topics import saved_topic_cohort
+from app.services.embedding_centroid import (
+    compare_text_centroids, METHOD as TEXT_CENTROID_METHOD, POLICY as EMBEDDING_POLICY,
+)
 
 
 POLICY = {
@@ -105,10 +109,20 @@ def _topic_advice(category, text, records, labels, similarities):
 
 
 def cluster_and_compare(records, *, user_transcript, category, minimum_views=25000,
-                        now=None, input_available=True):
+                        now=None, input_available=True, comparison_method="embedding_centroid"):
     """Pure calculation; records contain reference KPIs only, never user KPIs."""
+    if comparison_method not in {"tfidf", "embedding_centroid"}:
+        raise ValueError("Unknown comparison_method")
     now = now or datetime.utcnow()
     result = _empty(category, minimum_views, now)
+    if comparison_method == "embedding_centroid":
+        result["policy"]["comparison_method"] = "embedding_centroid"
+        result["policy"]["embedding"] = dict(EMBEDDING_POLICY)
+        for key in ("top_k", "minimum_similarity", "minimum_similarity_margin",
+                    "similarity_aggregation", "vectorizer_fit", "max_features",
+                    "similarity_thresholds_are"):
+            result["policy"].pop(key, None)
+        result["content_similarity"]["method"] = TEXT_CENTROID_METHOD
     result["reference_count"] = len(records)
     eligible, tokens, exclusions = [], [], Counter()
     videos, documents = set(), set()
@@ -141,7 +155,7 @@ def cluster_and_compare(records, *, user_transcript, category, minimum_views=250
         result["view_metric_version"] = version
     result.update(eligible_count=len(eligible), excluded_counts={k: v for k, v in exclusions.items() if v},
                   channel_count=len({r["channel_id"] for r in eligible}))
-    result["data_fingerprint"] = fingerprint({"policy": POLICY, "minimum_views": minimum_views,
+    result["data_fingerprint"] = fingerprint({"policy": result["policy"], "comparison_method": comparison_method, "minimum_views": minimum_views,
         "references": [{k: v for k, v in r.items() if k != "transcript"} for r in eligible],
         "transcript_hashes": [text_hash(r["transcript"]) for r in eligible],
         "user_transcript_sha256": text_hash(user_transcript), "sklearn": sklearn.__version__})
@@ -193,6 +207,19 @@ def cluster_and_compare(records, *, user_transcript, category, minimum_views=250
     if not input_available or not _usable(user_tokens):
         similarity["reason"] = "insufficient_user_transcript"
         return result
+    if comparison_method == "embedding_centroid":
+        # KPI K-Means remains unchanged. Compare semantic text centroids in an
+        # entirely separate feature space, without using user Views/Likes.
+        compared = compare_text_centroids(eligible, levels, user_transcript)
+        reference_scores = compared.pop("reference_scores")
+        similarity.update(compared)
+        for row, score in zip(result["reference_videos"], reference_scores):
+            row["similarity"] = score
+        if similarity["status"] == "ready":
+            result["recommendations"] = _topic_advice(
+                category, user_transcript, eligible, levels, reference_scores)
+        return result
+
     vectorizer = TfidfVectorizer(tokenizer=str.split, token_pattern=None, lowercase=False,
         ngram_range=(1, 2), max_features=POLICY["max_features"], sublinear_tf=True)
     try:
@@ -241,7 +268,8 @@ def cluster_and_compare(records, *, user_transcript, category, minimum_views=250
     return result
 
 
-def performance_for_content(db, *, user_id, content_id, minimum_views, now=None):
+def performance_for_content(db, *, user_id, content_id, minimum_views, now=None,
+                            topic_id=None, group_index=None, comparison_method="embedding_centroid"):
     now = now or datetime.utcnow()
     content = get_user_content_detail(db, user_id=user_id, content_id=content_id)
     if content is None:
@@ -251,6 +279,61 @@ def performance_for_content(db, *, user_id, content_id, minimum_views, now=None)
     category = classification.get("taxonomy_leaf_key") or classification.get("domain") or "unknown"
     context = (recommendation.get("evidence_bundle") or {}).get("input") or {}
     accepted = (classification.get("acceptance") or {}).get("accepted")
+    if topic_id is not None:
+        if (category not in {"phone", "camera", "laptop"} or
+                classification.get("is_unknown") is not False or accepted is not True):
+            raise HTTPException(status_code=422, detail="Classification is not accepted")
+        # Never substitute a whole-category cohort when the requested saved topic
+        # cohort is missing, invalid, or contains too few KPI-complete videos.
+        cohort = saved_topic_cohort(recommendation.get("evidence_bundle") or {},
+                                   category, topic_id, group_index if group_index is not None else 0)
+        if cohort is None:
+            raise HTTPException(status_code=422, detail="Saved topic/group evidence is unavailable or invalid")
+        allowed = {r["dataset_id"]: r for r in cohort["passing_records"]}
+        rows = reference_transcript_rows(db, domain=category, now=now)
+        by_id = {row.dataset_id: row for row in rows if row.dataset_id in allowed}
+        records = []
+        for saved in cohort["passing_records"]:
+            row = by_id.get(saved["dataset_id"])
+            observation = saved["latest_observation"]
+            reason = None
+            if row is None or row.source_youtube_id != saved["video_id"]:
+                reason = "saved_reference_unavailable"
+            elif text_hash(row.transcript) != row.transcript_sha256 or row.transcript_sha256 != saved["transcript_sha256"]:
+                reason = "transcript_hash_mismatch"
+            records.append({
+                "dataset_id": saved["dataset_id"], "video_id": saved["video_id"],
+                "channel_id": saved["channel_id"], "channel_title": saved.get("channel_title"),
+                "title": row.title if row is not None else saved["video_id"],
+                "url": saved.get("url") or f'https://www.youtube.com/watch?v={saved["video_id"]}',
+                "published_at": saved["published_at"], "format": cohort["format"],
+                "transcript": row.transcript if row is not None else "",
+                "transcript_scope": row.transcript_scope if row is not None else "",
+                "views": observation["views"], "likes": observation.get("likes"),
+                "statistics_captured_at": observation["observed_at"],
+                "observation_id": observation["observation_id"],
+                "view_metric_version": observation["view_metric_version"],
+                "exclusion_reason": reason,
+            })
+        result = cluster_and_compare(records,
+            user_transcript=content.get("raw_transcript") or content.get("transcript") or "",
+            category=category, minimum_views=cohort["threshold_views"] + 1, now=now,
+            input_available=context.get("availability") == "available",
+            comparison_method=comparison_method)
+        # The original rule is strictly greater than the frozen benchmark.
+        result["minimum_views"] = cohort["threshold_views"]
+        result["selection"] = {
+            "mode": "saved_topic_group_passing_only",
+            "topic_id": topic_id, "topic_title": cohort["topic_title"],
+            "group_index": cohort["group_index"], "format": cohort["format"],
+            "age_group": cohort["age_group"], "as_of": cohort["as_of"],
+            "threshold_views": cohort["threshold_views"],
+            "comparison_rule": "views_strictly_greater_than_frozen_benchmark",
+            "topic_sample_size": cohort["sample_size"],
+            "passing_count": cohort["passing_count"],
+        }
+        result.update(content_id=content_id, analysis_id=content.get("analysis_id"))
+        return result
     if category not in {"phone", "camera", "laptop"} or classification.get("is_unknown") is not False or accepted is not True:
         result = _empty(category, minimum_views, now)
         result["clustering"].update(status="withheld", reason="classification_not_accepted")
@@ -285,6 +368,7 @@ def performance_for_content(db, *, user_id, content_id, minimum_views, now=None)
                 "exclusion_reason": reason})
         result = cluster_and_compare(records, user_transcript=content.get("raw_transcript") or content.get("transcript") or "",
             category=category, minimum_views=minimum_views, now=now,
-            input_available=context.get("availability") == "available")
+            input_available=context.get("availability") == "available",
+            comparison_method=comparison_method)
     result.update(content_id=content_id, analysis_id=content.get("analysis_id"))
     return result

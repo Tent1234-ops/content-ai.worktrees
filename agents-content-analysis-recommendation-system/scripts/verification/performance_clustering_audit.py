@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import sys
+from time import perf_counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,6 +21,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--content-id', type=int, default=41)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--topic-id')
+    parser.add_argument('--group-index', type=int, default=0)
     args = parser.parse_args()
     output = args.output.resolve()
     output.relative_to(ROOT / 'artifacts')
@@ -28,12 +31,16 @@ def main():
         if not content:
             raise ValueError('Saved content not found')
         before = [(a.result_id, a.summary) for a in db.query(AnalysisResult).filter_by(content_id=content.content_id)]
+        started = perf_counter()
         result = PerformanceClusteringResponse.model_validate(performance_for_content(
-            db, user_id=content.user_id, content_id=content.content_id, minimum_views=25000)).model_dump(mode='json')
+            db, user_id=content.user_id, content_id=content.content_id, minimum_views=25000,
+            topic_id=args.topic_id, group_index=args.group_index)).model_dump(mode='json')
+        elapsed = perf_counter() - started
         db.expire_all()
         after = [(a.result_id, a.summary) for a in db.query(AnalysisResult).filter_by(content_id=content.content_id)]
         assert before == after
         report = {'mode': 'read_only_actual_data', 'saved_results_unchanged': True,
+            'elapsed_seconds': elapsed, 'selection': result['selection'],
             'content_id': content.content_id, 'title': content.title,
             **{k: result[k] for k in ('as_of', 'category', 'reference_count', 'eligible_count',
                 'minimum_views', 'excluded_counts', 'clustering', 'content_similarity', 'data_fingerprint')}}

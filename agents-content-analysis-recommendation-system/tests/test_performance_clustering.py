@@ -39,7 +39,7 @@ def sample_records(low=4, high=6):
 class PerformanceCalculationTests(unittest.TestCase):
     def calculate(self, rows=None, text=HIGH):
         return cluster_and_compare(rows or sample_records(), user_transcript=text,
-                                   category="camera", minimum_views=25000)
+                                   category="camera", minimum_views=25000, comparison_method="tfidf")
 
     def test_kmeans_summary_similarity_high_and_no_user_kpi(self):
         data = self.calculate()
@@ -199,6 +199,10 @@ class PerformanceApiTests(unittest.TestCase):
         return now
 
     def test_api_auth_threshold_real_db_read_and_no_mutation(self):
+        from tests.test_embedding_centroid import FakeEncoder
+        encoder = patch("app.services.embedding_centroid._load_encoder", return_value=FakeEncoder())
+        encoder.start()
+        self.addCleanup(encoder.stop)
         self._observations()
         app = FastAPI()
         app.include_router(router)
@@ -214,8 +218,12 @@ class PerformanceApiTests(unittest.TestCase):
             response = client.get('/contents/1/performance-clustering?minimum_views=25000')
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["eligible_count"], 30)
+            self.assertEqual(response.json()["content_similarity"]["method"],
+                             "sentence_embedding_text_centroid_cosine")
             self.assertEqual(response.json()['clustering'], result['clustering'])
-            self.assertEqual(response.json()['content_similarity'], result['content_similarity'])
+            from app.schemas.performance_clustering import ContentSimilarity
+            self.assertEqual(response.json()['content_similarity'],
+                             ContentSimilarity.model_validate(result['content_similarity']).model_dump())
             self.assertEqual(client.get('/contents/1/performance-clustering?minimum_views=-1').status_code, 422)
             self.assertEqual(client.get('/contents/1/performance-clustering?minimum_views=abc').status_code, 422)
             self.assertEqual(client.get('/contents/1/performance-clustering?minimum_views=9007199254740992').status_code, 422)

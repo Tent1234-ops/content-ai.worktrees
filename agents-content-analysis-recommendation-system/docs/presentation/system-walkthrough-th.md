@@ -896,14 +896,14 @@ Launcher เปิด process แบบซ่อนหน้าต่างแ�
 
 “เว็บผมแยกข้อมูลเทรนด์กับข้อมูลต้นแบบครับ เทรนด์เก็บเป็นช่วงเวลาไว้ดู Dashboard ส่วนต้นแบบเป็น Transcript ที่ตรวจหมวดและที่มาแล้ว ใช้ฝึก classifier และเป็นหลักฐานตามสิทธิ์ของข้อมูลแต่ละแถว เมื่อผู้ใช้อัปโหลด ระบบถอดเสียงด้วย Whisper แปลงข้อความเป็น word/character TF-IDF แล้วใช้ SVM ทายหมวด พร้อมตรวจ Unknown ก่อนเลือกข้อมูลอ้างอิง จากนั้นตรวจหัวข้อที่พูดแล้วและหัวข้อที่ยังไม่พบ สร้างข้อเสนอพร้อมวิธีทำจากแม่แบบภาษาไทย และแสดงสถิติจริงของคลิปที่สนับสนุนข้อเสนอนั้น ผลทั้งหมดบันทึกพร้อมรุ่นและหลักฐาน เพื่อเปิดย้อนหลังได้เหมือนเดิม แต่ยังไม่อ้างว่าการทำตามจะทำให้ยอดเพิ่มแน่นอนครับ”
 
-## 20. K-Means Performance Clustering และ Transcript Similarity (19 ต.ค. 2026)
+## 20. K-Means Performance Clustering และ Text Centroid (ปรับ 20 ต.ค. 2026)
 
 ### 20.1 ตอบคำถามอะไร และไม่ตอบอะไร
 
 ฟีเจอร์ใหม่อยู่ในหน้า Result แท็บ **หลักฐานอ้างอิง** หัวข้อ **วิเคราะห์กลุ่มผลงาน**:
 
 - แบ่งคลิปอ้างอิงหมวดเดียวกันเป็น Low/High ตามยอดวิวและไลก์สะสมจริง
-- เปรียบเทียบว่า Transcript ผู้ใช้มีคำและวลีคล้ายคลิปในกลุ่มไหนมากกว่า
+- เปรียบเทียบว่า Transcript ผู้ใช้ใกล้ Text Centroid ของกลุ่มไหนในเชิงเนื้อหา ด้วย SentenceTransformer และ Cosine Distance
 - ให้ประเด็นจากกลุ่ม High พร้อมข้อความต้นทางและลิงก์คลิป เมื่อผลความคล้ายชัดพอ
 - ไม่ใช่การฝึก classifier ใหม่ ไม่ใช่ Outcome probability และไม่ได้สร้างยอดวิว/ไลก์ให้คลิปผู้ใช้
 
@@ -941,17 +941,20 @@ reference หมวดเดียวกัน + สถิติล่าสุ�
                                                       |
                        ตั้งชื่อ Low/High จาก centroid ที่ปรับสเกลแล้ว
                                                       |
-reference transcripts -> normalize/cut Thai words -> TF-IDF.fit_transform
-user transcript       -> normalize/cut Thai words -> TF-IDF.transform
+reference transcripts -> แบ่งครบทุกช่วงตาม token budget -> SentenceTransformer
                                                       |
-                       Cosine ของ user เทียบ reference ทีละคลิป
+                        เวกเตอร์ 384 มิติ/คลิป -> ค่าเฉลี่ยแยก Low/High
                                                       |
-                            เฉลี่ย Top-K เท่ากันในแต่ละกลุ่ม
+                                  Text Centroid Low / High
                                                       |
-                 Low / High / หลักฐานน้อย / คะแนนใกล้กัน + คลิปอ้างอิง
+user transcript -> แบ่งแบบเดียวกัน -> โมเดลรุ่นเดียวกัน -> เวกเตอร์ผู้ใช้
+                                                      |
+                          Cosine Distance ไปยัง Text Centroid ทั้งสอง
+                                                      |
+                 ใกล้ Low / ใกล้ High / ระยะใกล้กัน / ข้อมูลไม่พร้อม
 ```
 
-TF-IDF ในขั้นนี้สร้าง feature space เฉพาะงานเปรียบเทียบ ไม่ได้นำ vector จาก classifier หรือ vectorizer ที่ fit คนละชุดมาเทียบกัน และไม่ได้เอา user ไปเป็นสมาชิกใน K-Means เพราะ user ยังไม่มี KPI
+มีเวกเตอร์คนละพื้นที่กันสองชุด: KPI 2 มิติใช้แบ่งคลิปอ้างอิง ส่วน embedding ข้อความ 384 มิติใช้เทียบเนื้อหา ไม่เอาสองชุดนี้มาหา distance ข้ามกัน และไม่สร้าง `(views=0, likes=0)` ให้คลิปใหม่ไปอยู่ใน K-Means
 
 ### 20.4 สูตร K-Means
 
@@ -979,35 +982,52 @@ centroid_performance_score = 0.5 * centroid_z_log_views
 
 Average/Median บนการ์ดคำนวณจาก **ยอดจริงเดิม** ไม่ใช่ค่า log หรือ centroid ย้อนสเกล ค่า centroid ที่ inverse transform แล้วไม่เท่ากับ arithmetic mean อย่าอธิบายสองตัวนี้เป็นตัวเดียวกัน กราฟแสดงแกนดิบ Views/Likes เพื่ออ่านยอดได้ตรง แม้โมเดลจัดกลุ่มบนสเกล log ที่ standardize แล้ว
 
-### 20.5 สูตรความคล้ายข้อความ
+### 20.5 สูตร Text Centroid และการอ่าน Transcript ยาว
 
-ใช้ `tokenize_text` และ `filter_tokens` เดิม: normalize คำ ASR, ทำความสะอาด, PyThaiNLP ตัดคำไทย และกรอง stopword ทั้ง reference และ user ใช้ขั้นตอนเดียวกัน ต้องเหลืออย่างน้อย 10 tokens และ 3 คำไม่ซ้ำ
+ใช้ `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` revision
+`e8f8c211226b894fcb81acc59f3b34ba3efd5f42` จาก cache ในโปรเจกต์เท่านั้น ไม่ดาวน์โหลดระหว่างคำขอ API และไม่ retrain classifier
 
-`TfidfVectorizer` ใช้ unigram+bigram, `sublinear_tf=True`, สูงสุด 12,000 features และ fit **reference เท่านั้น**:
+โมเดลสร้างเวกเตอร์ 384 มิติ แต่รับได้ 128 tokens ต่อช่วง จึงไม่ส่ง Transcript ทั้งคลิปให้ encode ครั้งเดียว เพราะส่วนท้ายจะถูกตัด รายละเอียดรุ่นอ้างอิงจาก [model card](https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2)
+
+ขั้นตอนใน `app/services/embedding_centroid.py`:
+
+1. ตรวจ input เดิมว่าพร้อมและมีอย่างน้อย 10 tokens / 3 คำไม่ซ้ำ การตรวจนี้ใช้ NLP เดิม แต่ข้อความที่เข้า embedding ไม่ลบ stopwords หรือใช้ vector จาก classifier
+2. ยุบช่องว่างต่อเนื่องเหมือนกันทั้ง reference/user แล้วแบ่งข้อความต่อเนื่องตาม tokenizer ของโมเดล หัก special tokens ออกจากงบ 128 และตรวจซ้ำว่าทุกช่วงไม่เกินงบ ไม่สุ่มเพียง 12 ช่วง ไม่ทิ้งตอนท้าย
+3. Encode ทุกช่วงด้วยโมเดลเดียวกัน Normalize แต่ละเวกเตอร์ แล้วเฉลี่ยถ่วงด้วยจำนวน token ของช่วง เพื่อไม่ให้ช่วงท้ายสั้น ๆ มีน้ำหนักเท่าช่วงเต็ม จากนั้น normalize เป็นเวกเตอร์ของคลิป
+4. เฉลี่ยเวกเตอร์ **ทุกคลิป** ภายในกลุ่ม High หรือ Low โดยให้น้ำหนักคลิปเท่ากัน แล้ว normalize เป็น Text Centroid คลิปยาวจึงไม่ได้น้ำหนักมากกว่าคลิปสั้นในค่าเฉลี่ยกลุ่ม
+5. Encode คลิปผู้ใช้แบบเดียวกัน แล้วหาระยะถึงทั้งสอง centroid
 
 ```text
-tf = 1 + ln(term_count) เมื่อคำปรากฏ
-idf = ln((1 + จำนวน reference) / (1 + จำนวน reference ที่มีคำ)) + 1
-weight = tf * idf แล้ว normalize vector ด้วย L2
-cosine(user, reference) = dot(user, reference) / (norm(user) * norm(reference))
+e_i = L2_normalize(token_weighted_mean(chunk_embeddings_of_clip_i))
+c_high = L2_normalize(mean(e_i for clips in High))
+c_low  = L2_normalize(mean(e_i for clips in Low))
+u = embedding ของ Transcript ผู้ใช้ ด้วยขั้นตอนเดียวกัน
+
+cosine(u, c) = dot(u, c)  # ทั้งคู่ normalize แล้ว
+distance(u, c) = 1 - cosine(u, c)
 ```
 
-Cosine 0 คือไม่มี feature ร่วมตามตัวแทนนี้ ส่วน 1 คือทิศทางเวกเตอร์ตรงกัน ไม่ใช่วัดความหมายหรือคุณภาพได้สมบูรณ์ และไม่ใช่ probability
+Cosine มีค่าตั้งแต่ -1 ถึง 1 จึงต้องเก็บค่าติดลบด้วย Distance มีช่วง 0 ถึง 2 ยิ่งน้อยยิ่งใกล้ ไม่ใช่เปอร์เซ็นต์ ไม่ใช่โอกาสสำเร็จ สูตรและความหมาย cosine ดู [Sentence Transformers documentation](https://www.sbert.net/docs/sentence_transformer/usage/semantic_textual_similarity.html)
 
-คะแนนกลุ่มใช้ `K = min(5, จำนวน Low, จำนวน High)` เลือกคลิปคะแนนสูงสุด K รายการ **ในแต่ละกลุ่ม** แล้วหาค่าเฉลี่ย ไม่ใช้ผลรวมซึ่งโตตามจำนวนสมาชิก เช่น กลุ่ม 39 และ 22 คลิปใช้กลุ่มละ 5 คลิปทั้งคู่ วิธีนี้ลดอิทธิพลจำนวนสมาชิกโดยตรง แต่กลุ่มใหญ่ยังมีโอกาสค้นเจอคู่ที่คล้ายมากกว่าได้ จึงไม่ถือว่าขจัดอคติขนาดกลุ่มทั้งหมด
+ถ้า Transcript ยาวเกินขอบเขต 100,000 model tokens, tokenizer/โมเดลไม่พร้อม หรือเวกเตอร์ใช้ไม่ได้ จะงดผลข้อความและยังคงแสดง KPI ที่คำนวณได้ ไม่แอบเปลี่ยนเป็น TF-IDF
 
-กติกางดสรุปใน `POLICY`:
+กติกาเชิงพรรณนาใน `embedding_policy`:
 
-- transcript ว่าง/สั้น/ไม่พร้อม หรือไม่มีคำร่วม: `insufficient_evidence`
-- คะแนนที่มากกว่ายังน้อยกว่า 0.10: `insufficient_evidence`
-- ผลต่าง Low/High น้อยกว่า 0.03 หรือ 3 จุดเปอร์เซ็นต์: `inconclusive`
-- นอกนั้นเลือกกลุ่มที่มีคะแนนเฉลี่ยสูงกว่า
+- ทั้งสอง cosine ไม่เป็นบวก: ไม่เลือกกลุ่ม
+- ระยะเท่ากันภายใน 0.000001: `text_centroid_tie`
+- ระหว่าง Text Centroid เองห่างน้อยกว่า 0.001: `overlapping_text_centroids`
+- ระยะของผู้ใช้ถึงสองกลุ่มต่างกันน้อยกว่า 0.01: `similar_text_distances`
+- นอกนั้นเลือก centroid ที่ระยะต่ำกว่า
 
-0.10/0.03 เป็น heuristic เพื่อไม่ฝืนเลือกกลุ่ม **ยังไม่ใช่เกณฑ์ที่ calibrate ด้วยผลสำเร็จจริง** ไม่ใช่ confidence threshold ของ classifier และไม่ใช่ค่า accuracy ของฟีเจอร์นี้
+0.001/0.01 เป็น heuristic งดเลือกเมื่อแยกไม่ชัด **ไม่ผ่านการ calibrate เป็น probability หรือ accuracy** ชื่อ High/Low มาจาก KPI ไม่ได้พิสูจน์ว่าข้อความของสองกลุ่มจำแนกผลสำเร็จได้ดี
+
+Cache เก็บเวกเตอร์ reference ตาม hash ข้อความ + model revision + policy โดยไม่เก็บ raw transcript เพิ่ม เมื่อข้อความ/รุ่น/policy เปลี่ยนจะคำนวณใหม่ เวกเตอร์ผู้ใช้ไม่บันทึกลง cache นี้ การใช้ค่าเฉลี่ยต่อกลุ่มตัดอิทธิพลผลรวมจำนวนสมาชิก แต่ยังมีอคติจากช่องซ้ำ/การคัดตัวอย่างและ centroid อาจกลบหัวข้อย่อย
+
+ตัวเลือกเก่า `tfidf` ยังคงใช้คำและวลี unigram/bigram, fit reference-only และเฉลี่ย Top-K กลุ่มละเท่ากัน (สูงสุด 5) เพื่อเทียบวิธีได้ แต่ **ไม่ใช่ค่าเริ่มต้นและไม่ใช่ fallback อัตโนมัติ** เกณฑ์ 0.10/0.03 เป็นของวิธีเก่าเท่านั้น
 
 ### 20.6 คำแนะนำสร้างอย่างไร
 
-เมื่อเลือกกลุ่มได้ ระบบอ่าน TF-IDF ของสมาชิก High เพื่อแสดงคำเด่นและแยกคำที่พบร่วมกับ user/ยังไม่พบใน user แต่ไม่อ้างว่าแค่เพิ่ม keyword แล้วจะได้ยอดเพิ่ม
+เมื่อเลือกกลุ่มได้ ระบบใช้ความคล้ายรายคลิปเรียงหลักฐาน High และตรวจหัวข้อจากข้อความจริง Text Centroid ไม่สร้าง "คำเด่น" ขึ้นจากตัวเลข embedding ส่วนคำเด่น TF-IDF แสดงเฉพาะเมื่อเลือกวิธีเก่า ไม่อ้างว่าแค่เพิ่ม keyword แล้วจะได้ยอดเพิ่ม
 
 ส่วนคำแนะนำที่เป็นหัวข้อใช้ `recommendation_templates.json` และ alias เดิม ตรวจข้อความด้วย `locate_terms()` ต้องพบหัวข้อในอย่างน้อย 2 คลิป High จาก 2 ช่อง จึงเสนอพร้อม quote จริง, dataset ID และลิงก์ต้นทางสูงสุด 3 คลิปต่อหัวข้อ แสดงไม่เกิน 6 หัวข้อ กรณีคล้าย Low ก็แสดงสิ่งที่อาจพิจารณาจาก High ด้วยหลักฐานแบบเดียวกัน
 
@@ -1015,7 +1035,7 @@ Cosine 0 คือไม่มี feature ร่วมตามตัวแท�
 
 ### 20.7 ผลจริงที่ตรวจได้
 
-ตรวจแบบ read-only วันที่ 19 ต.ค. 2026 เวลา **22:14 น. ไทย** จากคลิปที่บันทึก `#41 review camera`:
+ตรวจแบบ read-only วันที่ 20 ต.ค. 2026 เวลา **14:08 น. ไทย** จากคลิปที่บันทึก `#41 review camera` ด้วย **Text Centroid** บนทั้งหมวดที่ขั้นต่ำ 25,000 วิว:
 
 | รายการ | ผลจริง ณ รอบตรวจ |
 |---|---:|
@@ -1025,33 +1045,39 @@ Cosine 0 คือไม่มี feature ร่วมตามตัวแท�
 | Transcript ไม่พอ/ไม่ครบ | 3 |
 | ยอดต่ำกว่าขั้นต่ำ | 46 |
 | Low / High | 39 / 22 คลิป |
-| Low: วิวเฉลี่ย / ไลก์เฉลี่ย | 45,838.33 / 767.05 |
-| High: วิวเฉลี่ย / ไลก์เฉลี่ย | 199,176.82 / 2,630.95 |
-| ความคล้าย Low / High | 10.14% / 7.63% |
-| จำนวนคลิปใช้เฉลี่ยความคล้าย | กลุ่มละ 5 |
-| สถานะ | `inconclusive` |
+| Low: วิวเฉลี่ย / ไลก์เฉลี่ย | 45,890.95 / 767.44 |
+| High: วิวเฉลี่ย / ไลก์เฉลี่ย | 199,543.55 / 2,631.55 |
+| Cosine Distance ถึง Low / High | 0.3767 / 0.4170 |
+| ผลต่างระยะ | 0.0403 |
+| ระหว่าง Text Centroid Low/High | 0.0090 |
+| ช่วงข้อความ reference / user ที่อ่าน | 2,170 / 2 |
+| สถานะ | `ready`: เนื้อหาใกล้ Low มากกว่า |
 
-Low สูงกว่า High ประมาณ 2.51 จุดเปอร์เซ็นต์ ซึ่งน้อยกว่าเกณฑ์ผลต่าง 3 จุดเปอร์เซ็นต์ จึงยังไม่เลือก Low/High ไม่ได้ปรับเกณฑ์เพื่อให้ผลดูดี ตัวเลขมาจาก [audit.json](../../artifacts/performance-clustering/20261019/audit.json) และ response เต็มที่ [actual-response.json](../../artifacts/performance-clustering/20261019/actual-response.json) มี snapshot ID, source, hash และ policy ตรวจย้อนกลับได้ สถิติรอบใหม่อาจทำให้ผลบนหน้าเว็บเปลี่ยนจากตารางนี้
+ผลนี้แปลว่าเนื้อหาใกล้ค่าเฉลี่ย Low ในชุดนี้ **ไม่ใช่บอกว่าคลิปจะมียอดต่ำ** ไม่ได้ปรับกติกาเพื่อบังคับให้เป็น High หลักฐานอยู่ที่ [audit.json](../../artifacts/performance-clustering/20261020/text-centroid-audit/audit.json) ผล TF-IDF เดิมที่ [audit 19 ต.ค.](../../artifacts/performance-clustering/20261019/audit.json) เป็นคนละวิธี ห้ามนำตัวเลขมาปนกัน
+
+ตัวเลขนี้เป็นการตรวจ **ทั้งหมวด** ไม่ใช่ผลของทุกหัวข้อในหน้าเว็บ หากเลือกหัวข้อ/ช่วงอายุจะมีสมาชิกและ centroid คนละชุด จึงได้ระยะต่างกันได้ตามจริง
 
 ### 20.8 API, UI และความต่างจากหลักฐานเก่า
 
 ```http
-GET /contents/41/performance-clustering?minimum_views=25000
+GET /contents/41/performance-clustering?minimum_views=25000&comparison_method=embedding_centroid
 Authorization: Bearer <session token>
 ```
 
 API ต้องเป็นเจ้าของคลิป ไม่ล็อกอินได้ 401 ไม่ใช่เจ้าของ/ไม่พบคลิปได้ 404 และยอดขั้นต่ำผิดรูปแบบ/ติดลบได้ 422 หมวด Unknown หรือไม่ accepted งดดึง reference ในหมวดที่เดาไว้
 
-Default กำหนดด้วย `PERFORMANCE_MINIMUM_VIEWS=25000` ก่อนเปิด Backend; ผู้ใช้ปรับค่าในแผงและกดไอคอนกรองได้ ค่า query นี้ใช้เฉพาะการเปรียบเทียบนั้น **ไม่เปลี่ยน Admin setting/โมเดล/ฐานข้อมูล** ค่ามากเกินจนไม่มีสมาชิกแสดงเหตุผลและเปลี่ยนกลับได้
+ค่าเริ่มต้นของวิธีคือ `embedding_centroid`; `tfidf` เป็นตัวเลือกเปรียบเทียบย้อนหลัง สำหรับทั้งหมวด ยอดขั้นต่ำกำหนดด้วย `PERFORMANCE_MINIMUM_VIEWS=25000` และผู้ใช้เปลี่ยนได้เฉพาะคำขอนั้น **ไม่เปลี่ยน Admin setting/โมเดล/ฐานข้อมูล**
 
-หน้าเว็บโหลดครั้งแรกเมื่อเปิดแท็บหลักฐาน แล้วเก็บ state ระหว่างสลับแท็บ ภายในมี summary 3 ใบ, scatter พร้อม tooltip, ค่าเฉลี่ย/มัธยฐาน, แถบความคล้าย, หัวข้อที่รองรับ และ All/Low/High filter ของสมาชิกทั้งหมด กดดูเพิ่มครั้งละ 6 คลิปได้ ไม่มีการเพิ่ม user เป็นจุดใน scatter
+สำหรับผลวิเคราะห์ที่มีหลักฐานรายหัวข้อ หน้าเว็บส่ง `topic_id` และ `group_index` ให้ใช้เฉพาะสมาชิกที่สูงกว่า benchmark ของหัวข้อนั้นและรูปแบบ/ช่วงอายุเดียวกันใน snapshot เดิม ตาม `saved_topic_cohort()` ไม่สลับไปใช้ทั้งหมวดเองถ้าหัวข้อมีข้อมูลไม่พอ Low ในกรณีนี้จึงเป็นกลุ่มต่ำกว่าภายในกลุ่มที่สูงกว่า benchmark อยู่แล้ว ไม่ใช่ low ของคลิปทั้งหมด ใช้ snapshot Views/Likes เดิม แต่ตรวจ Transcript ปัจจุบันว่าตรง hash และยังมีสิทธิ์เป็น reference
 
-แผงนี้ **คำนวณจาก reference ปัจจุบัน** และแสดงเวลาคำนวณ ไม่แก้ `analysis_results.summary` หรือ snapshot เก่า ดังนั้น “คลิปที่ใช้จัดกลุ่ม” กับ “คลิปต้นแบบประกอบคำแนะนำ” เดิมอาจเป็นคนละชุดและคนละรอบสถิติ ไม่ควรนำจำนวนมาเทียบว่าเป็น denominator เดียวกัน
+หน้าเว็บโหลดครั้งแรกเมื่อเปิดแท็บหลักฐาน แล้วเก็บ state ระหว่างสลับแท็บ มีตัวเลือกหัวข้อ/กลุ่ม (เมื่อมี), วิธีเปรียบเทียบ, summary 3 ใบ, scatter พร้อม tooltip, ค่าเฉลี่ย/มัธยฐาน, **ระยะ Text Centroid ทศนิยม 4 ตำแหน่ง ไม่มี %**, หัวข้อที่รองรับ และ All/Low/High filter กดดูเพิ่มครั้งละ 6 คลิป ไม่มี user เป็นจุดในกราฟ KPI
 
-ไฟล์หลัก: `app/services/performance_clustering.py`, `app/schemas/performance_clustering.py`, `app/routes/contents.py`, `frontend_flutter/lib/models/performance_clustering.dart`, `frontend_flutter/lib/widgets/performance_clustering_panel.dart` และ repository/result screen เดิม ไม่มี table หรือ dependency ใหม่
+แผงนี้คำนวณใหม่โดยไม่แก้ `analysis_results.summary` หรือ snapshot เก่า `data_basis` และ `selection` บอกว่าใช้ชุดปัจจุบันทั้งหมวดหรือชุดหัวข้อที่บันทึกไว้ จำนวน “คลิปที่ใช้จัดกลุ่ม” อาจน้อยกว่ากลุ่มตั้งต้น เพราะยังต้องตรวจข้อมูล KPI/Transcript และอย่างน้อย 2 สมาชิกต่อกลุ่ม
+
+ไฟล์หลัก: `app/services/embedding_centroid.py`, `app/services/performance_clustering.py`, `app/services/performance_clustering_topics.py`, `app/schemas/performance_clustering.py`, `app/routes/contents.py`, `frontend_flutter/lib/models/performance_clustering.dart`, `frontend_flutter/lib/widgets/performance_clustering_panel.dart` และ repository/result screen เดิม ไม่มี table หรือ dependency ใหม่
 
 ### 20.9 ประโยคพรีเซนต์
 
-“ระบบเริ่มจากจำแนกหมวดของคลิปก่อนครับ แล้วเอาคลิปอ้างอิงหมวดเดียวกันที่ข้อมูลครบและถึงยอดวิวขั้นต่ำมาแบ่งสองกลุ่มด้วย K-Means โดยใช้ยอดวิวกับไลก์ที่ปรับ log และสเกลแล้ว ตั้งชื่อกลุ่มจาก centroid ไม่ได้ผูกชื่อกับเลข 0 หรือ 1 จากนั้นเทียบ Transcript ของผู้ใช้กับแต่ละกลุ่มด้วย TF-IDF และ Cosine ใช้ค่าเฉลี่ยคลิปที่ใกล้ที่สุดจำนวนเท่ากันทั้งสองฝั่ง ถ้าคะแนนต่างกันพอจึงบอกว่าข้อความใกล้กลุ่มไหน และให้หัวข้อจากคลิป High พร้อมข้อความต้นทาง ถ้าหลักฐานน้อยหรือคะแนนใกล้กันระบบจะบอกว่ายังสรุปไม่ได้ครับ”
+“คลิปใหม่ยังไม่มียอดวิว เราจึงไม่เอาศูนย์ไปจัดกลุ่มครับ เราใช้ยอดวิวกับไลก์ของคลิปอ้างอิงจริงทำ K-Means เพื่อแยก High/Low ก่อน แล้วใช้ SentenceTransformer แปลง Transcript แต่ละคลิปเป็นเวกเตอร์ 384 มิติ เฉลี่ยแยกเป็น Text Centroid ของสองกลุ่ม จากนั้นแปลงคลิปผู้ใช้ด้วยโมเดลเดียวกันแล้วหา Cosine Distance ไปยังทั้งสองจุด ค่าน้อยกว่าหมายถึงเนื้อหาใกล้กลุ่มนั้นมากกว่า ถ้าใกล้กันเกินไปเรายังไม่เลือกกลุ่ม และสามารถดูประเด็นกับข้อความต้นทางจาก High ประกอบคำแนะนำได้ครับ”
 
-**ข้อจำกัดที่ต้องพูด:** ยอดสะสมได้รับผลจากอายุคลิป รูปแบบ ขนาดช่อง และการเผยแพร่ ขั้นนี้ยังไม่ได้ควบคุมปัจจัยเหล่านั้นหรือสุ่มตัวอย่างเป็นตัวแทน YouTube การกรองยอดวิวขั้นต่ำยิ่งจำกัดประชากรอ้างอิง TF-IDF เป็น lexical similarity ไม่ใช่ semantic understanding เต็มรูปแบบ ส่วนเปอร์เซ็นต์บนแถบคือความคล้าย ไม่ใช่โอกาสที่ปรับคลิปแล้ว engagement จะเพิ่ม การทำนายแบบนั้นยังต้องข้อมูล outcome และการประเมินโมเดลแยกต่างหากตาม contract เดิม
+**ข้อจำกัดที่ต้องพูด:** KPI ยังเป็นยอดสะสม ไม่ใช่ยอด 7 วัน การเลือกหัวข้อ/อายุช่วยจำกัดบริบทแต่ไม่ได้ควบคุมขนาดช่องหรือพิสูจน์เหตุและผล Text Centroid เป็นการเทียบเนื้อหาจริง ไม่ใช่ demo แต่ยังไม่ใช่โมเดลทำนายผลตอบรับที่ผ่านการประเมิน ไม่ควรแปลง distance เป็น "โอกาสสำเร็จ" การทำนายหรืออ้างผลหลังปรับยังต้องข้อมูลและการประเมินตาม contract เดิม

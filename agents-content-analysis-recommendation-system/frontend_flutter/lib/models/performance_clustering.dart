@@ -2,8 +2,8 @@ Map<String, dynamic> _object(dynamic value) =>
     value is Map ? Map<String, dynamic>.from(value) : {};
 List<Map<String, dynamic>> _rows(dynamic value) =>
     value is List ? value.whereType<Map>().map(_object).toList() : [];
-double? _score(dynamic value) =>
-    value is num && value.isFinite && value >= 0 && value <= 1
+double? _score(dynamic value, {double min = 0, double max = 1}) =>
+    value is num && value.isFinite && value >= min && value <= max
         ? value.toDouble()
         : null;
 
@@ -65,11 +65,19 @@ class PerformanceComparison {
   int get minimumViews => raw['minimum_views'] as int;
   bool get clusteringReady => clustering['status'] == 'ready';
   List<Map<String, dynamic>> get clusters => _rows(clustering['clusters']);
-  double? get lowScore => _score(similarity['low_score']);
-  double? get highScore => _score(similarity['high_score']);
+  bool get usesTextCentroid =>
+      similarity['method'] == 'sentence_embedding_text_centroid_cosine';
+  double? get lowScore =>
+      _score(similarity['low_score'], min: usesTextCentroid ? -1 : 0);
+  double? get highScore =>
+      _score(similarity['high_score'], min: usesTextCentroid ? -1 : 0);
+  double? get lowDistance => _score(similarity['low_distance'], max: 2);
+  double? get highDistance => _score(similarity['high_distance'], max: 2);
   String? get closest => similarity['status'] == 'ready' &&
           lowScore != null &&
           highScore != null &&
+          (!usesTextCentroid ||
+              (lowDistance != null && highDistance != null)) &&
           const ['low', 'high'].contains(similarity['closest_group'])
       ? similarity['closest_group'] as String
       : null;
@@ -100,6 +108,15 @@ String performanceReason(dynamic reason) => switch (reason) {
         'มีกลุ่มที่ไม่มีข้อความเพียงพอสำหรับเปรียบเทียบ',
       'low_similarity' => 'ความคล้ายกับทั้งสองกลุ่มต่ำ จึงยังไม่เลือกกลุ่ม',
       'similar_scores' => 'คะแนนความคล้ายสองกลุ่มใกล้กัน จึงยังสรุปไม่ได้',
+      'text_centroid_tie' =>
+        'ระยะห่างไปยัง Text Centroid ของ High และ Low เท่ากัน',
+      'overlapping_text_centroids' =>
+        'Text Centroid ของสองกลุ่มใกล้กันมาก จึงยังแยกด้วยเนื้อหาไม่ได้',
+      'similar_text_distances' =>
+        'ระยะห่างไปยังสองกลุ่มใกล้กัน จึงยังไม่เลือกกลุ่ม',
+      'no_semantic_similarity' => 'ไม่พบความคล้ายเชิงความหมายกับทั้งสองกลุ่ม',
+      'embedding_unavailable' =>
+        'ยังโหลดโมเดล SentenceTransformer ไม่สำเร็จ กรุณาตรวจการติดตั้งและไฟล์โมเดล',
       'insufficient_reference_transcript' =>
         'Transcript อ้างอิงไม่ครบหรือสั้นเกินไป',
       'below_minimum_views' => 'ยอดวิวต่ำกว่าขั้นต่ำ',

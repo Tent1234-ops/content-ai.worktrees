@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/performance_clustering.dart';
+import '../models/reference_response.dart';
 import '../repositories/content_repository.dart';
 import 'state_widgets.dart';
 import 'workspace_widgets.dart';
@@ -26,9 +27,13 @@ Color _tone(BuildContext context, String level) => level == 'high'
 
 class PerformanceClusteringPanel extends StatefulWidget {
   const PerformanceClusteringPanel(
-      {super.key, required this.contentId, required this.repository});
+      {super.key,
+      required this.contentId,
+      required this.repository,
+      this.topics = const []});
   final int contentId;
   final ContentRepository repository;
+  final List<ReferenceResponseTopic> topics;
   @override
   State<PerformanceClusteringPanel> createState() =>
       _PerformanceClusteringPanelState();
@@ -42,9 +47,13 @@ class _PerformanceClusteringPanelState
   String? _error, _thresholdError;
   String _filter = 'all';
   int _limit = 6, _request = 0;
+  String? _topicId;
+  int _groupIndex = 0;
+  String _comparisonMethod = 'embedding_centroid';
   @override
   void initState() {
     super.initState();
+    _topicId = widget.topics.isEmpty ? null : widget.topics.first.id;
     _load();
   }
 
@@ -53,6 +62,8 @@ class _PerformanceClusteringPanelState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.contentId != widget.contentId ||
         oldWidget.repository != widget.repository) {
+      _topicId = widget.topics.isEmpty ? null : widget.topics.first.id;
+      _groupIndex = 0;
       _load();
     }
   }
@@ -74,7 +85,15 @@ class _PerformanceClusteringPanelState
     try {
       final result = await widget.repository.getPerformanceComparison(
           widget.contentId,
-          minimumViews: minimumViews);
+          minimumViews: widget.topics.isEmpty ? minimumViews : null,
+          comparisonMethod: _comparisonMethod,
+          topicId: widget.topics.isEmpty ? null : _topicId,
+          groupIndex: widget.topics.isEmpty
+              ? null
+              : widget.topics
+                  .firstWhere((topic) => topic.id == _topicId)
+                  .groups[_groupIndex]
+                  .sourceGroupIndex);
       if (!mounted || request != _request) return;
       setState(() {
         _data = result;
@@ -131,6 +150,8 @@ class _PerformanceClusteringPanelState
     final visible = data.videos
         .where((v) => _filter == 'all' || v['performance_level'] == _filter)
         .toList();
+    final selectedTopic =
+        widget.topics.where((t) => t.id == _topicId).firstOrNull;
     return Column(
         key: const ValueKey('performance-clustering-panel'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -139,17 +160,104 @@ class _PerformanceClusteringPanelState
               title: 'วิเคราะห์กลุ่มผลงาน · $category',
               icon: Icons.scatter_plot_outlined),
           Text(
-              'ข้อมูลอ้างอิงล่าสุด · คำนวณ ${_date(data.raw['as_of'])} (เวลาท้องถิ่น)',
+              widget.topics.isEmpty
+                  ? 'ข้อมูลอ้างอิงล่าสุด · คำนวณ ${_date(data.raw['as_of'])}'
+                  : 'ใช้กลุ่มที่ผ่าน Benchmark ในหลักฐานอ้างอิงเดิม · คำนวณ ${_date(data.raw['as_of'])}',
               style: Theme.of(context).textTheme.bodySmall),
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: DropdownButtonFormField<String>(
+              key: const ValueKey('performance-comparison-method'),
+              initialValue: _comparisonMethod,
+              isExpanded: true,
+              decoration:
+                  const InputDecoration(labelText: 'วิธีเทียบ Transcript'),
+              items: const [
+                DropdownMenuItem(
+                    value: 'embedding_centroid',
+                    child: Text('Text Centroid · SentenceTransformer')),
+                DropdownMenuItem(value: 'tfidf', child: Text('TF-IDF + Top-K')),
+              ],
+              onChanged: (method) {
+                if (method == null || method == _comparisonMethod) return;
+                setState(() => _comparisonMethod = method);
+                _load(minimumViews: int.tryParse(_threshold.text));
+              },
+            ),
+          ),
+          if (widget.topics.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('performance-topic-selector'),
+              isExpanded: true,
+              initialValue: _topicId,
+              decoration:
+                  const InputDecoration(labelText: 'หัวข้อหลักฐานอ้างอิง'),
+              items: [
+                for (final topic in widget.topics)
+                  DropdownMenuItem(
+                      value: topic.id,
+                      child: Text(topic.title, overflow: TextOverflow.ellipsis))
+              ],
+              onChanged: (value) {
+                if (value == null || value == _topicId) return;
+                setState(() {
+                  _topicId = value;
+                  _groupIndex = 0;
+                });
+                _load();
+              },
+            ),
+            if (selectedTopic != null && selectedTopic.groups.length > 1) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                key: ValueKey('performance-group-selector-$_topicId'),
+                isExpanded: true,
+                initialValue: _groupIndex,
+                decoration: const InputDecoration(
+                    labelText: 'กลุ่มอ้างอิงเดิม (รูปแบบและอายุคลิป)'),
+                items: [
+                  for (final (index, group) in selectedTopic.groups.indexed)
+                    DropdownMenuItem(
+                        value: index,
+                        child: Text(
+                            '${group.formatLabel} · ${group.ageLabel} · ${group.passingCount}/${group.sampleSize} คลิป',
+                            overflow: TextOverflow.ellipsis))
+                ],
+                onChanged: (value) {
+                  if (value == null || value == _groupIndex) return;
+                  setState(() => _groupIndex = value);
+                  _load();
+                },
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+                'ใช้เฉพาะคลิปที่ผ่านเกณฑ์ยอดวิวตามหลักฐานของหัวข้อนี้ ไม่ใช้คลิปทั้งหมวด',
+                style: Theme.of(context).textTheme.bodySmall),
+          ],
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, constraints) {
             final columns = constraints.maxWidth >= 600 ? 3 : 1;
             final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
             return Wrap(spacing: 12, runSpacing: 12, children: [
               for (final metric in [
-                ('คลิปอ้างอิง', data.referenceCount),
-                ('ใช้จัดกลุ่มได้', data.eligibleCount),
-                ('ยอดวิวขั้นต่ำ', data.minimumViews)
+                (
+                  widget.topics.isEmpty ? 'คลิปอ้างอิง' : 'คลิปในหัวข้อ',
+                  widget.topics.isEmpty
+                      ? data.referenceCount
+                      : (data.raw['selection']?['topic_sample_size'] ?? 0)
+                ),
+                (
+                  widget.topics.isEmpty ? 'ใช้จัดกลุ่มได้' : 'ผ่าน Benchmark',
+                  widget.topics.isEmpty
+                      ? data.eligibleCount
+                      : (data.raw['selection']?['passing_count'] ?? 0)
+                ),
+                (
+                  widget.topics.isEmpty ? 'ยอดวิวขั้นต่ำ' : 'ใช้จัดกลุ่มจริง',
+                  widget.topics.isEmpty ? data.minimumViews : data.eligibleCount
+                )
               ])
                 SizedBox(
                     width: width,
@@ -173,25 +281,33 @@ class _PerformanceClusteringPanelState
             ]);
           }),
           const SizedBox(height: 16),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-                child: TextField(
-                    key: const ValueKey('performance-minimum-views'),
-                    controller: _threshold,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                        labelText: 'ยอดวิวขั้นต่ำ',
-                        suffixText: 'ครั้ง',
-                        errorText: _thresholdError),
-                    onSubmitted: (_) => _apply())),
-            const SizedBox(width: 8),
-            IconButton.filled(
-                onPressed: _apply,
-                style: IconButton.styleFrom(foregroundColor: colors.onPrimary),
-                tooltip: 'คำนวณตามยอดวิวขั้นต่ำ',
-                icon: const Icon(Icons.filter_alt_outlined)),
-          ]),
+          if (widget.topics.isEmpty)
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                  child: TextField(
+                      key: const ValueKey('performance-minimum-views'),
+                      controller: _threshold,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                          labelText: 'ยอดวิวขั้นต่ำ',
+                          suffixText: 'ครั้ง',
+                          errorText: _thresholdError),
+                      onSubmitted: (_) => _apply())),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                  onPressed: _apply,
+                  style:
+                      IconButton.styleFrom(foregroundColor: colors.onPrimary),
+                  tooltip: 'คำนวณตามยอดวิวขั้นต่ำ',
+                  icon: const Icon(Icons.filter_alt_outlined)),
+            ]),
+          if (widget.topics.isNotEmpty)
+            Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                    'เกณฑ์หลักฐานเดิม: ตั้งแต่ ${_number(data.minimumViews)} วิว (ไม่ใช่เกณฑ์แบ่ง Low/High)',
+                    style: Theme.of(context).textTheme.bodySmall)),
           if (data.exclusions.isNotEmpty)
             Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -263,26 +379,41 @@ class _PerformanceClusteringPanelState
             const SectionHeading(
                 title: 'เนื้อหาคลิปของคุณใกล้เคียงกลุ่มไหน?',
                 icon: Icons.compare_arrows),
+            if (data.usesTextCentroid)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: Text(
+                    'Cosine Distance ถึง Text Centroid · ค่ายิ่งน้อยยิ่งใกล้'),
+              ),
             for (final value in [
-              ('low', data.lowScore),
-              ('high', data.highScore)
+              ('low', data.usesTextCentroid ? data.lowDistance : data.lowScore),
+              (
+                'high',
+                data.usesTextCentroid ? data.highDistance : data.highScore
+              )
             ])
               Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Column(children: [
                     Row(children: [
                       Expanded(
-                          child: Text('ความคล้ายกลุ่ม ${_level(value.$1)}')),
+                          child: Text(data.usesTextCentroid
+                              ? 'ระยะห่างถึงกลุ่ม ${_level(value.$1)}'
+                              : 'ความคล้ายกลุ่ม ${_level(value.$1)}')),
                       Text(
                           value.$2 == null
                               ? 'ยังคำนวณไม่ได้'
-                              : '${(value.$2! * 100).toStringAsFixed(2)}%',
-                          key: ValueKey('similarity-${value.$1}'))
+                              : data.usesTextCentroid
+                                  ? value.$2!.toStringAsFixed(4)
+                                  : '${(value.$2! * 100).toStringAsFixed(2)}%',
+                          key: ValueKey(
+                              '${data.usesTextCentroid ? 'distance' : 'similarity'}-${value.$1}'))
                     ]),
                     const SizedBox(height: 8),
                     if (value.$2 != null)
                       LinearProgressIndicator(
-                          value: value.$2,
+                          value:
+                              data.usesTextCentroid ? value.$2! / 2 : value.$2,
                           minHeight: 8,
                           color: _tone(context, value.$1),
                           backgroundColor: colors.surfaceContainerHigh),
@@ -290,21 +421,37 @@ class _PerformanceClusteringPanelState
             Text(
                 data.closest == null
                     ? performanceReason(data.similarity['reason'])
-                    : 'เนื้อหาใกล้เคียงกลุ่ม ${_level(data.closest!)} มากกว่า',
+                    : 'เนื้อหาใกล้เคียงกลุ่ม ${_level(data.closest!)} มากกว่าในเชิงข้อความ',
                 key: const ValueKey('performance-closest-group'),
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             const Text(
                 'คะแนนนี้วัดความคล้ายของเนื้อหา ไม่ใช่การคาดการณ์ยอดวิวหรือยอดไลก์'),
-            Text(
-                'ใช้คลิปใกล้เคียงกลุ่มละ ${data.similarity['k_used']} คลิป · TF-IDF + Cosine Similarity',
-                style: Theme.of(context).textTheme.bodySmall),
+            if (data.similarity['method'] ==
+                'sentence_embedding_text_centroid_cosine') ...[
+              Text(
+                  'Text Centroid จากคลิปอ้างอิง ${data.eligibleCount} คลิป · ไม่ใช้ยอดวิวหรือไลก์ของคลิปคุณ',
+                  style: Theme.of(context).textTheme.bodySmall),
+              if (data.similarity['margin'] is num)
+                Text(
+                    'ระยะห่างต่างกัน ${(data.similarity['margin'] as num).toStringAsFixed(4)}',
+                    style: Theme.of(context).textTheme.bodySmall),
+            ] else
+              Text(
+                  'ใช้คลิปใกล้เคียงกลุ่มละ ${data.similarity['k_used']} คลิป · TF-IDF + Cosine Similarity',
+                  style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 24),
             const SectionHeading(
                 title: 'ประเด็นจากกลุ่ม High', icon: Icons.lightbulb_outline),
             if (data.closest == null)
               const Text(
                   'ยังไม่เสนอประเด็นเพิ่มจากการเปรียบเทียบนี้ เพราะผลความคล้ายยังสรุปไม่ได้'),
+            if (data.closest != null &&
+                data.advice.isEmpty &&
+                data.sharedKeywords.isEmpty &&
+                data.missingKeywords.isEmpty)
+              const Text(
+                  'ยังไม่มีประเด็นที่มีหลักฐานจากหลายช่องเพียงพอสำหรับแนะนำเพิ่ม'),
             if (data.sharedKeywords.isNotEmpty)
               _Keywords(
                   label: 'คำที่พบร่วมกับกลุ่ม High',

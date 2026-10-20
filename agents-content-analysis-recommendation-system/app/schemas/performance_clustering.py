@@ -6,13 +6,22 @@ from pydantic import BaseModel, Field
 class ContentSimilarity(BaseModel):
     status: Literal["ready", "insufficient_evidence", "inconclusive"]
     reason: str | None = None
-    low_score: float | None = Field(default=None, ge=0, le=1)
-    high_score: float | None = Field(default=None, ge=0, le=1)
+    low_score: float | None = Field(default=None, ge=-1, le=1)
+    high_score: float | None = Field(default=None, ge=-1, le=1)
+    low_distance: float | None = Field(default=None, ge=0, le=2)
+    high_distance: float | None = Field(default=None, ge=0, le=2)
+    centroid_distance: float | None = Field(default=None, ge=0, le=2)
     closest_group: Literal["low", "high"] | None = None
     k_used: int = Field(ge=0)
     method: str
     supporting_dataset_ids: dict[str, list[int]]
     feature_count: int | None = None
+    margin: float | None = Field(default=None, ge=0, le=2)
+    model_name: str | None = None
+    model_revision: str | None = None
+    embedding_policy: dict[str, Any] | None = None
+    coverage: dict[str, Any] | None = None
+    evidence_strength: str | None = None
 
 
 class PerformanceClusteringResponse(BaseModel):
@@ -25,6 +34,7 @@ class PerformanceClusteringResponse(BaseModel):
     reference_count: int = Field(ge=0)
     eligible_count: int = Field(ge=0)
     minimum_views: int = Field(ge=0)
+    selection: dict[str, Any] | None = None
     excluded_counts: dict[str, int]
     channel_count: int = Field(ge=0)
     policy: dict[str, Any]

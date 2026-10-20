@@ -74,10 +74,11 @@ with SessionLocal() as db:
     const before = await (await context.request.get(contentUrl, { headers })).json();
     assert.equal((await context.request.get(endpoint)).status(), 401);
     assert.equal((await context.request.get(endpoint + '?minimum_views=-1', { headers })).status(), 422);
-    const live = await context.request.get(endpoint, { headers });
+    const live = await context.request.get(endpoint, { headers, timeout: 180000 });
     assert.equal(live.status(), 200);
     const actual = await live.json();
     assert.equal(actual.clustering.status, 'ready');
+    assert.equal(actual.content_similarity.method, 'sentence_embedding_text_centroid_cosine');
     fs.writeFileSync(path.join(output, 'actual-api.json'), JSON.stringify(actual, null, 2));
     await context.addInitScript(auth => {
       localStorage.setItem('flutter.access_token', JSON.stringify(auth.token));
@@ -116,9 +117,13 @@ with SessionLocal() as db:
         await (await seek(page.getByRole('button', { name: /review camera/ }).first())).click();
         await text('ผลวิเคราะห์บันทึกแล้ว · #41');
         assert.equal(calls, 0, 'Performance data should load only on the evidence tab');
-        const responseReady = page.waitForResponse(r => r.url() === endpoint, { timeout: 45000 });
+        const responseReady = page.waitForResponse(r => r.url().startsWith(endpoint), { timeout: 180000 });
         await tab('หลักฐานอ้างอิง');
         const uiData = await (await responseReady).json();
+        assert.equal(uiData.clustering.status, 'ready');
+        assert.equal(uiData.content_similarity.method, 'sentence_embedding_text_centroid_cosine');
+        assert.equal(uiData.content_similarity.coverage.all_text_processed, true);
+        fs.writeFileSync(path.join(output, `ui-api-${width}-${mode}.json`), JSON.stringify(uiData, null, 2));
         await text('วิเคราะห์กลุ่มผลงาน');
         assert.equal(calls, 1);
         await shot(`summary-${width}-${mode}`);
@@ -140,8 +145,8 @@ with SessionLocal() as db:
         await seek(similarity);
         const snapshot = await aria();
         for (const level of ['low', 'high']) {
-          const expected = (uiData.content_similarity[level + '_score'] * 100).toFixed(2) + '%';
-          assert.ok(snapshot.includes(expected), 'UI similarity does not match API: ' + expected);
+          const expected = uiData.content_similarity[level + '_distance'].toFixed(4);
+          assert.ok(snapshot.includes(expected), 'UI distance does not match API: ' + expected);
         }
         assert.ok(snapshot.includes('คะแนนนี้วัดความคล้ายของเนื้อหา ไม่ใช่การคาดการณ์ยอดวิวหรือยอดไลก์'));
         await shot(`similarity-${width}-${mode}`);
@@ -158,7 +163,7 @@ with SessionLocal() as db:
         await seek(original);
         assert.ok((await aria()).includes('หลักฐานที่เปิดดูได้'), 'Original reference evidence missing');
         // Changing the threshold runs the actual endpoint again; no fixture response.
-        if (width === 1280 && mode === 'light') {
+        if (width === 1280 && mode === 'light' && !uiData.selection) {
           await page.mouse.move(width - 30, 700);
           await page.mouse.wheel(0, -50000);
           await page.waitForTimeout(400);
@@ -176,6 +181,25 @@ with SessionLocal() as db:
           await seek(page.getByText('เนื้อหาคลิปของคุณใกล้เคียงกลุ่มไหน?', { exact: false }));
           await shot('restored-threshold');
           report.threshold_empty_and_restored = true;
+        }
+        if (width === 1280 && mode === 'light' && uiData.selection) {
+          await page.mouse.move(width - 30, 700);
+          await page.mouse.wheel(0, -50000);
+          await page.waitForTimeout(400);
+          const method = page.getByText('Text Centroid · SentenceTransformer', { exact: false }).first();
+          await (await seek(method)).click();
+          const legacyResponse = page.waitForResponse(r => r.url().includes('comparison_method=tfidf'), { timeout: 180000 });
+          await page.getByText('TF-IDF + Top-K', { exact: false }).last().click();
+          const legacy = await (await legacyResponse).json();
+          assert.deepEqual(legacy.clustering, uiData.clustering);
+          assert.equal(legacy.content_similarity.method, 'tfidf_cosine_similarity');
+          await text('วิเคราะห์กลุ่มผลงาน');
+          await (await seek(page.getByText('TF-IDF + Top-K', { exact: false }).first())).click();
+          const restored = page.waitForResponse(r => r.url().includes('comparison_method=embedding_centroid'), { timeout: 180000 });
+          await page.getByText('Text Centroid · SentenceTransformer', { exact: false }).last().click();
+          assert.equal((await (await restored).json()).content_similarity.low_distance,
+            uiData.content_similarity.low_distance);
+          report.method_switch_preserves_kpi_cohort = true;
         }
         report.checks.push({ width, mode, api_matched: true, filters: true, chart: true, original_evidence_preserved: true });
         save();

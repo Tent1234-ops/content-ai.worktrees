@@ -47,6 +47,7 @@ class _PerformanceClusteringPanelState
   int _limit = 6, _request = 0;
   String? _topicId;
   int _groupIndex = 0;
+  String _comparisonMethod = 'tfidf';
   @override
   void initState() {
     super.initState();
@@ -83,6 +84,7 @@ class _PerformanceClusteringPanelState
       final result = await widget.repository.getPerformanceComparison(
           widget.contentId,
           minimumViews: widget.topics.isEmpty ? minimumViews : null,
+          comparisonMethod: _comparisonMethod,
           topicId: widget.topics.isEmpty ? null : _topicId,
           groupIndex: widget.topics.isEmpty ? null : widget.topics
               .firstWhere((topic) => topic.id == _topicId)
@@ -156,6 +158,24 @@ class _PerformanceClusteringPanelState
                  ? 'ข้อมูลอ้างอิงล่าสุด · คำนวณ ${_date(data.raw['as_of'])}'
                  : 'ใช้กลุ่มที่ผ่าน Benchmark ในหลักฐานอ้างอิงเดิม · คำนวณ ${_date(data.raw['as_of'])}',
               style: Theme.of(context).textTheme.bodySmall),
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 8),
+            child: DropdownButtonFormField<String>(
+              key: const ValueKey('performance-comparison-method'),
+              value: _comparisonMethod,
+              decoration: const InputDecoration(labelText: 'วิธีเทียบ Transcript'),
+              items: const [
+                DropdownMenuItem(value: 'tfidf', child: Text('TF-IDF + Top-K (เดิม)')),
+                DropdownMenuItem(value: 'embedding_centroid',
+                  child: Text('Sentence Embedding + Text Centroid (ทดลอง)')),
+              ],
+              onChanged: (method) {
+                if (method == null || method == _comparisonMethod) return;
+                setState(() => _comparisonMethod = method);
+                _load();
+              },
+            ),
+          ),
           if (widget.topics.isNotEmpty) ...[
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -347,13 +367,24 @@ class _PerformanceClusteringPanelState
             Text(
                 data.closest == null
                     ? performanceReason(data.similarity['reason'])
-                    : 'เนื้อหาใกล้เคียงกลุ่ม ${_level(data.closest!)} มากกว่า',
+                    : 'เนื้อหาใกล้เคียงกลุ่ม ${_level(data.closest!)} มากกว่าในเชิงข้อความ',
                 key: const ValueKey('performance-closest-group'),
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             const Text(
                 'คะแนนนี้วัดความคล้ายของเนื้อหา ไม่ใช่การคาดการณ์ยอดวิวหรือยอดไลก์'),
-            Text(
+            if (data.similarity['method'] == 'sentence_embedding_text_centroid_cosine') ...[
+              const Text(
+                'วิธีทดลอง: สร้าง Text Centroid แยกกลุ่ม High/Low จาก Transcript แล้วเทียบ Cosine Similarity กับคลิปคุณ (ไม่ใช่ Centroid ของ Views/Likes)'),
+              Text(
+                'เทียบกับคลิปอ้างอิง ${data.eligibleCount} คลิป · SentenceTransformer · ยังไม่ผ่าน Validation',
+                style: Theme.of(context).textTheme.bodySmall),
+              if (data.similarity['margin'] is num)
+                Text(
+                  'คะแนนต่างกัน ${((data.similarity['margin'] as num) * 100).toStringAsFixed(2)} จุดเปอร์เซ็นต์ (ไม่ใช่ค่าความมั่นใจ)',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ] else
+              Text(
                 'ใช้คลิปใกล้เคียงกลุ่มละ ${data.similarity['k_used']} คลิป · TF-IDF + Cosine Similarity',
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 24),

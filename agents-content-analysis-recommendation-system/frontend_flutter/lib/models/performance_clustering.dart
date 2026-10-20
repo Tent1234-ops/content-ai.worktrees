@@ -100,6 +100,9 @@ String performanceReason(dynamic reason) => switch (reason) {
         'มีกลุ่มที่ไม่มีข้อความเพียงพอสำหรับเปรียบเทียบ',
       'low_similarity' => 'ความคล้ายกับทั้งสองกลุ่มต่ำ จึงยังไม่เลือกกลุ่ม',
       'similar_scores' => 'คะแนนความคล้ายสองกลุ่มใกล้กัน จึงยังสรุปไม่ได้',
+      'text_centroid_tie' => 'ระยะห่างไปยัง Text Centroid ของ High และ Low เท่ากัน',
+      'no_semantic_similarity' => 'ไม่พบความคล้ายเชิงความหมายกับทั้งสองกลุ่ม',
+      'embedding_unavailable' => 'ยังโหลดโมเดล SentenceTransformer ไม่สำเร็จ กรุณาตรวจการติดตั้งและไฟล์โมเดล',
       'insufficient_reference_transcript' =>
         'Transcript อ้างอิงไม่ครบหรือสั้นเกินไป',
       'below_minimum_views' => 'ยอดวิวต่ำกว่าขั้นต่ำ',

@@ -1,4 +1,4 @@
-# Download all topic-scoped clustering files from the review branch with backups.
+# Download original topic-scoped clustering plus optional embedding text-centroid experiment.
 # Run from agents-content-analysis-recommendation-system project root.
 [CmdletBinding()]
 param()
@@ -8,20 +8,23 @@ if (-not (Test-Path (Join-Path $root 'app/services/performance_clustering.py')) 
     -not (Test-Path (Join-Path $root 'frontend_flutter/pubspec.yaml'))) {
     throw 'Run this command from the agents-content-analysis-recommendation-system project root.'
 }
-$branch = 'feat/topic-scoped-performance-clustering'
+$branch = 'feat/embedding-text-centroid-comparison'
 $prefix = 'https://raw.githubusercontent.com/Tent1234-ops/content-ai.worktrees/' + $branch + '/agents-content-analysis-recommendation-system/'
 $files = @(
     'app/services/performance_clustering_topics.py',
     'app/services/performance_clustering.py',
+    'app/services/embedding_centroid.py',
     'app/routes/contents.py',
     'app/schemas/performance_clustering.py',
     'frontend_flutter/lib/repositories/content_repository.dart',
     'frontend_flutter/lib/models/reference_response.dart',
+    'frontend_flutter/lib/models/performance_clustering.dart',
     'frontend_flutter/lib/widgets/performance_clustering_panel.dart',
     'frontend_flutter/lib/screens/result_screen.dart',
     'frontend_flutter/test/performance_clustering_test.dart',
     'frontend_flutter/test/result_workspace_test.dart',
-    'tests/test_performance_clustering_topics.py'
+    'tests/test_performance_clustering_topics.py',
+    'tests/test_embedding_centroid.py'
 )
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $backup = Join-Path $root ('artifacts/topic-clustering-backup-' + $stamp)

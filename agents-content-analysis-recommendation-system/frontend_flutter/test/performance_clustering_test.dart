@@ -65,14 +65,17 @@ class Repository extends ContentRepository {
   final List<int?> reads = [];
   final List<String?> topicReads = [];
   final List<int?> groupReads = [];
+  final List<String> comparisonReads = [];
   bool fail = false;
   Completer<PerformanceComparison>? pending;
   @override
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
-      {int? minimumViews, String? topicId, int? groupIndex}) async {
+      {int? minimumViews, String? topicId, int? groupIndex,
+       String comparisonMethod = 'tfidf'}) async {
     reads.add(minimumViews);
     topicReads.add(topicId);
     groupReads.add(groupIndex);
+    comparisonReads.add(comparisonMethod);
     if (fail) throw StateError('test offline');
     if (pending != null) return pending!.future;
     return PerformanceComparison.fromJson(value);

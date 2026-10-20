@@ -13,6 +13,9 @@ class ContentSimilarity(BaseModel):
     method: str
     supporting_dataset_ids: dict[str, list[int]]
     feature_count: int | None = None
+    margin: float | None = Field(default=None, ge=0, le=1)
+    model_name: str | None = None
+    evidence_strength: str | None = None
 
 
 class PerformanceClusteringResponse(BaseModel):

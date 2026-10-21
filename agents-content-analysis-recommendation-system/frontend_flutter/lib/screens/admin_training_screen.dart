@@ -132,10 +132,12 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
     try {
       final run = await _repository
           .startTraining(data.dataset['dataset_fingerprint'] as String);
-      if (mounted) setState(() {
-        _run = run;
-        _resumeRunId = run.id;
-      });
+      if (mounted) {
+        setState(() {
+          _run = run;
+          _resumeRunId = run.id;
+        });
+      }
     } on SessionExpiredException {
       _expireSession();
     } catch (e) {

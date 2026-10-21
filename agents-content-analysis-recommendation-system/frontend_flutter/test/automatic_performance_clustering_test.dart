@@ -90,6 +90,7 @@ class FakeRepository extends ContentRepository {
   int overviewReads = 0;
   int detailReads = 0;
   // This legacy overview API is not declared on ContentRepository anymore.
+  @override
   Future<PerformanceOverview> getAutomaticPerformanceOverview(int contentId) async {
     overviewReads++;
     if (fail) throw StateError('offline');

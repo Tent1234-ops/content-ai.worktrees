@@ -89,7 +89,7 @@ class FakeRepository extends ContentRepository {
   bool fail = false;
   int overviewReads = 0;
   int detailReads = 0;
-  @override
+  // This legacy overview API is not declared on ContentRepository anymore.
   Future<PerformanceOverview> getAutomaticPerformanceOverview(int contentId) async {
     overviewReads++;
     if (fail) throw StateError('offline');
@@ -98,7 +98,10 @@ class FakeRepository extends ContentRepository {
 
   @override
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
-      {int? minimumViews, String? topicId, int? groupIndex}) async {
+      {int? minimumViews,
+      String? topicId,
+      int? groupIndex,
+      String comparisonMethod = 'embedding_centroid'}) async {
     detailReads++;
     return PerformanceComparison.fromJson(detailFixture());
   }

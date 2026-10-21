@@ -5,11 +5,17 @@ import 'package:flutter/material.dart';
 import '../models/outcome_model_training.dart';
 import '../models/outcome_prediction.dart';
 import '../repositories/admin_repository.dart';
+import '../services/api_client.dart';
 import 'state_widgets.dart';
 
 class OutcomeTrainingPanel extends StatefulWidget {
-  const OutcomeTrainingPanel({super.key, required this.repository});
+  const OutcomeTrainingPanel({
+    super.key,
+    required this.repository,
+    this.onSessionExpired,
+  });
   final AdminRepository repository;
+  final VoidCallback? onSessionExpired;
 
   @override
   State<OutcomeTrainingPanel> createState() => _OutcomeTrainingPanelState();
@@ -23,6 +29,14 @@ class _OutcomeTrainingPanelState extends State<OutcomeTrainingPanel> {
   bool _loading = true;
   bool _busy = false;
   bool _polling = false;
+  bool _sessionExpired = false;
+
+  void _expireSession() {
+    _timer?.cancel();
+    if (_sessionExpired) return;
+    _sessionExpired = true;
+    widget.onSessionExpired?.call();
+  }
 
   @override
   void initState() {
@@ -46,6 +60,8 @@ class _OutcomeTrainingPanelState extends State<OutcomeTrainingPanel> {
         _run = data.runs.isEmpty ? null : data.runs.first;
         _error = null;
       });
+    } on SessionExpiredException {
+      _expireSession();
     } catch (error) {
       if (mounted) setState(() => _error = _message(error));
     } finally {
@@ -55,7 +71,7 @@ class _OutcomeTrainingPanelState extends State<OutcomeTrainingPanel> {
 
   Future<void> _poll() async {
     final run = _run;
-    if (run == null || !run.isRunning || _polling || _busy) return;
+    if (_sessionExpired || run == null || !run.isRunning || _polling || _busy) return;
     _polling = true;
     try {
       final updated = await widget.repository.outcomeTrainingRun(run.id);
@@ -65,6 +81,8 @@ class _OutcomeTrainingPanelState extends State<OutcomeTrainingPanel> {
         _error = null;
       });
       if (!updated.isRunning) await _load();
+    } on SessionExpiredException {
+      _expireSession();
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'โหลดสถานะงาน Outcome ไม่สำเร็จ ระบบจะลองใหม่');
@@ -112,9 +130,11 @@ class _OutcomeTrainingPanelState extends State<OutcomeTrainingPanel> {
     try {
       final run = await widget.repository.startOutcomeTraining(manifest);
       if (mounted) setState(() => _run = run);
+    } on SessionExpiredException {
+      _expireSession();
     } catch (error) {
       await _load();
-      if (mounted) setState(() => _error = _message(error));
+      if (mounted && !_sessionExpired) setState(() => _error = _message(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -161,9 +181,11 @@ class _OutcomeTrainingPanelState extends State<OutcomeTrainingPanel> {
                 ? 'ย้อนกลับไปใช้ Outcome model #${model.id} แล้ว'
                 : 'เปิดใช้ Outcome model #${model.id} แล้ว')));
       }
+    } on SessionExpiredException {
+      _expireSession();
     } catch (error) {
       await _load();
-      if (mounted) setState(() => _error = _message(error));
+      if (mounted && !_sessionExpired) setState(() => _error = _message(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

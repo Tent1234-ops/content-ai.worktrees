@@ -4,12 +4,22 @@ import '../models/clip_revision_plan.dart';
 import '../models/recommendation_result.dart';
 import '../models/outcome_prediction.dart';
 import '../models/performance_clustering.dart';
+import '../models/performance_overview.dart';
 import '../services/api_client.dart';
 
 class ContentRepository {
   ContentRepository({ApiClient? client}) : _client = client ?? ApiClient();
 
   final ApiClient _client;
+
+  // Legacy automatic overview has no corresponding backend endpoint yet.
+  // Keep the contract for its existing widget/tests without inventing an API.
+  Future<PerformanceOverview> getAutomaticPerformanceOverview(int contentId) {
+    throw UnsupportedError(
+      'Automatic performance overview is not available in this backend. '
+      'Use the topic-specific performance comparison instead.',
+    );
+  }
 
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
       {int? minimumViews,

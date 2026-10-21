@@ -8,10 +8,13 @@ import '../widgets/app_shell.dart';
 import '../widgets/state_widgets.dart';
 import '../widgets/training_collection_panel.dart';
 import '../widgets/outcome_training_panel.dart';
+import '../services/api_client.dart';
+import 'login_screen.dart';
 
 class AdminTrainingScreen extends StatefulWidget {
-  const AdminTrainingScreen({super.key, this.repository});
+  const AdminTrainingScreen({super.key, this.repository, this.initialRunId});
   final AdminRepository? repository;
+  final String? initialRunId;
   @override
   State<AdminTrainingScreen> createState() => _AdminTrainingScreenState();
 }
@@ -26,12 +29,15 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
   List<TrainedModel> _models = [];
   bool _loading = true, _busy = false, _polling = false, _moreLoading = false;
   bool _outcomeMode = false;
+  bool _sessionExpired = false;
+  String? _resumeRunId;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _repository = widget.repository ?? AdminRepository();
+    _resumeRunId = widget.initialRunId;
     _tabs = TabController(length: 2, vsync: this);
     _load();
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _poll());
@@ -47,13 +53,20 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
   Future<void> _load() async {
     try {
       final data = await _repository.trainingOverview();
+      final requested = _resumeRunId;
+      final selected = requested == null
+          ? data.runs.firstOrNull
+          : (data.runs.where((run) => run.id == requested).firstOrNull ??
+              await _repository.trainingRun(requested));
       if (!mounted) return;
       setState(() {
         _data = data;
         _models = data.models;
-        _run = data.runs.isEmpty ? null : data.runs.first;
+        _run = selected;
         _error = null;
       });
+    } on SessionExpiredException {
+      _expireSession();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -63,7 +76,7 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
 
   Future<void> _poll() async {
     final current = _run;
-    if (_polling || _busy || current == null || !current.isRunning) return;
+    if (_sessionExpired || _polling || _busy || current == null || !current.isRunning) return;
     _polling = true;
     try {
       final updated = await _repository.trainingRun(current.id);
@@ -76,6 +89,8 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
         await _load();
         if (mounted && updated.status == 'completed') _tabs.animateTo(1);
       }
+    } on SessionExpiredException {
+      _expireSession();
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'โหลดสถานะล่าสุดไม่สำเร็จ ระบบจะตรวจซ้ำ');
@@ -83,6 +98,11 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
     } finally {
       _polling = false;
     }
+  }
+
+  void _expireSession() {
+    _timer?.cancel();
+    if (mounted) setState(() => _sessionExpired = true);
   }
 
   Future<void> _train() async {
@@ -112,7 +132,10 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
     try {
       final run = await _repository
           .startTraining(data.dataset['dataset_fingerprint'] as String);
-      if (mounted) setState(() => _run = run);
+      if (mounted) setState(() {
+        _run = run;
+        _resumeRunId = run.id;
+      });
     } catch (e) {
       await _load();
       if (mounted) setState(() => _error = e.toString());
@@ -197,10 +220,24 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
         if (!_outcomeMode)
           IconButton(
               tooltip: 'โหลดข้อมูลล่าสุด',
-              onPressed: _busy || _loading ? null : _load,
+              onPressed: _busy || _loading || _sessionExpired ? null : _load,
               icon: const Icon(Icons.refresh))
       ],
-      child: _loading
+      child: _sessionExpired
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(const SessionExpiredException().toString()),
+              const SizedBox(height: 12),
+              if (_run != null) Text('รอบเทรนเดิม: ${_run!.id}'),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                icon: const Icon(Icons.login),
+                label: const Text('เข้าสู่ระบบใหม่'),
+                onPressed: () => Navigator.pushReplacementNamed(context, '/login',
+                    arguments: LoginDestination('/admin-training',
+                        arguments: _run?.id ?? _resumeRunId)),
+              ),
+            ]))
+          : _loading
           ? const Center(child: CircularProgressIndicator())
           : data == null
               ? ErrorStateView(

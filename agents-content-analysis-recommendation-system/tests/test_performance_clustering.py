@@ -146,9 +146,35 @@ class PerformanceCalculationTests(unittest.TestCase):
                 self.assertIn(ref['dataset_id'], high_ids)
                 self.assertIn(ref['matched_text'], by_id[ref['dataset_id']]['transcript'])
                 self.assertIn(ref['matched_text'], ref['quote'])
+                source = by_id[ref['dataset_id']]
+                from app.services.recommendation_evidence import text_hash
+                self.assertEqual(ref['transcript_sha256'], text_hash(source['transcript']))
+                self.assertEqual(ref['quote'], source['transcript'][ref['quote_start_char']:ref['quote_end_char']])
+                self.assertEqual(ref['matched_text'], source['transcript'][ref['start_char']:ref['end_char']])
+                self.assertEqual(ref['video_id'], source['video_id'])
+                self.assertEqual(ref['title'], source['title'])
+            self.assertEqual(advice['support_count'], len(advice['supporting_dataset_ids']))
+            self.assertTrue(set(advice['supporting_dataset_ids']).issubset(high_ids))
+            self.assertEqual(advice['application']['basis_dataset_ids'], advice['supporting_dataset_ids'])
+            self.assertFalse(advice['application']['causal_engagement_claim'])
+            from app.services.recommendation_catalog import template_catalog
+            template = next(t for t in template_catalog()['categories']['camera'] if t['key'] == advice['topic'])
+            self.assertEqual(advice['application']['text'], template['proposal'])
+            self.assertEqual(advice['application']['condition'], template['condition'])
+            self.assertTrue(advice['summary'])
         for row in rows[4:]:
             row['channel_id'] = 'one-channel'
         self.assertFalse(self.calculate(rows)['recommendations'])
+
+    def test_insight_presentation_does_not_change_kmeans_or_text_distance(self):
+        from tests.test_embedding_centroid import FakeEncoder
+        with patch("app.services.embedding_centroid._load_encoder", return_value=FakeEncoder()):
+            actual = cluster_and_compare(sample_records(), user_transcript=HIGH, category="camera")
+            with patch("app.services.performance_clustering._topic_advice", return_value=[]):
+                without_insights = cluster_and_compare(sample_records(), user_transcript=HIGH, category="camera")
+        self.assertEqual(actual["clustering"], without_insights["clustering"])
+        self.assertEqual(actual["content_similarity"], without_insights["content_similarity"])
+        self.assertEqual(actual["data_fingerprint"], without_insights["data_fingerprint"])
 
     def test_threshold_boundary_and_metric_versions_not_mixed(self):
         rows = sample_records()
@@ -162,6 +188,10 @@ class PerformanceCalculationTests(unittest.TestCase):
 
 class PerformanceApiTests(unittest.TestCase):
     def setUp(self):
+        from tests.test_embedding_centroid import FakeEncoder
+        encoder = patch("app.services.embedding_centroid._load_encoder", return_value=FakeEncoder())
+        encoder.start()
+        self.addCleanup(encoder.stop)
         with patch.object(fixtures, 'create_engine', side_effect=lambda url: create_engine(
                 url, connect_args={'check_same_thread': False}, poolclass=StaticPool)):
             fixtures.Phase20KeywordGapEvidenceTests.setUp(self)
@@ -199,10 +229,6 @@ class PerformanceApiTests(unittest.TestCase):
         return now
 
     def test_api_auth_threshold_real_db_read_and_no_mutation(self):
-        from tests.test_embedding_centroid import FakeEncoder
-        encoder = patch("app.services.embedding_centroid._load_encoder", return_value=FakeEncoder())
-        encoder.start()
-        self.addCleanup(encoder.stop)
         self._observations()
         app = FastAPI()
         app.include_router(router)

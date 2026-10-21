@@ -49,7 +49,6 @@ class _PerformanceClusteringPanelState
   int _limit = 6, _request = 0;
   String? _topicId;
   int _groupIndex = 0;
-  String _comparisonMethod = 'embedding_centroid';
   @override
   void initState() {
     super.initState();
@@ -86,7 +85,7 @@ class _PerformanceClusteringPanelState
       final result = await widget.repository.getPerformanceComparison(
           widget.contentId,
           minimumViews: widget.topics.isEmpty ? minimumViews : null,
-          comparisonMethod: _comparisonMethod,
+          comparisonMethod: 'embedding_centroid',
           topicId: widget.topics.isEmpty ? null : _topicId,
           groupIndex: widget.topics.isEmpty
               ? null
@@ -94,6 +93,9 @@ class _PerformanceClusteringPanelState
                   .firstWhere((topic) => topic.id == _topicId)
                   .groups[_groupIndex]
                   .sourceGroupIndex);
+      if (result.clusteringReady && !result.usesTextCentroid) {
+        throw const FormatException('Text centroid response required');
+      }
       if (!mounted || request != _request) return;
       setState(() {
         _data = result;
@@ -150,6 +152,7 @@ class _PerformanceClusteringPanelState
     final visible = data.videos
         .where((v) => _filter == 'all' || v['performance_level'] == _filter)
         .toList();
+    final insights = data.insights;
     final selectedTopic =
         widget.topics.where((t) => t.id == _topicId).firstOrNull;
     return Column(
@@ -159,32 +162,6 @@ class _PerformanceClusteringPanelState
           SectionHeading(
               title: 'วิเคราะห์กลุ่มผลงาน · $category',
               icon: Icons.scatter_plot_outlined),
-          Text(
-              widget.topics.isEmpty
-                  ? 'ข้อมูลอ้างอิงล่าสุด · คำนวณ ${_date(data.raw['as_of'])}'
-                  : 'ใช้กลุ่มที่ผ่าน Benchmark ในหลักฐานอ้างอิงเดิม · คำนวณ ${_date(data.raw['as_of'])}',
-              style: Theme.of(context).textTheme.bodySmall),
-          Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 8),
-            child: DropdownButtonFormField<String>(
-              key: const ValueKey('performance-comparison-method'),
-              initialValue: _comparisonMethod,
-              isExpanded: true,
-              decoration:
-                  const InputDecoration(labelText: 'วิธีเทียบ Transcript'),
-              items: const [
-                DropdownMenuItem(
-                    value: 'embedding_centroid',
-                    child: Text('Text Centroid · SentenceTransformer')),
-                DropdownMenuItem(value: 'tfidf', child: Text('TF-IDF + Top-K')),
-              ],
-              onChanged: (method) {
-                if (method == null || method == _comparisonMethod) return;
-                setState(() => _comparisonMethod = method);
-                _load(minimumViews: int.tryParse(_threshold.text));
-              },
-            ),
-          ),
           if (widget.topics.isNotEmpty) ...[
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -231,10 +208,6 @@ class _PerformanceClusteringPanelState
                 },
               ),
             ],
-            const SizedBox(height: 12),
-            Text(
-                'ใช้เฉพาะคลิปที่ผ่านเกณฑ์ยอดวิวตามหลักฐานของหัวข้อนี้ ไม่ใช้คลิปทั้งหมวด',
-                style: Theme.of(context).textTheme.bodySmall),
           ],
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, constraints) {
@@ -302,12 +275,6 @@ class _PerformanceClusteringPanelState
                   tooltip: 'คำนวณตามยอดวิวขั้นต่ำ',
                   icon: const Icon(Icons.filter_alt_outlined)),
             ]),
-          if (widget.topics.isNotEmpty)
-            Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                    'เกณฑ์หลักฐานเดิม: ตั้งแต่ ${_number(data.minimumViews)} วิว (ไม่ใช่เกณฑ์แบ่ง Low/High)',
-                    style: Theme.of(context).textTheme.bodySmall)),
           if (data.exclusions.isNotEmpty)
             Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -316,9 +283,6 @@ class _PerformanceClusteringPanelState
                     Text('${performanceReason(e.key)}: ${e.value}',
                         style: Theme.of(context).textTheme.bodySmall)
                 ])),
-          const SizedBox(height: 16),
-          Text(data.raw['limitation'] as String? ?? '',
-              style: Theme.of(context).textTheme.bodySmall),
           if (!data.clusteringReady)
             Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
@@ -379,41 +343,31 @@ class _PerformanceClusteringPanelState
             const SectionHeading(
                 title: 'เนื้อหาคลิปของคุณใกล้เคียงกลุ่มไหน?',
                 icon: Icons.compare_arrows),
-            if (data.usesTextCentroid)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 16),
-                child: Text(
-                    'Cosine Distance ถึง Text Centroid · ค่ายิ่งน้อยยิ่งใกล้'),
-              ),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Text(
+                  'Cosine Distance ถึง Text Centroid · ค่ายิ่งน้อยยิ่งใกล้'),
+            ),
             for (final value in [
-              ('low', data.usesTextCentroid ? data.lowDistance : data.lowScore),
-              (
-                'high',
-                data.usesTextCentroid ? data.highDistance : data.highScore
-              )
+              ('low', data.lowDistance),
+              ('high', data.highDistance)
             ])
               Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Column(children: [
                     Row(children: [
                       Expanded(
-                          child: Text(data.usesTextCentroid
-                              ? 'ระยะห่างถึงกลุ่ม ${_level(value.$1)}'
-                              : 'ความคล้ายกลุ่ม ${_level(value.$1)}')),
+                          child: Text('ระยะห่างถึงกลุ่ม ${_level(value.$1)}')),
                       Text(
                           value.$2 == null
                               ? 'ยังคำนวณไม่ได้'
-                              : data.usesTextCentroid
-                                  ? value.$2!.toStringAsFixed(4)
-                                  : '${(value.$2! * 100).toStringAsFixed(2)}%',
-                          key: ValueKey(
-                              '${data.usesTextCentroid ? 'distance' : 'similarity'}-${value.$1}'))
+                              : value.$2!.toStringAsFixed(4),
+                          key: ValueKey('distance-${value.$1}'))
                     ]),
                     const SizedBox(height: 8),
                     if (value.$2 != null)
                       LinearProgressIndicator(
-                          value:
-                              data.usesTextCentroid ? value.$2! / 2 : value.$2,
+                          value: value.$2! / 2,
                           minHeight: 8,
                           color: _tone(context, value.$1),
                           backgroundColor: colors.surfaceContainerHigh),
@@ -425,20 +379,12 @@ class _PerformanceClusteringPanelState
                 key: const ValueKey('performance-closest-group'),
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            const Text(
-                'คะแนนนี้วัดความคล้ายของเนื้อหา ไม่ใช่การคาดการณ์ยอดวิวหรือยอดไลก์'),
-            if (data.similarity['method'] ==
-                'sentence_embedding_text_centroid_cosine') ...[
+            Text(
+                'Text Centroid จากคลิปอ้างอิง ${data.eligibleCount} คลิป · ไม่ใช้ยอดวิวหรือไลก์ของคลิปคุณ',
+                style: Theme.of(context).textTheme.bodySmall),
+            if (data.similarity['margin'] is num)
               Text(
-                  'Text Centroid จากคลิปอ้างอิง ${data.eligibleCount} คลิป · ไม่ใช้ยอดวิวหรือไลก์ของคลิปคุณ',
-                  style: Theme.of(context).textTheme.bodySmall),
-              if (data.similarity['margin'] is num)
-                Text(
-                    'ระยะห่างต่างกัน ${(data.similarity['margin'] as num).toStringAsFixed(4)}',
-                    style: Theme.of(context).textTheme.bodySmall),
-            ] else
-              Text(
-                  'ใช้คลิปใกล้เคียงกลุ่มละ ${data.similarity['k_used']} คลิป · TF-IDF + Cosine Similarity',
+                  'ระยะห่างต่างกัน ${(data.similarity['margin'] as num).toStringAsFixed(4)}',
                   style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 24),
             const SectionHeading(
@@ -446,46 +392,20 @@ class _PerformanceClusteringPanelState
             if (data.closest == null)
               const Text(
                   'ยังไม่เสนอประเด็นเพิ่มจากการเปรียบเทียบนี้ เพราะผลความคล้ายยังสรุปไม่ได้'),
-            if (data.closest != null &&
-                data.advice.isEmpty &&
-                data.sharedKeywords.isEmpty &&
-                data.missingKeywords.isEmpty)
+            if (data.closest != null && insights.isEmpty)
               const Text(
                   'ยังไม่มีประเด็นที่มีหลักฐานจากหลายช่องเพียงพอสำหรับแนะนำเพิ่ม'),
-            if (data.sharedKeywords.isNotEmpty)
-              _Keywords(
-                  label: 'คำที่พบร่วมกับกลุ่ม High',
-                  words: data.sharedKeywords),
-            if (data.missingKeywords.isNotEmpty)
-              _Keywords(
-                  label: 'คำในกลุ่ม High ที่ยังไม่พบในข้อความของคุณ',
-                  words: data.missingKeywords),
-            for (final advice in data.advice)
-              Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${advice['title']}',
-                            style: Theme.of(context).textTheme.titleSmall),
-                        Text('${advice['message']}'),
-                        Text(
-                            'พบใน ${advice['support_count']} คลิป จาก ${advice['channel_count']} ช่อง',
-                            style: Theme.of(context).textTheme.bodySmall),
-                        for (final ref in (advice['references'] as List? ?? [])
-                            .whereType<Map>()) ...[
-                          const SizedBox(height: 8),
-                          Text('“${ref['quote']}”'),
-                          for (final video in data.videos.where(
-                              (v) => v['dataset_id'] == ref['dataset_id']))
-                            TextButton.icon(
-                                onPressed: () => _open(context, video),
-                                icon: const Icon(Icons.open_in_new, size: 16),
-                                label: Text('${video['title']}',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis)),
-                        ],
-                      ])),
+            if (insights.isNotEmpty)
+              LayoutBuilder(builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 900 ? 2 : 1;
+                final width =
+                    (constraints.maxWidth - (columns - 1) * 16) / columns;
+                return Wrap(spacing: 16, runSpacing: 16, children: [
+                  for (final insight in insights)
+                    SizedBox(
+                        width: width, child: _InsightCard(insight: insight)),
+                ]);
+              }),
             const Divider(height: 32),
             const SectionHeading(
                 title: 'คลิปที่ใช้จัดกลุ่ม',
@@ -611,21 +531,102 @@ class _Scatter extends StatelessWidget {
   }
 }
 
-class _Keywords extends StatelessWidget {
-  const _Keywords({required this.label, required this.words});
-  final String label;
-  final List<String> words;
+class _InsightCard extends StatelessWidget {
+  const _InsightCard({required this.insight});
+  final PerformanceInsight insight;
   @override
-  Widget build(BuildContext context) => Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label),
-        const SizedBox(height: 8),
-        Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [for (final word in words) Chip(label: Text(word))])
-      ]));
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      key: ValueKey('high-insight-${insight.topic}'),
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Semantics(
+            container: true,
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(insight.title, style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(insight.summary),
+              const SizedBox(height: 8),
+              Text(
+                  'พบใน ${insight.supportCount} คลิป จาก ${insight.channelCount} ช่อง',
+                  style: theme.textTheme.bodySmall),
+            ]),
+          ),
+          const Divider(height: 32),
+          Text('นำไปปรับใช้กับคลิปของคุณ', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Text(insight.application.isEmpty
+              ? 'ยังไม่มีแนวทางปรับใช้ที่เชื่อมกับหลักฐานเพียงพอ'
+              : insight.application),
+          if (insight.condition.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(insight.condition, style: theme.textTheme.bodySmall),
+          ],
+          const SizedBox(height: 20),
+          Text('คลิปอ้างอิง', style: theme.textTheme.titleSmall),
+          for (final ref in insight.references)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child:
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(ref.title, style: theme.textTheme.bodyMedium),
+                      if (ref.channelTitle.isNotEmpty)
+                        Text(ref.channelTitle,
+                            style: theme.textTheme.bodySmall),
+                    ])),
+                const SizedBox(width: 8),
+                IconButton(
+                  key: ValueKey(
+                      'insight-link-${insight.topic}-${ref.datasetId}'),
+                  tooltip: 'เปิดคลิป YouTube: ${ref.title}',
+                  onPressed: () => _open(context, {'video_id': ref.videoId}),
+                  icon: const Icon(Icons.open_in_new, size: 20),
+                ),
+              ]),
+            ),
+          const SizedBox(height: 12),
+          Semantics(
+            container: true,
+            explicitChildNodes: true,
+            child: ExpansionTile(
+              key: ValueKey('insight-evidence-${insight.topic}'),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              title: const Text('ดูหลักฐานจาก Transcript'),
+              children: [
+                for (final ref in insight.references)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(ref.title, style: theme.textTheme.labelLarge),
+                          const SizedBox(height: 6),
+                          SelectableText('“${ref.quote}”',
+                              semanticsLabel: '“${ref.quote}”',
+                              key: ValueKey(
+                                  'insight-quote-${insight.topic}-${ref.datasetId}')),
+                        ]),
+                  ),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 Future<void> _open(BuildContext context, Map<String, dynamic> video) async {

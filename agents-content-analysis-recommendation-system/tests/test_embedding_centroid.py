@@ -1,10 +1,12 @@
 """Tests for embedding-space centroids, isolated from model downloads."""
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import numpy as np
 
-from app.services.embedding_centroid import _chunks, _document_vectors, compare_text_centroids
+from app.services.embedding_centroid import _chunks, _document_vectors, compare_text_centroids, POLICY
 from app.schemas.performance_clustering import ContentSimilarity
 from app.services.performance_clustering import cluster_and_compare
 from tests.test_performance_clustering import HIGH, LOW, sample_records
@@ -154,6 +156,28 @@ class TextCentroidTests(unittest.TestCase):
         self.assertEqual(result["content_similarity"]["method"], "sentence_embedding_text_centroid_cosine")
         self.assertNotIn("top_k", result["policy"])
         self.assertIn("embedding", result["policy"])
+
+    def test_reference_cache_invalidates_on_text_or_policy_and_never_caches_user(self):
+        class CacheEncoder(FakeEncoder):
+            def __init__(self):
+                self.calls = []
+            def encode(self, texts, **kwargs):
+                self.calls.append(len(texts))
+                return np.pad(super().encode(texts), ((0, 0), (0, 382)))
+        model = CacheEncoder()
+        with TemporaryDirectory() as directory, \
+                patch("app.services.embedding_centroid.CACHE", Path(directory)):
+            texts = ["camera", "battery", "camera"]
+            original, _ = _document_vectors(texts, model, cache_references=True)
+            cached, _ = _document_vectors(texts, model, cache_references=True)
+            np.testing.assert_allclose(cached, original)
+            self.assertEqual(model.calls, [3, 1])
+            self.assertEqual(len(list(Path(directory).glob("*.json"))), 2)
+            _document_vectors(["camera lens", "battery", "camera"], model, cache_references=True)
+            self.assertEqual(model.calls[-1], 2)
+            with patch.dict(POLICY, {"version": "test-new-policy"}):
+                _document_vectors(texts, model, cache_references=True)
+            self.assertEqual(model.calls[-1], 3)
 
 
 if __name__ == "__main__":

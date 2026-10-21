@@ -6,6 +6,8 @@ import 'package:content_ai_web/ui/app_theme.dart';
 import 'package:content_ai_web/widgets/performance_clustering_panel.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Deliberately synthetic UI fixtures; real-data evidence is stored separately.
@@ -51,6 +53,7 @@ Map<String, dynamic> fixture({String status = 'ready'}) => {
             'video_id': 'testvid000$i',
             'title': 'คลิปทดสอบ $i',
             'channel_title': 'ช่อง $i',
+            'channel_id': 'channel-$i',
             'published_at': '2026-05-19T12:00:00Z',
             'statistics_captured_at': '2026-10-19T14:00:00Z',
             'views': i < 5 ? 30000 : 150000,
@@ -62,6 +65,48 @@ Map<String, dynamic> fixture({String status = 'ready'}) => {
       'missing_keywords': status == 'ready' ? ['กันสั่น'] : [],
       'recommendations': [],
     };
+
+Map<String, dynamic> insightFixture() {
+  final value = fixture();
+  value['recommendations'] = [
+    for (final topic in ['battery life', 'camera quality'])
+      <String, dynamic>{
+        'topic': topic,
+        'title': topic == 'battery life'
+            ? 'ระยะเวลาใช้งานแบตเตอรี่'
+            : 'คุณภาพภาพถ่าย',
+        'summary': 'ตรวจพบประเด็นนี้ทั้งในข้อความของคุณและคลิปกลุ่ม High',
+        'support_count': 4,
+        'channel_count': 4,
+        'supporting_dataset_ids': [5, 6, 7, 8],
+        'application': {
+          'text': 'แนวทางทดสอบที่เชื่อมกับหลักฐาน $topic',
+          'condition': 'ใช้ผลที่สังเกตได้จริงของคุณ',
+          'source': 'versioned_topic_template',
+          'template_key': topic,
+          'template_version': 'test-fixture',
+          'basis_dataset_ids': [5, 6, 7, 8],
+          'causal_engagement_claim': false,
+        },
+        'references': [
+          for (final id in [5, 6, 7])
+            {
+              'dataset_id': id,
+              'video_id': 'testvid000$id',
+              'channel_id': 'channel-$id',
+              'quote': 'ตัวอย่าง $topic จากคลิป $id',
+              'matched_text': topic,
+              'start_char': 9,
+              'end_char': 9 + topic.length,
+              'quote_start_char': 0,
+              'quote_end_char': 'ตัวอย่าง $topic จากคลิป $id'.runes.length,
+              'transcript_sha256': 'a' * 64,
+            },
+        ],
+      },
+  ];
+  return value;
+}
 
 class Repository extends ContentRepository {
   Repository(this.value);
@@ -229,10 +274,7 @@ void main() {
         findsOneWidget);
     expect(find.text('เนื้อหาใกล้เคียงกลุ่ม High มากกว่า'), findsNothing);
     expect(find.text('กันสั่น'), findsNothing);
-    expect(
-        find.text(
-            'คะแนนนี้วัดความคล้ายของเนื้อหา ไม่ใช่การคาดการณ์ยอดวิวหรือยอดไลก์'),
-        findsOneWidget);
+    expect(find.textContaining('คะแนนนี้วัดความคล้ายของเนื้อหา'), findsNothing);
   });
 
   testWidgets(
@@ -300,13 +342,14 @@ void main() {
     expect(PerformanceComparison.fromJson(value).closest, isNull);
   });
 
-  testWidgets('legacy comparison is optional and preserves selected threshold',
+  testWidgets('only text centroid is requested and legacy response is rejected',
       (tester) async {
     final repo = Repository(fixture());
     await mount(tester, repo);
-    await tester
-        .tap(find.byKey(const ValueKey('performance-comparison-method')));
-    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('performance-comparison-method')),
+        findsNothing);
+    expect(find.text('วิธีเทียบ Transcript'), findsNothing);
+    expect(find.text('TF-IDF + Top-K'), findsNothing);
     repo.value['content_similarity'] = {
       'method': 'tfidf_cosine_similarity',
       'status': 'ready',
@@ -315,11 +358,131 @@ void main() {
       'closest_group': 'high',
       'k_used': 4
     };
-    await tester.tap(find.text('TF-IDF + Top-K').last);
+    await tester.ensureVisible(find.byTooltip('คำนวณตามยอดวิวขั้นต่ำ'));
+    await tester.tap(find.byTooltip('คำนวณตามยอดวิวขั้นต่ำ'));
     await tester.pumpAndSettle();
-    expect(repo.comparisonReads, ['embedding_centroid', 'tfidf']);
+    expect(repo.comparisonReads, ['embedding_centroid', 'embedding_centroid']);
     expect(repo.reads, [null, 25000]);
-    expect(find.text('78.00%'), findsOneWidget);
+    expect(find.text('โหลดการเปรียบเทียบกลุ่มผลงานไม่สำเร็จ'), findsOneWidget);
     expect(find.byKey(const ValueKey('distance-high')), findsNothing);
+  });
+
+  test('insights verify counts, source membership and quote provenance', () {
+    final valid = insightFixture();
+    expect(PerformanceComparison.fromJson(valid).insights.length, 2);
+    final badCounts = insightFixture();
+    (badCounts['recommendations'] as List).first['support_count'] = 99;
+    expect(PerformanceComparison.fromJson(badCounts).insights.length, 1);
+    final wrongGroup = insightFixture();
+    (wrongGroup['recommendations'] as List).first['supporting_dataset_ids'] = [
+      1,
+      6,
+      7,
+      8
+    ];
+    expect(PerformanceComparison.fromJson(wrongGroup).insights.length, 1);
+    final badQuotes = insightFixture();
+    for (final ref
+        in (badQuotes['recommendations'] as List).first['references']) {
+      ref['matched_text'] = 'ไม่อยู่ในข้อความ';
+    }
+    expect(PerformanceComparison.fromJson(badQuotes).insights.length, 1);
+    final unsupported = insightFixture();
+    (unsupported['recommendations'] as List).first['application']
+        ['basis_dataset_ids'] = [1];
+    expect(
+        PerformanceComparison.fromJson(unsupported).insights.first.application,
+        isEmpty);
+  });
+
+  for (final width in [390.0, 768.0, 1280.0, 1600.0]) {
+    for (final brightness in Brightness.values) {
+      testWidgets('insight cards collapse quotes and fit $width $brightness',
+          (tester) async {
+        await tester.binding.setSurfaceSize(Size(width, 1000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await mount(tester, Repository(insightFixture()),
+            brightness: brightness);
+        final card = find.byKey(const ValueKey('high-insight-battery life'));
+        expect(card, findsOneWidget);
+        expect(
+            find.descendant(
+                of: card, matching: find.text('พบใน 4 คลิป จาก 4 ช่อง')),
+            findsOneWidget);
+        expect(
+            find.descendant(
+                of: card, matching: find.text('นำไปปรับใช้กับคลิปของคุณ')),
+            findsOneWidget);
+        expect(find.byKey(const ValueKey('insight-quote-battery life-5')),
+            findsNothing);
+        final toggle = find.descendant(
+            of: find.byKey(const ValueKey('insight-evidence-battery life')),
+            matching: find.text('ดูหลักฐานจาก Transcript'));
+        await tester.ensureVisible(toggle);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('insight-quote-battery life-5')),
+            findsOneWidget);
+        final quote = tester.widget<SelectableText>(
+            find.byKey(const ValueKey('insight-quote-battery life-5')));
+        expect(quote.semanticsLabel, quote.data);
+        final toggleSemantics = tester.getSemantics(toggle).getSemanticsData();
+        expect(toggleSemantics.label, 'ดูหลักฐานจาก Transcript');
+        expect(toggleSemantics.hasAction(SemanticsAction.tap), isTrue);
+        expect(find.byKey(const ValueKey('insight-quote-camera quality-5')),
+            findsNothing);
+        await tester.ensureVisible(toggle);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('insight-quote-battery life-5')),
+            findsNothing);
+        expect(find.textContaining('เกณฑ์หลักฐานเดิม:'), findsNothing);
+        expect(find.textContaining('ใช้กลุ่มที่ผ่าน Benchmark'), findsNothing);
+        expect(find.textContaining('ใช้เฉพาะคลิปที่ผ่านเกณฑ์ยอดวิว'),
+            findsNothing);
+        expect(find.text('Low/High เปรียบเทียบภายในชุดอ้างอิงเท่านั้น'),
+            findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets(
+      'insight source link uses actual video ID and handles launch failure',
+      (tester) async {
+    String? attemptedUrl;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/url_launcher'), (call) async {
+      if (call.method == 'launch') {
+        attemptedUrl = call.arguments['url'];
+        return false;
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/url_launcher'), null));
+    await mount(tester, Repository(insightFixture()));
+    final link = find.byKey(const ValueKey('insight-link-battery life-5'));
+    await tester.ensureVisible(link);
+    await tester.tap(link);
+    await tester.pumpAndSettle();
+    expect(attemptedUrl, 'https://www.youtube.com/watch?v=testvid0005');
+    expect(find.text('เปิดคลิปต้นทางไม่สำเร็จ'), findsOneWidget);
+  });
+
+  testWidgets('insufficient insight evidence shows an honest empty state',
+      (tester) async {
+    await mount(tester, Repository(fixture()));
+    expect(
+        find.text(
+            'ยังไม่มีประเด็นที่มีหลักฐานจากหลายช่องเพียงพอสำหรับแนะนำเพิ่ม'),
+        findsOneWidget);
+    expect(find.text('นำไปปรับใช้กับคลิปของคุณ'), findsNothing);
+    final data = insightFixture();
+    (data['recommendations'] as List).first['application'] = null;
+    await mount(tester, Repository(data));
+    expect(find.text('ยังไม่มีแนวทางปรับใช้ที่เชื่อมกับหลักฐานเพียงพอ'),
+        findsOneWidget);
   });
 }

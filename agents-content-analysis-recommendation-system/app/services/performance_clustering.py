@@ -86,7 +86,8 @@ def _empty(category, minimum_views, now):
 def _topic_advice(category, text, records, labels, similarities):
     advice = []
     high = [i for i, level in enumerate(labels) if level == "high"]
-    for template in template_catalog()["categories"].get(category, []):
+    catalog = template_catalog()
+    for template in catalog["categories"].get(category, []):
         aliases = _aliases(template, category)
         matches = [(i, locate_terms(records[i]["transcript"], aliases)) for i in high]
         matches = [(i, hits) for i, hits in matches if hits]
@@ -95,15 +96,37 @@ def _topic_advice(category, text, records, labels, similarities):
             continue
         shared = bool(locate_terms(text, aliases))
         matches.sort(key=lambda pair: (-similarities[pair[0]], records[pair[0]]["dataset_id"]))
+        support_ids = [records[i]["dataset_id"] for i, _ in matches]
+        references = []
+        for i, hits in matches[:3]:
+            row, hit = records[i], hits[0]
+            references.append({
+                "dataset_id": row["dataset_id"], "video_id": row["video_id"],
+                "title": row["title"], "channel_id": row["channel_id"],
+                "channel_title": row.get("channel_title"),
+                "transcript_sha256": text_hash(row["transcript"]),
+                **{key: hit[key] for key in (
+                    "quote", "matched_text", "start_char", "end_char",
+                    "quote_start_char", "quote_end_char")},
+            })
         advice.append({
             "topic": template["key"], "title": template["title"],
             "kind": "shared" if shared else "not_detected",
             "message": ("พบประเด็นนี้ในคลิปของคุณและคลิปกลุ่ม High สามารถใช้คลิปอ้างอิงประกอบการลงรายละเอียด"
                         if shared else "ยังไม่ตรวจพบประเด็นนี้ในข้อความของคุณ ลองพิจารณาเพิ่มเมื่อเกี่ยวข้องกับสิ่งที่รีวิวจริง"),
+            "summary": ("ตรวจพบประเด็นนี้ทั้งในข้อความของคุณและคลิปกลุ่ม High"
+                        if shared else "พบประเด็นนี้ในคลิปกลุ่ม High แต่ยังไม่ตรวจพบในข้อความของคุณ"),
             "support_count": len(matches), "channel_count": len(channels),
-            "references": [{"dataset_id": records[i]["dataset_id"],
-                            "quote": hits[0]["quote"], "matched_text": hits[0]["matched_text"]}
-                           for i, hits in matches[:3]],
+            "supporting_dataset_ids": support_ids,
+            # A conditional editing suggestion, not an observed result or causal claim.
+            "application": {
+                "text": template["proposal"], "condition": template["condition"],
+                "source": "versioned_topic_template", "template_key": template["key"],
+                "template_version": catalog["version"],
+                "basis_dataset_ids": support_ids,
+                "causal_engagement_claim": False,
+            },
+            "references": references,
         })
     return sorted(advice, key=lambda item: (-item["support_count"], item["topic"]))[:6]
 

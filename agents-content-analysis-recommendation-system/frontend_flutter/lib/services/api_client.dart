@@ -4,9 +4,17 @@ import "dart:typed_data";
 import "package:http/http.dart" as http;
 import "package:shared_preferences/shared_preferences.dart";
 
+class SessionExpiredException implements Exception {
+  const SessionExpiredException();
+
+  @override
+  String toString() => 'เซสชันหมดอายุหรือถูกยกเลิก กรุณาเข้าสู่ระบบใหม่';
+}
+
 class ApiClient {
-  ApiClient({String? baseUrl})
-      : baseUrl =
+  ApiClient({String? baseUrl, http.Client? client})
+      : _client = client,
+        baseUrl =
             (baseUrl ?? _configuredBaseUrl).replaceFirst(RegExp(r'/$'), '');
 
   static const String _configuredBaseUrl = String.fromEnvironment(
@@ -15,8 +23,11 @@ class ApiClient {
   );
 
   final String baseUrl;
+  final http.Client? _client;
+  static final Set<String> _rejectedTokens = {};
 
-  Future<Map<String, String>> _headers({bool json = true}) async {
+  Future<Map<String, String>> _headers(
+      {bool json = true, bool authenticate = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("access_token");
     final sessionKey = prefs.getString("trend_session_key");
@@ -24,7 +35,11 @@ class ApiClient {
     if (json) {
       headers["Content-Type"] = "application/json";
     }
+    if (!authenticate) return headers;
     if (token != null && token.isNotEmpty) {
+      if (_rejectedTokens.contains(token)) {
+        throw const SessionExpiredException();
+      }
       headers["Authorization"] =
           "Bearer " + token; // ignore: prefer_interpolation_to_compose_strings
     }
@@ -35,38 +50,43 @@ class ApiClient {
   }
 
   Future<dynamic> get(String path) async {
-    final response = await http.get(
+    final headers = await _headers(json: false);
+    final response = await (_client?.get ?? http.get)(
       Uri.parse(baseUrl + path),
-      headers: await _headers(json: false),
+      headers: headers,
     );
-    return _decode(response);
+    return _decode(response, authorization: headers['Authorization']);
   }
 
   Future<dynamic> post(String path, Map<String, dynamic> body) async {
-    final response = await http.post(
+    final headers = await _headers(
+        authenticate: path != '/auth/login' && path != '/auth/register');
+    final response = await (_client?.post ?? http.post)(
       Uri.parse(baseUrl + path),
-      headers: await _headers(),
+      headers: headers,
       body: jsonEncode(body),
     );
-    return _decode(response);
+    return _decode(response, authorization: headers['Authorization']);
   }
 
   Future<dynamic> put(String path, Map<String, dynamic> body) async {
-    final response = await http.put(
+    final headers = await _headers();
+    final response = await (_client?.put ?? http.put)(
       Uri.parse(baseUrl + path),
-      headers: await _headers(),
+      headers: headers,
       body: jsonEncode(body),
     );
-    return _decode(response);
+    return _decode(response, authorization: headers['Authorization']);
   }
 
   Future<dynamic> delete(String path, {Map<String, dynamic>? body}) async {
-    final response = await http.delete(
+    final headers = await _headers(json: body != null);
+    final response = await (_client?.delete ?? http.delete)(
       Uri.parse(baseUrl + path),
-      headers: await _headers(json: body != null),
+      headers: headers,
       body: body == null ? null : jsonEncode(body),
     );
-    return _decode(response);
+    return _decode(response, authorization: headers['Authorization']);
   }
 
   Future<dynamic> postMultipart(
@@ -95,12 +115,20 @@ class ApiClient {
       throw ArgumentError(
           "Either filePath, fileBytes, or fileStream must be provided for multipart upload.");
     }
-    final streamed = await request.send();
+    final streamed =
+        await (_client == null ? request.send() : _client.send(request));
     final response = await http.Response.fromStream(streamed);
-    return _decode(response);
+    return _decode(response, authorization: headers['Authorization']);
   }
 
-  dynamic _decode(http.Response response) {
+  dynamic _decode(http.Response response, {String? authorization}) {
+    // There is no refresh-token endpoint in the current authentication contract.
+    // Remember the rejected credential, not the current stored token: a late
+    // response from an old session must not invalidate a newer login.
+    if (response.statusCode == 401 && authorization != null) {
+      _rejectedTokens.add(authorization.substring('Bearer '.length));
+      throw const SessionExpiredException();
+    }
     final rawBody = response.body;
     dynamic body;
     if (rawBody.isEmpty) {

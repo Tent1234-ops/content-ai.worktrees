@@ -231,10 +231,17 @@ class _AnalysisReportState extends State<AnalysisReport>
                 '${topic['topic_id']}':
                     '${topic['title_th'] ?? topic['canonical_topic']}',
           };
-    final performanceTopics = referenceResponses(bundle,
-      recommendedTopics: referenceTopicLabels)
-      .where((topic) => topic.groups.isNotEmpty).toList();
-    final hasModernTopicComparison = bundle['topic_comparisons'] is Map;
+    final performanceTopics =
+        referenceResponses(bundle, recommendedTopics: referenceTopicLabels)
+            .where((topic) => topic.groups.isNotEmpty)
+            .toList();
+    final comparisons = bundle['topic_comparisons'];
+    final comparisonItems = comparisons is Map ? comparisons['items'] : null;
+    // Legacy topic comparisons predate frozen group summaries. A present but
+    // invalid summary must still fail closed, never broaden to the category.
+    final hasModernTopicComparison = comparisonItems is List &&
+        comparisonItems.any((item) =>
+            item is Map && item.containsKey('group_response_summary'));
     final openingKeywords = recommendation.hookKeywords
         .where(
             (word) => actions == null || adviceLabels.containsKey(word.keyword))
@@ -397,10 +404,12 @@ class _AnalysisReportState extends State<AnalysisReport>
                 !inputUnassessable)
               if (performanceTopics.isNotEmpty || !hasModernTopicComparison)
                 PerformanceClusteringPanel(
-                    contentId: data.contentId!, repository: repository,
+                    contentId: data.contentId!,
+                    repository: repository,
                     topics: performanceTopics)
               else
-                const Text('ยังไม่มีหัวข้อที่มีหลักฐานผ่านเกณฑ์เพียงพอสำหรับจัดกลุ่มผลงาน'),
+                const Text(
+                    'ยังไม่มีหัวข้อที่มีหลักฐานผ่านเกณฑ์เพียงพอสำหรับจัดกลุ่มผลงาน'),
             if (classification?.isUnknown == true &&
                 classification!.rawTaxonomyLeafKey.isNotEmpty) ...[
               Text('ผลทายก่อนตรวจรับ',

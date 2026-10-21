@@ -97,7 +97,8 @@ class AppRouter {
       case '/admin-analysis-settings':
         return _page(const AdminAnalysisSettingsScreen(), settings);
       case '/admin-training':
-        return _page(const AdminTrainingScreen(), settings);
+        return _page(AdminTrainingScreen(
+            initialRunId: settings.arguments is String ? settings.arguments as String : null), settings);
       case '/admin-users':
         return _page(const AdminUsersScreen(), settings);
       case '/admin-logs':

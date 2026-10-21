@@ -59,6 +59,12 @@ class PerformanceComparison {
   }
   final Map<String, dynamic> raw, clustering, similarity;
   final List<Map<String, dynamic>> videos, advice;
+  List<PerformanceInsight> get insights => closest == null
+      ? const []
+      : advice
+          .map((item) => PerformanceInsight.parse(item, videos))
+          .whereType<PerformanceInsight>()
+          .toList(growable: false);
   String get category => raw['category'] as String? ?? 'unknown';
   int get referenceCount => raw['reference_count'] as int;
   int get eligibleCount => raw['eligible_count'] as int;
@@ -87,6 +93,132 @@ class PerformanceComparison {
       (raw['missing_keywords'] as List? ?? []).whereType<String>().toList();
   Map<String, int> get exclusions => _object(raw['excluded_counts'])
       .map((key, value) => MapEntry(key, (value as num).toInt()));
+}
+
+String _text(dynamic value) => value is String ? value.trim() : '';
+
+class PerformanceInsightReference {
+  const PerformanceInsightReference({
+    required this.datasetId,
+    required this.videoId,
+    required this.title,
+    required this.channelTitle,
+    required this.quote,
+    required this.matchedText,
+    required this.transcriptHash,
+  });
+  final int datasetId;
+  final String videoId, title, channelTitle, quote, matchedText, transcriptHash;
+  Uri get url => Uri.https('www.youtube.com', '/watch', {'v': videoId});
+}
+
+class PerformanceInsight {
+  const PerformanceInsight({
+    required this.topic,
+    required this.title,
+    required this.summary,
+    required this.supportCount,
+    required this.channelCount,
+    required this.application,
+    required this.condition,
+    required this.references,
+  });
+  final String topic, title, summary, application, condition;
+  final int supportCount, channelCount;
+  final List<PerformanceInsightReference> references;
+
+  static PerformanceInsight? parse(
+      Map<String, dynamic> json, List<Map<String, dynamic>> videos) {
+    final high = {
+      for (final video in videos)
+        if (video['performance_level'] == 'high') video['dataset_id']: video
+    };
+    final ids = json['supporting_dataset_ids'];
+    final count = json['support_count'], channels = json['channel_count'];
+    if (ids is! List ||
+        ids.any((id) => id is! int || !high.containsKey(id)) ||
+        ids.toSet().length != ids.length ||
+        count is! int ||
+        count < 2 ||
+        count != ids.length ||
+        channels is! int ||
+        channels < 2 ||
+        ids.map((id) => _text(high[id]!['channel_id'])).toSet().length !=
+            channels ||
+        ids.any((id) => _text(high[id]!['channel_id']).isEmpty)) {
+      return null;
+    }
+    final topic = _text(json['topic']), title = _text(json['title']);
+    final summary = _text(json['summary']);
+    if (topic.isEmpty || title.isEmpty || summary.isEmpty) return null;
+    final references = <PerformanceInsightReference>[];
+    final seen = <int>{};
+    for (final ref in _rows(json['references'])) {
+      final id = ref['dataset_id'], video = high[ref['dataset_id']];
+      if (id is! int || !ids.contains(id) || video == null || !seen.add(id)) {
+        continue;
+      }
+      final videoId = _text(video['video_id']);
+      final quote = ref['quote'] is String ? ref['quote'] as String : '';
+      final matched =
+          ref['matched_text'] is String ? ref['matched_text'] as String : '';
+      final hash = _text(ref['transcript_sha256']);
+      final start = ref['start_char'], end = ref['end_char'];
+      final quoteStart = ref['quote_start_char'],
+          quoteEnd = ref['quote_end_char'];
+      final runes = quote.runes.toList();
+      if (!RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(videoId) ||
+          ref['video_id'] != videoId ||
+          ref['channel_id'] != video['channel_id'] ||
+          !RegExp(r'^[a-f0-9]{64}$').hasMatch(hash) ||
+          quote.isEmpty ||
+          matched.isEmpty ||
+          start is! int ||
+          end is! int ||
+          quoteStart is! int ||
+          quoteEnd is! int ||
+          quoteStart < 0 ||
+          start < quoteStart ||
+          end <= start ||
+          end > quoteEnd ||
+          quoteEnd - quoteStart != runes.length ||
+          String.fromCharCodes(
+                  runes.sublist(start - quoteStart, end - quoteStart)) !=
+              matched) {
+        continue;
+      }
+      references.add(PerformanceInsightReference(
+        datasetId: id,
+        videoId: videoId,
+        title: _text(video['title']).isEmpty ? videoId : _text(video['title']),
+        channelTitle: _text(video['channel_title']),
+        quote: quote,
+        matchedText: matched,
+        transcriptHash: hash,
+      ));
+    }
+    if (references.isEmpty) return null;
+    final action = _object(json['application']);
+    final basis = action['basis_dataset_ids'];
+    final groundedAction = action['source'] == 'versioned_topic_template' &&
+        action['template_key'] == topic &&
+        _text(action['template_version']).isNotEmpty &&
+        action['causal_engagement_claim'] == false &&
+        basis is List &&
+        basis.length == ids.length &&
+        basis.toSet().length == ids.length &&
+        basis.every(ids.contains);
+    return PerformanceInsight(
+      topic: topic,
+      title: title,
+      summary: summary,
+      supportCount: count,
+      channelCount: channels,
+      application: groundedAction ? _text(action['text']) : '',
+      condition: groundedAction ? _text(action['condition']) : '',
+      references: List.unmodifiable(references),
+    );
+  }
 }
 
 String performanceReason(dynamic reason) => switch (reason) {

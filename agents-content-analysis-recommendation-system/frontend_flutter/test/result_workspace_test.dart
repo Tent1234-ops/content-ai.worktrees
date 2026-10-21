@@ -105,8 +105,10 @@ class _Repository extends ContentRepository {
 
   @override
   Future<PerformanceComparison> getPerformanceComparison(int contentId,
-      {int? minimumViews, String? topicId, int? groupIndex,
-       String comparisonMethod = 'tfidf'}) async {
+      {int? minimumViews,
+      String? topicId,
+      int? groupIndex,
+      String comparisonMethod = 'embedding_centroid'}) async {
     performanceReads.add(contentId);
     return PerformanceComparison.fromJson(performance.fixture());
   }
@@ -141,6 +143,36 @@ class _Repository extends ContentRepository {
 }
 
 void main() {
+  for (final invalidSummary in [false, true]) {
+    testWidgets('legacy comparison vs invalid frozen summary: $invalidSummary',
+        (tester) async {
+      final payload = _payload();
+      final bundle =
+          (payload['recommendation'] as Map)['evidence_bundle'] as Map;
+      final comparison = bundle['topic_comparisons'] as Map;
+      for (final item in comparison['items'] as List) {
+        if (invalidSummary) {
+          (item as Map)['group_response_summary'] = <String, dynamic>{};
+        } else {
+          (item as Map).remove('group_response_summary');
+        }
+      }
+      final before = jsonEncode(payload);
+      final repo = _Repository(AnalysisResultViewData.fromJson(payload));
+      await _report(tester, payload, repository: repo);
+      await _tab(tester, 'evidence');
+      expect(repo.performanceReads, invalidSummary ? isEmpty : [41]);
+      if (invalidSummary) {
+        expect(
+            find.textContaining('ยังไม่มีหัวข้อที่มีหลักฐานผ่านเกณฑ์เพียงพอ'),
+            findsOneWidget);
+      } else {
+        expect(find.byKey(const ValueKey('performance-clustering-panel')),
+            findsOneWidget);
+      }
+      expect(jsonEncode(payload), before);
+    });
+  }
   for (final width in [390.0, 768.0, 1280.0, 1600.0]) {
     for (final brightness in Brightness.values) {
       testWidgets('result workspace fits $width in $brightness',

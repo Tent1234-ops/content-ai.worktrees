@@ -20,6 +20,7 @@
 - Existing grounded High-topic advice now also works with semantic reference ranking; it still requires actual matching quotes from at least two High clips/two channels.
 - Model failure preserves valid KPI clustering and reports unavailable text comparison.
 - Responsive dropdown overflow fixed; switching comparison methods preserves the selected minimum views in whole-category mode.
+- Legacy saved results that contain topic comparisons but predate frozen group summaries now display the explicitly labelled current whole-category comparison. A present-but-invalid summary still withholds the panel; it never broadens the requested topic cohort.
 - Thai explanation and presentation narrative updated in `docs/presentation/system-walkthrough-th.md`, chapter 20.
 
 ## Real-Data Evidence
@@ -34,15 +35,29 @@ Read-only `#41 review camera`, whole Camera category, minimum 25,000 cumulative 
 - Saved analysis unchanged; no database writes in audit.
 - Evidence: `artifacts/performance-clustering/20261020/text-centroid-audit/{audit,actual-response}.json`.
 - This whole-category audit is not the denominator/result for every saved-topic cell on the UI.
+- Fresh-process warm-cache audit reproduced the same distances and fingerprint in **10.948s**, including model loading: `text-centroid-warm-audit/audit.json`.
 
 ## Verification
 
-- Backend regression: **105 tests passed** in 34.936s, including signed distances, full-text coverage, token/clip weighting, abstention, missing-model fallback, fixed KPI groups, owner authorization, eligibility and existing reference/classification logic.
+- Backend regression: **106 tests passed** in 33.443s, including signed distances, full-text coverage, token/clip weighting, cache reuse/invalidation, abstention, missing-model fallback, fixed KPI groups, owner authorization, eligibility and existing reference/classification logic.
 - Log: `artifacts/performance-clustering/20261020/text-centroid-backend-tests.txt`.
 - Flutter full-suite attempt: **311 passed, 1 compilation failure** in the existing unused `automatic_performance_clustering_test.dart`/panel draft. It expects `getAutomaticPerformanceOverview`, which the repository does not expose, and its comparison override lacks `comparisonMethod`. This is not reported as an all-green full suite.
 - That draft's backend service also calls unsupported private `_content`/`_reference_rows` parameters, and its test imports an absent `PerformanceOverviewResponse`. Do not wire this draft into Result without completing its separate contract.
 - Full-suite log: `artifacts/performance-clustering/20261020/text-centroid-flutter-tests.txt`.
-- Active-path focused tests, analyzer, release build and browser verification: pending final run below.
+- Active-path Flutter tests: **37 passed**, including legacy vs invalid frozen-summary regression, 390/768/1280/1600 widths in both themes, method switch, threshold changes, retry, disposal and existing Result workflow. Log: `text-centroid-focused-tests.txt`.
+- Analyzer of the active feature/repository/result paths: **no issues** (`text-centroid-analyze.txt`).
+- Release build: **passed**, 35.3s (`text-centroid-build.txt`). Existing Cupertino font-family warning remains; this panel uses Material icons, verified visually.
+- Real API/Edge browser: **all 8 width/theme combinations passed**. UI distances match API, All/Low/High filters work, original reference evidence remains, threshold empty/recovery works, stored results unchanged, temporary authentication session ended.
+- Browser evidence: `artifacts/performance-clustering/20261020/text-centroid-browser-verified/verification.json` and screenshots/API payloads alongside it. No mocked KPI/classification response.
+- Pixel checks: **8 charts passed**, with visible plotted points and hover tooltip pixel changes (`pixel-checks.json`). Mobile light, tablet dark and desktop light screenshots inspected for framing/overlap.
+- Earlier `text-centroid-browser/` is a failed run that discovered the legacy-summary bug, not the final passing evidence; it is retained for traceability.
+
+## Running Application
+
+- Web: `http://127.0.0.1:8082/#/history`
+- API: `http://127.0.0.1:8011`
+- Open saved `#41 review camera`, then the reference evidence tab. The comparison method defaults to Text Centroid.
+- Background process identities and logs: `runtime_artifacts/performance-clustering/`.
 
 ## Remaining Limitations
 
@@ -51,3 +66,4 @@ Read-only `#41 review camera`, whole Camera category, minimum 25,000 cumulative 
 - Local cached model is required; absence is reported rather than automatically downloading.
 - First-time encoding is slower than cached requests. References are cached, user embeddings are recomputed.
 - The unused automatic-overview draft remains incomplete as described above. No attempt was made to hide its test failure or remove its files.
+- Before claiming predictive superiority, compare centroid similarity against TF-IDF/nearest-neighbour baselines on genuinely held-out channels, with balanced class metrics. Do not reinterpret distance or a softmax over distances as calibrated success probability.

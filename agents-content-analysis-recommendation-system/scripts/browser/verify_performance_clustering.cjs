@@ -11,7 +11,14 @@ const web = 'http://127.0.0.1:8082';
 fs.mkdirSync(output, { recursive: true });
 const report = { checks: [], errors: [], mode: 'real saved content 41 and current references', mock_kpis: false };
 let browser, context, page, auth, navigation = 0;
-const save = () => fs.writeFileSync(path.join(output, 'verification.json'), JSON.stringify(report, null, 2));
+const save = () => {
+  let json = JSON.stringify(report, null, 2);
+  for (const secret of [auth?.token, auth?.session].filter(Boolean)) {
+    json = json.split(secret).join('[redacted]');
+  }
+  fs.writeFileSync(path.join(output, 'verification.json'), json);
+};
+const escapePattern = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 async function aria() { return page.locator('body').ariaSnapshot(); }
 async function text(value) {
   for (let i = 0; i < 150; i++) {
@@ -54,6 +61,15 @@ async function tab(label) {
   try {
     browser = await chromium.launch({ channel: 'msedge', headless: true });
     context = await browser.newContext({ timezoneId: 'Asia/Bangkok', serviceWorkers: 'block' });
+    let apiReady = false;
+    const startupDeadline = Date.now() + 120000;
+    while (!apiReady && Date.now() < startupDeadline) {
+      try {
+        apiReady = (await context.request.get(api + '/openapi.json', { timeout: 3000 })).status() === 200;
+      } catch (_) { /* A freshly started API may still be loading local models. */ }
+      if (!apiReady) await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    assert.ok(apiReady, 'API did not become ready within 120 seconds');
     auth = JSON.parse(execFileSync('py', ['-X', 'utf8', '-c', `
 import json
 from datetime import timedelta
@@ -126,6 +142,11 @@ with SessionLocal() as db:
         fs.writeFileSync(path.join(output, `ui-api-${width}-${mode}.json`), JSON.stringify(uiData, null, 2));
         await text('วิเคราะห์กลุ่มผลงาน');
         assert.equal(calls, 1);
+        const summarySnapshot = await aria();
+        for (const removed of ['วิธีเทียบ Transcript', 'ใช้กลุ่มที่ผ่าน Benchmark',
+          'ใช้เฉพาะคลิปที่ผ่านเกณฑ์ยอดวิว', 'เกณฑ์หลักฐานเดิม:']) {
+          assert.ok(!summarySnapshot.includes(removed), 'Removed text remains: ' + removed);
+        }
         await shot(`summary-${width}-${mode}`);
         const chart = page.getByRole('img', { name: /^กราฟกระจายยอดวิวและไลก์/ });
         await seek(chart);
@@ -148,8 +169,38 @@ with SessionLocal() as db:
           const expected = uiData.content_similarity[level + '_distance'].toFixed(4);
           assert.ok(snapshot.includes(expected), 'UI distance does not match API: ' + expected);
         }
-        assert.ok(snapshot.includes('คะแนนนี้วัดความคล้ายของเนื้อหา ไม่ใช่การคาดการณ์ยอดวิวหรือยอดไลก์'));
+        assert.ok(!snapshot.includes('คะแนนนี้วัดความคล้ายของเนื้อหา'));
+        assert.ok(!snapshot.includes('Low/High เปรียบเทียบเฉพาะคลิปอ้างอิง'));
         await shot(`similarity-${width}-${mode}`);
+        const insight = uiData.recommendations[0];
+        assert.ok(insight && insight.references.length, 'Real insight evidence required');
+        await seek(page.getByText('ประเด็นจากกลุ่ม High', { exact: false }).first());
+        await seek(page.getByText(insight.summary, { exact: false })
+          .or(page.getByLabel(insight.summary, { exact: false })).first());
+        assert.ok((await aria()).includes(`พบใน ${insight.support_count} คลิป จาก ${insight.channel_count} ช่อง`));
+        await shot(`insight-card-${width}-${mode}`);
+        const card = page.getByRole('group', {
+          name: new RegExp('^นำไปปรับใช้กับคลิปของคุณ ' + escapePattern(insight.application.text)),
+        }).first();
+        const toggle = card.getByRole('button', { name: 'ดูหลักฐานจาก Transcript', exact: true });
+        await seek(toggle);
+        assert.ok(!(await aria()).includes(insight.references[0].quote));
+        await shot(`insight-collapsed-${width}-${mode}`);
+        await toggle.click();
+        await page.waitForTimeout(400);
+        await shot(`insight-open-${width}-${mode}`);
+        const quote = page.getByText(insight.references[0].quote, { exact: false })
+          .or(page.getByLabel(insight.references[0].quote, { exact: false })).first();
+        await seek(quote);
+        await shot(`insight-expanded-${width}-${mode}`);
+        // The expanded evidence can move its toggle above Flutter's semantics
+        // viewport. Return upward before seeking that same card's control.
+        await page.mouse.move(width - 30, page.viewportSize().height - 120);
+        await page.mouse.wheel(0, -page.viewportSize().height);
+        await page.waitForTimeout(250);
+        await (await seek(toggle)).click();
+        await page.waitForTimeout(400);
+        assert.ok(!(await aria()).includes(insight.references[0].quote));
         for (const level of ['High', 'Low', 'All']) {
           const choice = page.getByRole('radio', { name: level, exact: true })
             .or(page.getByRole('checkbox', { name: level, exact: true }));
@@ -182,26 +233,9 @@ with SessionLocal() as db:
           await shot('restored-threshold');
           report.threshold_empty_and_restored = true;
         }
-        if (width === 1280 && mode === 'light' && uiData.selection) {
-          await page.mouse.move(width - 30, 700);
-          await page.mouse.wheel(0, -50000);
-          await page.waitForTimeout(400);
-          const method = page.getByText('Text Centroid · SentenceTransformer', { exact: false }).first();
-          await (await seek(method)).click();
-          const legacyResponse = page.waitForResponse(r => r.url().includes('comparison_method=tfidf'), { timeout: 180000 });
-          await page.getByText('TF-IDF + Top-K', { exact: false }).last().click();
-          const legacy = await (await legacyResponse).json();
-          assert.deepEqual(legacy.clustering, uiData.clustering);
-          assert.equal(legacy.content_similarity.method, 'tfidf_cosine_similarity');
-          await text('วิเคราะห์กลุ่มผลงาน');
-          await (await seek(page.getByText('TF-IDF + Top-K', { exact: false }).first())).click();
-          const restored = page.waitForResponse(r => r.url().includes('comparison_method=embedding_centroid'), { timeout: 180000 });
-          await page.getByText('Text Centroid · SentenceTransformer', { exact: false }).last().click();
-          assert.equal((await (await restored).json()).content_similarity.low_distance,
-            uiData.content_similarity.low_distance);
-          report.method_switch_preserves_kpi_cohort = true;
-        }
-        report.checks.push({ width, mode, api_matched: true, filters: true, chart: true, original_evidence_preserved: true });
+        report.checks.push({ width, mode, api_matched: true, filters: true, chart: true,
+          insight_counts_matched: true, transcript_expand_collapse: true,
+          original_evidence_preserved: true });
         save();
         await page.close();
       }
@@ -227,6 +261,25 @@ with SessionLocal() as db:
         report.errors.push(error.message);
         report.passed = false;
         process.exitCode = 1;
+        try {
+          execFileSync('py', ['-X', 'utf8', '-c', `
+import os
+from app.database.db import SessionLocal
+from app.database.models import UserTrendWatchSession
+from app.services.trend_watch_sessions import end_trend_watch_session
+with SessionLocal() as db:
+    watch = db.query(UserTrendWatchSession).filter_by(session_key=os.environ['CONTENT_AI_VERIFY_SESSION']).one()
+    assert watch.user_id == int(os.environ['CONTENT_AI_VERIFY_USER'])
+    if watch.is_active:
+        end_trend_watch_session(db, watch_session=watch)
+`], { cwd: root, windowsHide: true, env: { ...process.env, CONTENT_AI_SKIP_DB_BOOTSTRAP: '1',
+            CONTENT_AI_VERIFY_SESSION: auth.session, CONTENT_AI_VERIFY_USER: String(auth.user.user_id) } });
+          report.temporary_session_ended = true;
+          report.session_cleanup_method = 'direct service fallback after API failure';
+        } catch (_) {
+          report.temporary_session_ended = false;
+          report.errors.push('Direct cleanup of this temporary session also failed');
+        }
       }
     }
     save();

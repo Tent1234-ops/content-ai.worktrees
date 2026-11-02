@@ -2,6 +2,7 @@ import 'package:content_ai_web/models/common_models.dart';
 import 'package:content_ai_web/models/model_training.dart';
 import 'package:content_ai_web/repositories/admin_repository.dart';
 import 'package:content_ai_web/screens/admin_training_screen.dart';
+import 'package:content_ai_web/services/api_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -72,10 +73,12 @@ TrainingRun run(String status) => TrainingRun.fromJson({
 class TrainingRepository extends AdminRepository {
   bool ready = true, failLoad = false, reviewable = false;
   int starts = 0, active = 14, polls = 0;
+  bool expiredOnOverview = false, expiredOnStart = false;
   int? activated;
   TrainingRun? latest;
   @override
   Future<TrainingOverview> trainingOverview() async {
+    if (expiredOnOverview) throw const SessionExpiredException();
     if (failLoad) throw Exception('offline');
     return TrainingOverview.fromJson({
       'dataset': {
@@ -150,6 +153,7 @@ class TrainingRepository extends AdminRepository {
   @override
   Future<TrainingRun> startTraining(String fingerprint) async {
     expect(fingerprint, 'a' * 64);
+    if (expiredOnStart) throw const SessionExpiredException();
     starts++;
     latest = run('queued');
     return latest!;
@@ -245,6 +249,29 @@ void main() {
     expect(repository.polls, 1);
     expect(find.text('โมเดลที่บันทึกไว้ (3)'), findsOneWidget);
     expect(repository.activated, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('expired token during overview prompts login instead of retry',
+      (tester) async {
+    final repository = TrainingRepository()..expiredOnOverview = true;
+    await open(tester, repository);
+    expect(find.text('เข้าสู่ระบบใหม่'), findsOneWidget);
+    expect(find.byKey(const Key('start-training')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('expired token at train start does not silently retry training',
+      (tester) async {
+    final repository = TrainingRepository()..expiredOnStart = true;
+    await open(tester, repository);
+    await tester.tap(find.byKey(const Key('start-training')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ยืนยันเริ่มเทรน'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(repository.starts, 0);
+    expect(find.text('เข้าสู่ระบบใหม่'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

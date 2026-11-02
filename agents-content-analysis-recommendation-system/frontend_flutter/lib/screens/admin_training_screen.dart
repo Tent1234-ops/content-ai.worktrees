@@ -102,7 +102,7 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
 
   void _expireSession() {
     _timer?.cancel();
-    if (mounted) setState(() => _sessionExpired = true);
+    if (mounted && !_sessionExpired) setState(() => _sessionExpired = true);
   }
 
   Future<void> _train() async {
@@ -132,13 +132,17 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
     try {
       final run = await _repository
           .startTraining(data.dataset['dataset_fingerprint'] as String);
-      if (mounted) setState(() {
-        _run = run;
-        _resumeRunId = run.id;
-      });
+      if (mounted) {
+        setState(() {
+          _run = run;
+          _resumeRunId = run.id;
+        });
+      }
+    } on SessionExpiredException {
+      _expireSession();
     } catch (e) {
       await _load();
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted && !_sessionExpired) setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -176,9 +180,11 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('เปิดใช้โมเดล #${_data?.activeModel?.id} แล้ว')));
       }
+    } on SessionExpiredException {
+      _expireSession();
     } catch (e) {
       await _load();
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted && !_sessionExpired) setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -201,6 +207,8 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
           _models.addAll(next.items.where((m) => !ids.contains(m.id)));
         });
       }
+    } on SessionExpiredException {
+      _expireSession();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -270,7 +278,10 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen>
                           ),
                           const SizedBox(height: 24),
                           if (_outcomeMode)
-                            OutcomeTrainingPanel(repository: _repository)
+                            OutcomeTrainingPanel(
+                                repository: _repository,
+                                onSessionExpired: _expireSession,
+                              )
                           else ...[
                             Text('โมเดลจำแนกหมวดที่ใช้งานอยู่',
                                 style: Theme.of(context).textTheme.titleMedium),
